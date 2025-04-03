@@ -2,7 +2,6 @@ package noise
 
 import (
 	"crypto"
-	"io"
 
 	"golang.org/x/crypto/hkdf"
 )
@@ -39,6 +38,14 @@ func GetHash(hk hashKey) (crypto.Hash, error) {
 	return algo, err
 }
 
-func Hkdf(hash crypto.Hash, ikm, salt []byte) io.Reader {
-	return hkdf.New(hash.New, ikm, salt, nil)
+func fillKeys(hash crypto.Hash, ikm, salt []byte, keys ...[]byte) error {
+	var err error
+	rdr := hkdf.New(hash.New, ikm, salt, nil)
+	for _, key := range keys {
+		_, err = rdr.Read(key)
+		if nil != err {
+			return err
+		}
+	}
+	return nil
 }
