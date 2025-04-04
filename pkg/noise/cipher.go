@@ -45,13 +45,22 @@ func (self *CipherState) HasKey() bool {
 }
 
 func (self *CipherState) InitializeKey(newkey []byte) error {
-	numbytes := copy(self.key(), newkey)
-	if numbytes < 32 {
-		return ErrRekeyLowEntropy
-	}
-	aead, err := self.factory(self.key())
-	if nil != err {
-		return err
+	var aead aeadIfce
+	var err error
+	if len(newkey) == 0 {
+		// if newkey has length 0, we assume it corresponds to the "empty" key mentionned in noise specs 5.2
+		aead = nil
+		zeros := make([]byte, 32)
+		copy(self.key(), zeros)
+	} else {
+		numbytes := copy(self.key(), newkey)
+		if numbytes < 32 {
+			return ErrRekeyLowEntropy
+		}
+		aead, err = self.factory(self.key())
+		if nil != err {
+			return err
+		}
 	}
 	self.aead = aead
 	self.n = 0
