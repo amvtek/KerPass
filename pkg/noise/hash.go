@@ -6,17 +6,14 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-// hashKey allows indexing supported hash algorithm
-type hashKey int
-
 const (
-	HASH_SHA256 hashKey = iota
-	HASH_SHA512
-	HASH_BLAKE2B
-	HASH_BLAKE2S
+	HASH_SHA256  = "SHA256"
+	HASH_SHA512  = "SHA512"
+	HASH_BLAKE2B = "BLAKE2b"
+	HASH_BLAKE2S = "BLAKE2s"
 )
 
-func GetHash(hk hashKey) (crypto.Hash, error) {
+func GetHash(hk string) (crypto.Hash, error) {
 	var algo crypto.Hash
 	switch hk {
 	case HASH_SHA256:

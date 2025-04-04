@@ -13,11 +13,9 @@ const (
 	CIPHER_MAX_NONCE = MAX_UINT64 - 1
 )
 
-type cipherRef int
-
 const (
-	CIPHER_AES256_GCM cipherRef = iota
-	CIPHER_CHACHA20_POLY1305
+	CIPHER_AES256_GCM        = "AESGCM"
+	CIPHER_CHACHA20_POLY1305 = "ChaChaPoly"
 )
 
 type CipherState struct {
@@ -28,7 +26,7 @@ type CipherState struct {
 	nonce   [12]byte
 }
 
-func NewCipherState(algo cipherRef) (*CipherState, error) {
+func NewCipherState(algo string) (*CipherState, error) {
 
 	var newAead aeadFactory
 	switch algo {

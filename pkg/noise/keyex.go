@@ -5,13 +5,11 @@ import (
 	"crypto/rand"
 )
 
-type keyexchKey int
-
 const (
-	KEYEXCH_25519 keyexchKey = 0
+	KEYEXCH_25519 = "25519"
 )
 
-func GetKeyExch(ke keyexchKey) (KeyExch, error) {
+func GetKeyExch(ke string) (KeyExch, error) {
 	var err error
 	kx := KeyExch{}
 	switch ke {
