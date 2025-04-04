@@ -35,9 +35,9 @@ func GetHash(hk string) (crypto.Hash, error) {
 	return algo, err
 }
 
-func fillKeys(hash crypto.Hash, ikm, salt []byte, keys ...[]byte) error {
+func Hkdf(hash crypto.Hash, ck, ikm []byte, keys ...[]byte) error {
 	var err error
-	rdr := hkdf.New(hash.New, ikm, salt, nil)
+	rdr := hkdf.New(hash.New, ck, ikm, nil)
 	for _, key := range keys {
 		_, err = rdr.Read(key)
 		if nil != err {
