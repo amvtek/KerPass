@@ -22,6 +22,10 @@ func TestParsePattern(t *testing.T) {
 			-> ee
 			`,
 			expect: HandshakePattern{
+				prereqs: []msgPtrn{
+					{sender: "->", tokens: []string{}},
+					{sender: "<-", tokens: []string{}},
+				},
 				messages: []msgPtrn{
 					{sender: "->", tokens: []string{"e"}},
 					{sender: "<-", tokens: []string{"e", "ee"}},
@@ -40,13 +44,34 @@ func TestParsePattern(t *testing.T) {
 			<- e, ee, se
 			`,
 			expect: HandshakePattern{
-				preMessages: []msgPtrn{
-					{sender: "->", tokens: []string{"s"}},
-					{sender: "<-", tokens: []string{"s"}},
+				prereqs: []msgPtrn{
+					{sender: "->", tokens: []string{"rs", "s"}},
+					{sender: "<-", tokens: []string{"rs", "s"}},
 				},
 				messages: []msgPtrn{
 					{sender: "->", tokens: []string{"e", "es", "ss"}},
 					{sender: "<-", tokens: []string{"e", "ee", "se"}},
+				},
+			},
+		},
+		{
+			// dsl is in "Bob form", ie initiator is at the right
+			dsl: `
+			-> s
+			<- s
+				...
+
+			<- e, se, ss
+			-> e, ee, es
+			`,
+			expect: HandshakePattern{
+				prereqs: []msgPtrn{
+					{sender: "<-", tokens: []string{"rs", "s"}},
+					{sender: "->", tokens: []string{"rs", "s"}},
+				},
+				messages: []msgPtrn{
+					{sender: "<-", tokens: []string{"e", "se", "ss"}},
+					{sender: "->", tokens: []string{"e", "ee", "es"}},
 				},
 			},
 		},
@@ -72,8 +97,11 @@ func TestParsePattern(t *testing.T) {
 			fail: true,
 		},
 	}
+
+	var err error
+	var hsp HandshakePattern
 	for pos, tc := range testcases {
-		hsp, err := ParsePatternDSL(tc.dsl)
+		err = hsp.LoadDSL(tc.dsl)
 		if tc.fail {
 			if nil == err {
 				t.Errorf("case #%d: did not get any error", pos)

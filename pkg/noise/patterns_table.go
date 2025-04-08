@@ -7,19 +7,24 @@ import (
 
 var defaultPatternTable *PatternTable
 
-func MustRegisterPattern(dsl string) {
+func MustRegisterPatternSpec(dsl string) {
 	parts := strings.SplitN(dsl, ":", 2)
 	if len(parts) != 2 {
 		panic("missing registration name")
 	}
-	pattern, err := ParsePatternDSL(parts[1])
+	pattern := HandshakePattern{}
+	err := pattern.LoadDSL(parts[1])
 	if nil != err {
-		panic(ErrInvalidPatternDSL)
+		panic(err)
 	}
 	err = defaultPatternTable.Register(strings.TrimSpace(parts[0]), pattern)
 	if nil != err {
 		panic(err)
 	}
+}
+
+func RegisterPattern(name string, pattern HandshakePattern) error {
+	return defaultPatternTable.Register(name, pattern)
 }
 
 type PatternTable struct {
@@ -46,7 +51,7 @@ func init() {
 	defaultPatternTable = NewPatternTable()
 
 	// 1 way patterns
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		N:
 		  <- s
@@ -54,7 +59,7 @@ func init() {
 		  -> e, es
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		K:
 		  -> s
@@ -63,7 +68,7 @@ func init() {
 		  -> e, es, ss
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		X:
 		  <- s
@@ -73,14 +78,14 @@ func init() {
 	)
 
 	// interactive patterns
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		NN:
 		  -> e
 		  <- e, ee
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		KN:
 		     -> s
@@ -89,7 +94,7 @@ func init() {
 		     <- e, ee, se
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		NK:
 		  <- s
@@ -98,7 +103,7 @@ func init() {
 		  <- e, ee
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		KK:
 		     -> s
@@ -108,14 +113,14 @@ func init() {
 		     <- e, ee, se
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		NX:
 		  -> e
 		  <- e, ee, s, es
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		KX:
 		      -> s
@@ -124,7 +129,7 @@ func init() {
 		      <- e, ee, se, s, es
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		XN:
 		  -> e
@@ -132,14 +137,14 @@ func init() {
 		  -> s, se
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		IN:
 		      -> e, s
 		      <- e, ee, se
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		XK:
 		  <- s
@@ -149,7 +154,7 @@ func init() {
 		  -> s, se
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		IK:
 		      <- s
@@ -158,7 +163,7 @@ func init() {
 		      <- e, ee, se
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		XX:
 		  -> e
@@ -166,7 +171,7 @@ func init() {
 		  -> s, se
 		`,
 	)
-	MustRegisterPattern(
+	MustRegisterPatternSpec(
 		`
 		IX:
 		      -> e, s
