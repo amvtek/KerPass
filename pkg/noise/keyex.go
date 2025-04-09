@@ -9,31 +9,37 @@ const (
 	KEYEXCH_25519 = "25519"
 )
 
-func GetKeyExch(ke string) (KeyExch, error) {
-	var err error
-	kx := KeyExch{}
-	switch ke {
-	case KEYEXCH_25519:
-		kx.curve = ecdh.X25519()
-		kx.dhlen = 32
-	default:
-		err = ErrUnsupportedKeyExch
-	}
-	return kx, err
+type DH interface {
+	GenerateKeyPair() (*ecdh.PrivateKey, error)
+	DH(keypair *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error)
+	DHLen() int
 }
 
-type KeyExch struct {
-	curve ecdh.Curve
+func GetDH(algo string) (DH, error) {
+	switch algo {
+	case KEYEXCH_25519:
+		return ecDH{Curve: ecdh.X25519(), dhlen: 32}, nil
+	default:
+		return nil, ErrUnsupportedKeyExch
+	}
+}
+
+type ecDH struct {
+	ecdh.Curve
 	dhlen int
 }
 
-func (self KeyExch) GenerateKey() (*ecdh.PrivateKey, error) {
-	if nil == self.curve {
-		return nil, ErrNilCurve
-	}
-	return self.curve.GenerateKey(rand.Reader)
+func (self ecDH) GenerateKeyPair() (*ecdh.PrivateKey, error) {
+	return self.GenerateKey(rand.Reader)
 }
 
-func (self KeyExch) DhLen() int {
+func (self ecDH) DH(keypair *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error) {
+	if nil == keypair {
+		return nil, ErrNilKeyPair
+	}
+	return keypair.ECDH(pubkey)
+}
+
+func (self ecDH) DHLen() int {
 	return self.dhlen
 }

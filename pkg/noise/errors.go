@@ -6,6 +6,7 @@ import (
 
 var (
 	ErrNilCurve                    = errors.New("noise: Nil curve, KeyExch is invalid")
+	ErrNilKeyPair                  = errors.New("noise: Nil keypair")
 	ErrUnsupportedKeyExch          = errors.New("noise: Unsupported KeyExch")
 	ErrUnsupportedHash             = errors.New("noise: Unsupported Hash")
 	ErrNilCipher                   = errors.New("noise: Nil Cipher")
