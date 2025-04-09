@@ -21,9 +21,9 @@ const (
 type CipherState struct {
 	factory aeadFactory
 	aead    aeadIfce
-	k       [32]byte
+	k       [cipherKeySize]byte
 	n       uint64
-	nonce   [12]byte
+	nonce   [cipherNonceSize]byte
 }
 
 func NewCipherState(algo string) (*CipherState, error) {
@@ -50,11 +50,11 @@ func (self *CipherState) InitializeKey(newkey []byte) error {
 	if len(newkey) == 0 {
 		// if newkey has length 0, we assume it corresponds to the "empty" key mentionned in noise specs 5.2
 		aead = nil
-		zeros := make([]byte, 32)
+		zeros := make([]byte, cipherKeySize)
 		copy(self.key(), zeros)
 	} else {
 		numbytes := copy(self.key(), newkey)
-		if numbytes < 32 {
+		if numbytes < cipherKeySize {
 			return ErrRekeyLowEntropy
 		}
 		aead, err = self.factory(self.key())
@@ -138,7 +138,7 @@ type aesGCMAEAD struct {
 }
 
 func newAESGCM(key []byte) (aeadIfce, error) {
-	if len(key) != 32 {
+	if len(key) != cipherKeySize {
 		return nil, ErrInvalidCipherKeySize
 	}
 
@@ -156,10 +156,10 @@ func newAESGCM(key []byte) (aeadIfce, error) {
 
 func (self aesGCMAEAD) rekey(newkey []byte, nonce []byte) error {
 	self.fillNonce(nonce, CIPHER_MAX_NONCE)
-	zeros := make([]byte, 64)
-	ciphertext := self.Seal(nil, nonce, zeros[:32], nil)
+	zeros := make([]byte, hashMaxSize)
+	ciphertext := self.Seal(nil, nonce, zeros[:cipherKeySize], nil)
 	numcopied := copy(newkey, ciphertext)
-	if numcopied < 32 {
+	if numcopied < cipherKeySize {
 		return ErrRekeyLowEntropy
 	}
 	copy(ciphertext, zeros)
@@ -167,7 +167,7 @@ func (self aesGCMAEAD) rekey(newkey []byte, nonce []byte) error {
 }
 
 func (_ aesGCMAEAD) fillNonce(nonce []byte, n uint64) {
-	if len(nonce) < 12 {
+	if len(nonce) < cipherNonceSize {
 		// if nonce does not have the correct size, this is an implementation error
 		panic("Invalid nonce buffer size")
 	}
@@ -180,7 +180,7 @@ type chachaPoly1305AEAD struct {
 }
 
 func newChachaPoly1305(key []byte) (aeadIfce, error) {
-	if len(key) != 32 {
+	if len(key) != cipherKeySize {
 		return nil, ErrInvalidCipherKeySize
 	}
 
@@ -194,7 +194,7 @@ func newChachaPoly1305(key []byte) (aeadIfce, error) {
 }
 
 func (_ chachaPoly1305AEAD) fillNonce(nonce []byte, n uint64) {
-	if len(nonce) < 12 {
+	if len(nonce) < cipherNonceSize {
 		// if nonce does not have the correct size, this is an implementation error
 		panic("Invalid nonce buffer size")
 	}

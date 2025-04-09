@@ -7,10 +7,10 @@ import (
 type SymetricState struct {
 	hash   crypto.Hash
 	cipher *CipherState
-	hb     [64]byte
-	ckb    [64]byte
-	tkb    [64]byte
-	thb    [64]byte
+	hb     [hashMaxSize]byte
+	ckb    [hashMaxSize]byte
+	tkb    [hashMaxSize]byte
+	thb    [hashMaxSize]byte
 }
 
 func (self *SymetricState) InitializeSymetric(protoname string) error {
@@ -31,7 +31,7 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 	h := self.hb[:]
 	ck := self.ckb[:]
 	if len(psb) < hash.Size() {
-		zeros := make([]byte, 64)
+		zeros := make([]byte, hashMaxSize)
 		copy(h, zeros)
 		copy(h, psb)
 	} else {
@@ -61,7 +61,7 @@ func (self *SymetricState) MixKey(ikm []byte) error {
 	if nil != err {
 		return err
 	}
-	return self.cipher.InitializeKey(tk[:32])
+	return self.cipher.InitializeKey(tk[:cipherKeySize])
 }
 
 func (self *SymetricState) MixHash(data []byte) {
@@ -83,7 +83,7 @@ func (self *SymetricState) MixKeyAndHash(ikm []byte) error {
 		return err
 	}
 	self.MixHash(th)
-	return self.cipher.InitializeKey(tk[:32])
+	return self.cipher.InitializeKey(tk[:cipherKeySize])
 }
 
 func (self *SymetricState) GetHandshakeHash() []byte {
@@ -128,12 +128,12 @@ func (self *SymetricState) Split() (*CipherState, *CipherState, error) {
 		return nil, nil, err
 	}
 	cs1 := CipherState{factory: self.cipher.factory}
-	err = cs1.InitializeKey(tk1[:32])
+	err = cs1.InitializeKey(tk1[:cipherKeySize])
 	if nil != err {
 		return nil, nil, err
 	}
 	cs2 := CipherState{factory: self.cipher.factory}
-	err = cs2.InitializeKey(tk2[:32])
+	err = cs2.InitializeKey(tk2[:cipherKeySize])
 	if nil != err {
 		return nil, nil, err
 	}
