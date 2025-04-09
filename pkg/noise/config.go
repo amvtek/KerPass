@@ -13,12 +13,53 @@ var (
 )
 
 type Config struct {
-	protoName     []byte
-	cipherFactory AEADFactory
-	hashAlgo      crypto.Hash
+	protoName        []byte
+	handshakePattern HandshakePattern
+	cipherFactory    AEADFactory
+	hashAlgo         crypto.Hash
+	dhAlgo           DH
+}
+
+func (self *Config) Load(srzproto string) error {
+	var proto NoiseProto
+	err := ParseProtocol(srzproto, &proto)
+	if nil != err {
+		return err
+	}
+
+	// TODO: needs to modify handshakePattern applying modifiers if any
+	handshakePattern := HandshakePattern{}
+	err = LoadPattern(proto.HandshakePattern, &handshakePattern)
+	if nil != err {
+		return err
+	}
+
+	cipherFactory, err := GetAEADFactory(proto.CipherAlgo)
+	if nil != err {
+		return err
+	}
+
+	hashAlgo, err := GetHash(proto.HashAlgo)
+	if nil != err {
+		return err
+	}
+
+	dhAlgo, err := GetDH(proto.DhAlgo)
+	if nil != err {
+		return err
+	}
+
+	self.protoName = []byte(proto.CanonicalName)
+	self.handshakePattern = handshakePattern
+	self.cipherFactory = cipherFactory
+	self.hashAlgo = hashAlgo
+	self.dhAlgo = dhAlgo
+
+	return nil
 }
 
 type NoiseProto struct {
+	CanonicalName             string
 	HandshakePattern          string
 	HandshakePatternModifiers []string
 	DhAlgo                    string
@@ -26,22 +67,23 @@ type NoiseProto struct {
 	HashAlgo                  string
 }
 
-func ParseProtocol(srzproto string, proto *NoiseProto) (string, error) {
+func ParseProtocol(srzproto string, proto *NoiseProto) error {
 	parts := protoRe.FindStringSubmatch(srzproto)
 	if len(parts) != 6 {
-		return "", ErrInvalidProtocolName
+		return ErrInvalidProtocolName
 	}
 	if nil == proto {
-		return parts[0], nil
+		return nil
 	}
 
 	proto.HandshakePattern = parts[1]
 	if "" != parts[2] {
 		proto.HandshakePatternModifiers = strings.Split(parts[2], "+")
 	}
+	proto.CanonicalName = parts[0]
 	proto.DhAlgo = parts[3]
 	proto.CipherAlgo = parts[4]
 	proto.HashAlgo = parts[5]
 
-	return parts[0], nil
+	return nil
 }

@@ -21,4 +21,5 @@ var (
 	ErrInvalidMsgPtrnToken         = errors.New("noise: Invalid Message Pattern Token")
 	ErrInvalidMsgPtrnTokenRepeat   = errors.New("noise: Invalid Message Pattern, Token used multiple times")
 	ErrPatternRegistrationConflict = errors.New("noise: Pattern Registration conflict")
+	ErrPatternUnknown              = errors.New("noise: Pattern Unknown")
 )

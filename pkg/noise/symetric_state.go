@@ -16,7 +16,7 @@ type SymetricState struct {
 func (self *SymetricState) InitializeSymetric(protoname string) error {
 
 	proto := NoiseProto{}
-	ps, err := ParseProtocol(protoname, &proto)
+	err := ParseProtocol(protoname, &proto)
 	if nil != err {
 		return err
 	}
@@ -27,7 +27,7 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 	}
 
 	// ps is noise protocol name with whitespace stripped
-	psb := []byte(ps)
+	psb := []byte(proto.CanonicalName)
 	h := self.hb[:]
 	ck := self.ckb[:]
 	if len(psb) < hash.Size() {
