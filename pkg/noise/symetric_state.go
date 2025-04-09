@@ -5,12 +5,12 @@ import (
 )
 
 type SymetricState struct {
-	hash   crypto.Hash
-	cipher *CipherState
-	hb     [hashMaxSize]byte
-	ckb    [hashMaxSize]byte
-	tkb    [hashMaxSize]byte
-	thb    [hashMaxSize]byte
+	CipherState
+	hash crypto.Hash
+	hb   [hashMaxSize]byte
+	ckb  [hashMaxSize]byte
+	tkb  [hashMaxSize]byte
+	thb  [hashMaxSize]byte
 }
 
 func (self *SymetricState) InitializeSymetric(protoname string) error {
@@ -41,15 +41,13 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 	}
 	copy(ck, h)
 
-	// The CipherState returned by NewCipherState conforms to noise spec 5.2 as it contains the "empty" key.
-	// Hence there is no need to call cipher.InitializeKey(nil)
-	cipher, err := NewCipherState(proto.CipherAlgo)
+	self.hash = hash
+	aeadFactory, err := GetAEADFactory(proto.CipherAlgo)
 	if nil != err {
 		return err
 	}
-	self.hash = hash
-	self.cipher = cipher
-	return nil
+	self.CipherState = CipherState{factory: aeadFactory}
+	return self.InitializeKey(nil)
 
 }
 
@@ -61,7 +59,7 @@ func (self *SymetricState) MixKey(ikm []byte) error {
 	if nil != err {
 		return err
 	}
-	return self.cipher.InitializeKey(tk[:cipherKeySize])
+	return self.InitializeKey(tk[:cipherKeySize])
 }
 
 func (self *SymetricState) MixHash(data []byte) {
@@ -83,7 +81,7 @@ func (self *SymetricState) MixKeyAndHash(ikm []byte) error {
 		return err
 	}
 	self.MixHash(th)
-	return self.cipher.InitializeKey(tk[:cipherKeySize])
+	return self.InitializeKey(tk[:cipherKeySize])
 }
 
 func (self *SymetricState) GetHandshakeHash() []byte {
@@ -99,7 +97,7 @@ func (self *SymetricState) GetHandshakeHash() []byte {
 func (self *SymetricState) EncryptAndHash(plaintext []byte) ([]byte, error) {
 	hsz := self.hash.Size()
 	h := self.hb[:hsz]
-	ciphertext, err := self.cipher.EncryptWithAd(h, plaintext)
+	ciphertext, err := self.EncryptWithAd(h, plaintext)
 	if nil != err {
 		return nil, err
 	}
@@ -110,7 +108,7 @@ func (self *SymetricState) EncryptAndHash(plaintext []byte) ([]byte, error) {
 func (self *SymetricState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
 	hsz := self.hash.Size()
 	h := self.hb[:hsz]
-	plaintext, err := self.cipher.DecryptWithAd(h, ciphertext)
+	plaintext, err := self.DecryptWithAd(h, ciphertext)
 	if nil != err {
 		return nil, err
 	}
@@ -127,12 +125,12 @@ func (self *SymetricState) Split() (*CipherState, *CipherState, error) {
 	if nil != err {
 		return nil, nil, err
 	}
-	cs1 := CipherState{factory: self.cipher.factory}
+	cs1 := CipherState{factory: self.CipherState.factory}
 	err = cs1.InitializeKey(tk1[:cipherKeySize])
 	if nil != err {
 		return nil, nil, err
 	}
-	cs2 := CipherState{factory: self.cipher.factory}
+	cs2 := CipherState{factory: self.CipherState.factory}
 	err = cs2.InitializeKey(tk2[:cipherKeySize])
 	if nil != err {
 		return nil, nil, err
