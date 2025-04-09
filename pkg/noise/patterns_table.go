@@ -27,6 +27,14 @@ func RegisterPattern(name string, pattern HandshakePattern) error {
 	return defaultPatternTable.Register(name, pattern)
 }
 
+func LoadPattern(name string, dst *HandshakePattern) error {
+	found := defaultPatternTable.LoadPattern(name, dst)
+	if !found {
+		return ErrPatternUnknown
+	}
+	return nil
+}
+
 type PatternTable struct {
 	mut     sync.RWMutex
 	entries map[string]HandshakePattern
@@ -45,6 +53,16 @@ func (self *PatternTable) Register(name string, pattern HandshakePattern) error 
 	}
 	self.entries[name] = pattern
 	return nil
+}
+
+func (self *PatternTable) LoadPattern(name string, dst *HandshakePattern) bool {
+	self.mut.RLock()
+	defer self.mut.RUnlock()
+	ptrn, found := self.entries[name]
+	if found && nil != dst {
+		*dst = ptrn
+	}
+	return found
 }
 
 func init() {
