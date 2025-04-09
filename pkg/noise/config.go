@@ -1,6 +1,7 @@
 package noise
 
 import (
+	"crypto"
 	"regexp"
 	"strings"
 )
@@ -10,6 +11,12 @@ var (
 		`Noise_([A-Z0-9]+)([a-z][a-z0-9+]*)?_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)`,
 	)
 )
+
+type Config struct {
+	protoName     []byte
+	cipherFactory AEADFactory
+	hashAlgo      crypto.Hash
+}
 
 type NoiseProto struct {
 	HandshakePattern          string

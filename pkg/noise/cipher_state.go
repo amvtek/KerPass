@@ -18,9 +18,37 @@ const (
 	CIPHER_CHACHA20_POLY1305 = "ChaChaPoly"
 )
 
+// AEAD extends cipher.AEAD with methods usefull for noise protocol implementation.
+type AEAD interface {
+	cipher.AEAD
+	Rekey(newkey []byte, nonce []byte) error
+	FillNonce(nonce []byte, n uint64)
+}
+
+type AEADFactory interface {
+	New(key []byte) (AEAD, error)
+}
+
+type AEADFactoryFunc func([]byte) (AEAD, error)
+
+func (self AEADFactoryFunc) New(key []byte) (AEAD, error) {
+	return self(key)
+}
+
+func GetAEADFactory(algo string) (AEADFactory, error) {
+	switch algo {
+	case CIPHER_AES256_GCM:
+		return AEADFactoryFunc(newAESGCM), nil
+	case CIPHER_CHACHA20_POLY1305:
+		return AEADFactoryFunc(newChachaPoly1305), nil
+	default:
+		return nil, ErrUnsupportedCipher
+	}
+}
+
 type CipherState struct {
-	factory aeadFactory
-	aead    aeadIfce
+	factory AEADFactory
+	aead    AEAD
 	k       [cipherKeySize]byte
 	n       uint64
 	nonce   [cipherNonceSize]byte
@@ -28,12 +56,12 @@ type CipherState struct {
 
 func NewCipherState(algo string) (*CipherState, error) {
 
-	var newAead aeadFactory
+	var newAead AEADFactory
 	switch algo {
 	case CIPHER_AES256_GCM:
-		newAead = newAESGCM
+		newAead = AEADFactoryFunc(newAESGCM)
 	case CIPHER_CHACHA20_POLY1305:
-		newAead = newChachaPoly1305
+		newAead = AEADFactoryFunc(newChachaPoly1305)
 	default:
 		return nil, ErrUnsupportedCipher
 	}
@@ -45,7 +73,7 @@ func (self *CipherState) HasKey() bool {
 }
 
 func (self *CipherState) InitializeKey(newkey []byte) error {
-	var aead aeadIfce
+	var aead AEAD
 	var err error
 	if len(newkey) == 0 {
 		// if newkey has length 0, we assume it corresponds to the "empty" key mentionned in noise specs 5.2
@@ -57,7 +85,7 @@ func (self *CipherState) InitializeKey(newkey []byte) error {
 		if numbytes < cipherKeySize {
 			return ErrRekeyLowEntropy
 		}
-		aead, err = self.factory(self.key())
+		aead, err = self.factory.New(self.key())
 		if nil != err {
 			return err
 		}
@@ -79,7 +107,7 @@ func (self *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 		return nil, ErrCipherKeyOverUse
 	}
 	nonce := self.nonce[:]
-	self.aead.fillNonce(nonce, self.n)
+	self.aead.FillNonce(nonce, self.n)
 	ciphertext := self.aead.Seal(nil, nonce, plaintext, ad)
 	self.n += 1
 	return ciphertext, nil
@@ -93,7 +121,7 @@ func (self *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 		return nil, ErrCipherKeyOverUse
 	}
 	nonce := self.nonce[:]
-	self.aead.fillNonce(nonce, self.n)
+	self.aead.FillNonce(nonce, self.n)
 	plaintext, err := self.aead.Open(nil, nonce, ciphertext, ad)
 	if nil != err {
 		return nil, err
@@ -107,11 +135,11 @@ func (self *CipherState) Rekey() error {
 		return ErrInvalidCipherState
 	}
 	newkey := self.k[:]
-	err := self.aead.rekey(newkey, self.nonce[:])
+	err := self.aead.Rekey(newkey, self.nonce[:])
 	if nil != err {
 		return err
 	}
-	aead, err := self.factory(newkey)
+	aead, err := self.factory.New(newkey)
 	if nil != err {
 		return err
 	}
@@ -124,20 +152,11 @@ func (self *CipherState) key() []byte {
 	return self.k[:]
 }
 
-// aeadIfce extends cipher.AEAD with methods usefull for noise protocol implementation.
-type aeadIfce interface {
-	cipher.AEAD
-	rekey(newkey []byte, nonce []byte) error
-	fillNonce(nonce []byte, n uint64)
-}
-
-type aeadFactory func([]byte) (aeadIfce, error)
-
 type aesGCMAEAD struct {
 	cipher.AEAD
 }
 
-func newAESGCM(key []byte) (aeadIfce, error) {
+func newAESGCM(key []byte) (AEAD, error) {
 	if len(key) != cipherKeySize {
 		return nil, ErrInvalidCipherKeySize
 	}
@@ -154,8 +173,8 @@ func newAESGCM(key []byte) (aeadIfce, error) {
 
 }
 
-func (self aesGCMAEAD) rekey(newkey []byte, nonce []byte) error {
-	self.fillNonce(nonce, CIPHER_MAX_NONCE)
+func (self aesGCMAEAD) Rekey(newkey []byte, nonce []byte) error {
+	self.FillNonce(nonce, CIPHER_MAX_NONCE)
 	zeros := make([]byte, hashMaxSize)
 	ciphertext := self.Seal(nil, nonce, zeros[:cipherKeySize], nil)
 	numcopied := copy(newkey, ciphertext)
@@ -166,7 +185,7 @@ func (self aesGCMAEAD) rekey(newkey []byte, nonce []byte) error {
 	return nil
 }
 
-func (_ aesGCMAEAD) fillNonce(nonce []byte, n uint64) {
+func (_ aesGCMAEAD) FillNonce(nonce []byte, n uint64) {
 	if len(nonce) < cipherNonceSize {
 		// if nonce does not have the correct size, this is an implementation error
 		panic("Invalid nonce buffer size")
@@ -179,7 +198,7 @@ type chachaPoly1305AEAD struct {
 	aesGCMAEAD
 }
 
-func newChachaPoly1305(key []byte) (aeadIfce, error) {
+func newChachaPoly1305(key []byte) (AEAD, error) {
 	if len(key) != cipherKeySize {
 		return nil, ErrInvalidCipherKeySize
 	}
@@ -193,7 +212,7 @@ func newChachaPoly1305(key []byte) (aeadIfce, error) {
 	return rv, nil
 }
 
-func (_ chachaPoly1305AEAD) fillNonce(nonce []byte, n uint64) {
+func (_ chachaPoly1305AEAD) FillNonce(nonce []byte, n uint64) {
 	if len(nonce) < cipherNonceSize {
 		// if nonce does not have the correct size, this is an implementation error
 		panic("Invalid nonce buffer size")
