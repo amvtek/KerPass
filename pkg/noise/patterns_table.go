@@ -2,10 +2,9 @@ package noise
 
 import (
 	"strings"
-	"sync"
 )
 
-var defaultPatternTable *PatternTable
+var patternRegistry *registry[HandshakePattern]
 
 func MustRegisterPatternSpec(dsl string) {
 	parts := strings.SplitN(dsl, ":", 2)
@@ -17,56 +16,29 @@ func MustRegisterPatternSpec(dsl string) {
 	if nil != err {
 		panic(err)
 	}
-	err = defaultPatternTable.Register(strings.TrimSpace(parts[0]), pattern)
+	err = registrySet(patternRegistry, strings.TrimSpace(parts[0]), pattern)
 	if nil != err {
 		panic(err)
 	}
 }
 
 func RegisterPattern(name string, pattern HandshakePattern) error {
-	return defaultPatternTable.Register(name, pattern)
+	return registrySet(patternRegistry, name, pattern)
 }
 
 func LoadPattern(name string, dst *HandshakePattern) error {
-	found := defaultPatternTable.LoadPattern(name, dst)
+	src, found := registryGet(patternRegistry, name)
 	if !found {
 		return ErrPatternUnknown
 	}
-	return nil
-}
-
-type PatternTable struct {
-	mut     sync.RWMutex
-	entries map[string]HandshakePattern
-}
-
-func NewPatternTable() *PatternTable {
-	return &PatternTable{entries: make(map[string]HandshakePattern)}
-}
-
-func (self *PatternTable) Register(name string, pattern HandshakePattern) error {
-	self.mut.Lock()
-	defer self.mut.Unlock()
-	_, conflict := self.entries[name]
-	if conflict {
-		return ErrPatternRegistrationConflict
+	if nil != dst {
+		*dst = src
 	}
-	self.entries[name] = pattern
 	return nil
-}
-
-func (self *PatternTable) LoadPattern(name string, dst *HandshakePattern) bool {
-	self.mut.RLock()
-	defer self.mut.RUnlock()
-	ptrn, found := self.entries[name]
-	if found && nil != dst {
-		*dst = ptrn
-	}
-	return found
 }
 
 func init() {
-	defaultPatternTable = NewPatternTable()
+	patternRegistry = newRegistry[HandshakePattern]()
 
 	// 1 way patterns
 	MustRegisterPatternSpec(

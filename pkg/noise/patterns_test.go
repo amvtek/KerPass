@@ -6,7 +6,7 @@ import (
 )
 
 func TestShowPatternTable(t *testing.T) {
-	t.Logf("defaultPatternTable -> %+v", defaultPatternTable.entries)
+	t.Logf("patternRegistry -> %+v", patternRegistry.entries)
 }
 
 func TestParsePattern(t *testing.T) {
