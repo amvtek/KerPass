@@ -10,8 +10,8 @@ const (
 )
 
 type DH interface {
-	GenerateKeyPair() (*ecdh.PrivateKey, error)
-	DH(keypair *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error)
+	GenerateKeyPair() (*Keypair, error)
+	DH(keypair *Keypair, pubkey *PublicKey) ([]byte, error)
 	DHLen() int
 }
 
@@ -29,11 +29,11 @@ type ecDH struct {
 	dhlen int
 }
 
-func (self ecDH) GenerateKeyPair() (*ecdh.PrivateKey, error) {
+func (self ecDH) GenerateKeyPair() (*Keypair, error) {
 	return self.GenerateKey(rand.Reader)
 }
 
-func (self ecDH) DH(keypair *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error) {
+func (self ecDH) DH(keypair *Keypair, pubkey *PublicKey) ([]byte, error) {
 	if nil == keypair {
 		return nil, ErrNilKeyPair
 	}

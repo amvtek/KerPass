@@ -39,7 +39,7 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 func (self *SymetricState) Init(protoname string, cipherfactory AEADFactory, hash crypto.Hash) error {
 	self.hash = hash
 	self.initCK(protoname)
-	return self.CipherState.Init(cipherFactory)
+	return self.CipherState.Init(cipherfactory)
 }
 
 func (self *SymetricState) MixKey(ikm []byte) error {
@@ -144,4 +144,3 @@ func (self *SymetricState) initCK(protoname string) {
 	}
 	copy(ck, h)
 }
-
