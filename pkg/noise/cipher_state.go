@@ -18,6 +18,8 @@ const (
 	CIPHER_CHACHA20_POLY1305 = "ChaChaPoly"
 )
 
+var aeadRegistry *registry[AEADFactory]
+
 // AEAD extends cipher.AEAD with methods usefull for noise protocol implementation.
 type AEAD interface {
 	cipher.AEAD
@@ -29,21 +31,29 @@ type AEADFactory interface {
 	New(key []byte) (AEAD, error)
 }
 
+func MustRegisterAEAD(name string, factory AEADFactory) {
+	err := RegisterAEAD(name, factory)
+	if nil != err {
+		panic(err)
+	}
+}
+
+func RegisterAEAD(name string, factory AEADFactory) error {
+	return registrySet(aeadRegistry, name, factory)
+}
+
+func GetAEADFactory(name string) (AEADFactory, error) {
+	factory, found := registryGet(aeadRegistry, name)
+	if !found || nil == factory {
+		return nil, ErrUnsupportedCipher
+	}
+	return factory, nil
+}
+
 type AEADFactoryFunc func([]byte) (AEAD, error)
 
 func (self AEADFactoryFunc) New(key []byte) (AEAD, error) {
 	return self(key)
-}
-
-func GetAEADFactory(algo string) (AEADFactory, error) {
-	switch algo {
-	case CIPHER_AES256_GCM:
-		return AEADFactoryFunc(newAESGCM), nil
-	case CIPHER_CHACHA20_POLY1305:
-		return AEADFactoryFunc(newChachaPoly1305), nil
-	default:
-		return nil, ErrUnsupportedCipher
-	}
 }
 
 type CipherState struct {
@@ -52,20 +62,6 @@ type CipherState struct {
 	k       [cipherKeySize]byte
 	n       uint64
 	nonce   [cipherNonceSize]byte
-}
-
-func NewCipherState(algo string) (*CipherState, error) {
-
-	var newAead AEADFactory
-	switch algo {
-	case CIPHER_AES256_GCM:
-		newAead = AEADFactoryFunc(newAESGCM)
-	case CIPHER_CHACHA20_POLY1305:
-		newAead = AEADFactoryFunc(newChachaPoly1305)
-	default:
-		return nil, ErrUnsupportedCipher
-	}
-	return &CipherState{factory: newAead}, nil
 }
 
 func (self *CipherState) HasKey() bool {
@@ -224,4 +220,10 @@ func (_ chachaPoly1305AEAD) FillNonce(nonce []byte, n uint64) {
 	}
 	binary.LittleEndian.PutUint32(nonce, 0)
 	binary.LittleEndian.PutUint64(nonce[4:], n)
+}
+
+func init() {
+	aeadRegistry = newRegistry[AEADFactory]()
+	MustRegisterAEAD(CIPHER_AES256_GCM, AEADFactoryFunc(newAESGCM))
+	MustRegisterAEAD(CIPHER_CHACHA20_POLY1305, AEADFactoryFunc(newChachaPoly1305))
 }
