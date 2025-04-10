@@ -8,7 +8,7 @@ import (
 )
 
 func TestHkdfKeyReuse(t *testing.T) {
-	algo := crypto.SHA256
+	algo := Hash{Hash: crypto.SHA256}
 	hsz := algo.Size()
 
 	ck := slices.Repeat([]byte{1}, hsz)
@@ -18,14 +18,14 @@ func TestHkdfKeyReuse(t *testing.T) {
 	copy(ckreuse, ck)
 	ikmreuse := make([]byte, hsz)
 	copy(ikmreuse, ikm)
-	err := Hkdf(algo, ckreuse, ikmreuse, ckreuse, ikmreuse)
+	err := algo.Kdf(ckreuse, ikmreuse, ckreuse, ikmreuse)
 	if nil != err {
 		t.Fatalf("Error when running Hkdf: %v", err)
 	}
 
 	dk1 := make([]byte, hsz)
 	dk2 := make([]byte, hsz)
-	err = Hkdf(algo, ck, ikm, dk1, dk2)
+	err = algo.Kdf(ck, ikm, dk1, dk2)
 	if nil != err {
 		t.Fatalf("Error when running Hkdf: %v", err)
 	}

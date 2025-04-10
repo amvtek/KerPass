@@ -13,31 +13,15 @@ const (
 	HASH_BLAKE2S = "BLAKE2s"
 )
 
-func GetHash(hk string) (crypto.Hash, error) {
-	var algo crypto.Hash
-	switch hk {
-	case HASH_SHA256:
-		algo = crypto.SHA256
-	case HASH_SHA512:
-		algo = crypto.SHA512
-	case HASH_BLAKE2B:
-		algo = crypto.BLAKE2b_512
-	case HASH_BLAKE2S:
-		algo = crypto.BLAKE2s_256
-	default:
-		return crypto.MD5, ErrUnsupportedHash
-	}
+var hashRegistry *registry[Hash]
 
-	var err error
-	if !algo.Available() {
-		err = ErrUnsupportedHash
-	}
-	return algo, err
+type Hash struct {
+	crypto.Hash
 }
 
-func Hkdf(hash crypto.Hash, ck, ikm []byte, keys ...[]byte) error {
+func (self Hash) Kdf(ck, ikm []byte, keys ...[]byte) error {
 	var err error
-	rdr := hkdf.New(hash.New, ck, ikm, nil)
+	rdr := hkdf.New(self.New, ck, ikm, nil)
 	for _, key := range keys {
 		_, err = rdr.Read(key)
 		if nil != err {
@@ -45,4 +29,37 @@ func Hkdf(hash crypto.Hash, ck, ikm []byte, keys ...[]byte) error {
 		}
 	}
 	return nil
+}
+
+func MustRegisterHash(name string, algo crypto.Hash) {
+	err := RegisterHash(name, algo)
+	if nil != err {
+		panic(err)
+	}
+}
+
+func RegisterHash(name string, algo crypto.Hash) error {
+	return registrySet(hashRegistry, name, Hash{Hash: algo})
+}
+
+func GetHash(name string) (Hash, error) {
+	hash, found := registryGet(hashRegistry, name)
+	if !found {
+		return hash, ErrUnsupportedHash
+	}
+	var err error
+	hsz := hash.Size()
+	if !hash.Available() || hsz < hashMinSize || hsz > hashMaxSize {
+		err = ErrUnsupportedHash
+	}
+	return hash, err
+
+}
+
+func init() {
+	hashRegistry = newRegistry[Hash]()
+	MustRegisterHash(HASH_SHA256, crypto.SHA256)
+	MustRegisterHash(HASH_SHA512, crypto.SHA512)
+	MustRegisterHash(HASH_BLAKE2B, crypto.BLAKE2b_512)
+	MustRegisterHash(HASH_BLAKE2S, crypto.BLAKE2s_256)
 }

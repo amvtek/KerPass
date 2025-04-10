@@ -1,7 +1,6 @@
 package noise
 
 import (
-	"crypto"
 	"regexp"
 	"strings"
 )
@@ -16,7 +15,7 @@ type Config struct {
 	ProtoName        string
 	HandshakePattern HandshakePattern
 	CipherFactory    AEADFactory
-	HashAlgo         crypto.Hash
+	HashAlgo         Hash
 	DhAlgo           DH
 }
 

@@ -1,12 +1,8 @@
 package noise
 
-import (
-	"crypto"
-)
-
 type SymetricState struct {
 	CipherState
-	hash crypto.Hash
+	hash Hash
 	hb   [hashMaxSize]byte
 	ckb  [hashMaxSize]byte
 	tkb  [hashMaxSize]byte
@@ -36,7 +32,7 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 	return self.CipherState.Init(aeadFactory)
 }
 
-func (self *SymetricState) Init(protoname string, cipherfactory AEADFactory, hash crypto.Hash) error {
+func (self *SymetricState) Init(protoname string, cipherfactory AEADFactory, hash Hash) error {
 	self.hash = hash
 	self.initCK(protoname)
 	return self.CipherState.Init(cipherfactory)
@@ -46,7 +42,7 @@ func (self *SymetricState) MixKey(ikm []byte) error {
 	hsz := self.hash.Size()
 	ck := self.ckb[:hsz]
 	tk := self.tkb[:hsz]
-	err := Hkdf(self.hash, ck, ikm, ck, tk)
+	err := self.hash.Kdf(ck, ikm, ck, tk)
 	if nil != err {
 		return err
 	}
@@ -67,7 +63,7 @@ func (self *SymetricState) MixKeyAndHash(ikm []byte) error {
 	ck := self.ckb[:hsz]
 	th := self.thb[:hsz]
 	tk := self.tkb[:hsz]
-	err := Hkdf(self.hash, ck, ikm, ck, th, tk)
+	err := self.hash.Kdf(ck, ikm, ck, th, tk)
 	if nil != err {
 		return err
 	}
@@ -112,7 +108,7 @@ func (self *SymetricState) Split() (*CipherState, *CipherState, error) {
 	ck := self.ckb[:hsz]
 	tk1 := self.thb[:hsz]
 	tk2 := self.tkb[:hsz]
-	err := Hkdf(self.hash, ck, nil, tk1, tk2)
+	err := self.hash.Kdf(ck, nil, tk1, tk2)
 	if nil != err {
 		return nil, nil, err
 	}
