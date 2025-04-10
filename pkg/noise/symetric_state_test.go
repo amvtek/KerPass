@@ -18,7 +18,7 @@ func TestParseProtocol(t *testing.T) {
 		{
 			pn: "Noise_IK1_X25519_AES256_SHA512/256",
 			expect: NoiseProto{
-				CanonicalName:    "Noise_IK1_X25519_AES256_SHA512/256",
+				Name:             "Noise_IK1_X25519_AES256_SHA512/256",
 				HandshakePattern: "IK1",
 				DhAlgo:           "X25519",
 				CipherAlgo:       "AES256",
@@ -28,7 +28,7 @@ func TestParseProtocol(t *testing.T) {
 		{
 			pn: "garbageNoise_IK1fallback+psk0_X25519_AES256_SHA512/256_garbage",
 			expect: NoiseProto{
-				CanonicalName:             "Noise_IK1fallback+psk0_X25519_AES256_SHA512/256",
+				Name:                      "Noise_IK1fallback+psk0_X25519_AES256_SHA512/256",
 				HandshakePattern:          "IK1",
 				HandshakePatternModifiers: []string{"fallback", "psk0"},
 				DhAlgo:                    "X25519",

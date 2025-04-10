@@ -27,7 +27,7 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 	}
 
 	// ps is noise protocol name with whitespace stripped
-	psb := []byte(proto.CanonicalName)
+	psb := []byte(proto.Name)
 	h := self.hb[:]
 	ck := self.ckb[:]
 	if len(psb) < hash.Size() {

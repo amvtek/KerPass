@@ -13,11 +13,11 @@ var (
 )
 
 type Config struct {
-	protoName        []byte
-	handshakePattern HandshakePattern
-	cipherFactory    AEADFactory
-	hashAlgo         crypto.Hash
-	dhAlgo           DH
+	ProtoName        string
+	HandshakePattern HandshakePattern
+	CipherFactory    AEADFactory
+	HashAlgo         crypto.Hash
+	DhAlgo           DH
 }
 
 func (self *Config) Load(srzproto string) error {
@@ -49,17 +49,17 @@ func (self *Config) Load(srzproto string) error {
 		return err
 	}
 
-	self.protoName = []byte(proto.CanonicalName)
-	self.handshakePattern = handshakePattern
-	self.cipherFactory = cipherFactory
-	self.hashAlgo = hashAlgo
-	self.dhAlgo = dhAlgo
+	self.ProtoName = proto.Name
+	self.HandshakePattern = handshakePattern
+	self.CipherFactory = cipherFactory
+	self.HashAlgo = hashAlgo
+	self.DhAlgo = dhAlgo
 
 	return nil
 }
 
 type NoiseProto struct {
-	CanonicalName             string
+	Name                      string
 	HandshakePattern          string
 	HandshakePatternModifiers []string
 	DhAlgo                    string
@@ -80,7 +80,7 @@ func ParseProtocol(srzproto string, proto *NoiseProto) error {
 	if "" != parts[2] {
 		proto.HandshakePatternModifiers = strings.Split(parts[2], "+")
 	}
-	proto.CanonicalName = parts[0]
+	proto.Name = parts[0]
 	proto.DhAlgo = parts[3]
 	proto.CipherAlgo = parts[4]
 	proto.HashAlgo = parts[5]
