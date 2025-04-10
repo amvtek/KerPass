@@ -72,6 +72,11 @@ func (self *CipherState) HasKey() bool {
 	return (nil != self.aead)
 }
 
+func (self *CipherState) Init(cipherFactory AEADFactory) error {
+	self.factory = cipherFactory
+	return self.InitializeKey(nil)
+}
+
 func (self *CipherState) InitializeKey(newkey []byte) error {
 	var aead AEAD
 	var err error

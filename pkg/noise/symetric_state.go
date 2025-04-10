@@ -25,30 +25,21 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 	if nil != err {
 		return err
 	}
-
-	// ps is noise protocol name with whitespace stripped
-	psb := []byte(proto.Name)
-	h := self.hb[:]
-	ck := self.ckb[:]
-	if len(psb) < hash.Size() {
-		zeros := make([]byte, hashMaxSize)
-		copy(h, zeros)
-		copy(h, psb)
-	} else {
-		hd := hash.New()
-		hd.Write(psb)
-		h = hd.Sum(self.hb[:0])
-	}
-	copy(ck, h)
-
 	self.hash = hash
+
+	self.initCK(proto.Name)
+
 	aeadFactory, err := GetAEADFactory(proto.CipherAlgo)
 	if nil != err {
 		return err
 	}
-	self.CipherState = CipherState{factory: aeadFactory}
-	return self.InitializeKey(nil)
+	return self.CipherState.Init(aeadFactory)
+}
 
+func (self *SymetricState) Init(protoname string, cipherfactory AEADFactory, hash crypto.Hash) error {
+	self.hash = hash
+	self.initCK(protoname)
+	return self.CipherState.Init(cipherFactory)
 }
 
 func (self *SymetricState) MixKey(ikm []byte) error {
@@ -137,3 +128,20 @@ func (self *SymetricState) Split() (*CipherState, *CipherState, error) {
 	}
 	return &cs1, &cs2, nil
 }
+
+func (self *SymetricState) initCK(protoname string) {
+	psb := []byte(protoname)
+	h := self.hb[:]
+	ck := self.ckb[:]
+	if len(psb) < self.hash.Size() {
+		zeros := make([]byte, hashMaxSize)
+		copy(h, zeros)
+		copy(h, psb)
+	} else {
+		hd := self.hash.New()
+		hd.Write(psb)
+		h = hd.Sum(self.hb[:0])
+	}
+	copy(ck, h)
+}
+
