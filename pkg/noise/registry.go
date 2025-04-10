@@ -25,6 +25,8 @@ func registrySet[T any](self *registry[T], name string, value T) error {
 }
 
 func registryGet[T any](self *registry[T], name string) (T, bool) {
+	self.mut.RLock()
+	defer self.mut.RUnlock()
 	rv, ok := self.entries[name]
 	return rv, ok
 }
