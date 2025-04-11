@@ -22,11 +22,11 @@ func TestParsePattern(t *testing.T) {
 			-> ee
 			`,
 			expect: HandshakePattern{
-				prereqs: []msgPtrn{
-					{sender: "->", tokens: []string{}},
-					{sender: "<-", tokens: []string{}},
+				premsgs: []msgPtrn{
+					{sender: "->"},
+					{sender: "<-"},
 				},
-				messages: []msgPtrn{
+				msgs: []msgPtrn{
 					{sender: "->", tokens: []string{"e"}},
 					{sender: "<-", tokens: []string{"e", "ee"}},
 					{sender: "->", tokens: []string{"ee"}},
@@ -44,11 +44,11 @@ func TestParsePattern(t *testing.T) {
 			<- e, ee, se
 			`,
 			expect: HandshakePattern{
-				prereqs: []msgPtrn{
-					{sender: "->", tokens: []string{"rs", "s"}},
-					{sender: "<-", tokens: []string{"rs", "s"}},
+				premsgs: []msgPtrn{
+					{sender: "->", tokens: []string{"s"}},
+					{sender: "<-", tokens: []string{"s"}},
 				},
-				messages: []msgPtrn{
+				msgs: []msgPtrn{
 					{sender: "->", tokens: []string{"e", "es", "ss"}},
 					{sender: "<-", tokens: []string{"e", "ee", "se"}},
 				},
@@ -65,11 +65,11 @@ func TestParsePattern(t *testing.T) {
 			-> e, ee, es
 			`,
 			expect: HandshakePattern{
-				prereqs: []msgPtrn{
-					{sender: "<-", tokens: []string{"rs", "s"}},
-					{sender: "->", tokens: []string{"rs", "s"}},
+				premsgs: []msgPtrn{
+					{sender: "<-", tokens: []string{"s"}},
+					{sender: "->", tokens: []string{"s"}},
 				},
-				messages: []msgPtrn{
+				msgs: []msgPtrn{
 					{sender: "<-", tokens: []string{"e", "se", "ss"}},
 					{sender: "->", tokens: []string{"e", "ee", "es"}},
 				},

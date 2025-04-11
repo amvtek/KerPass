@@ -1,6 +1,7 @@
 package noise
 
 import (
+	"iter"
 	"slices"
 	"strings"
 )
@@ -17,8 +18,8 @@ const (
 )
 
 type HandshakePattern struct {
-	prereqs  []msgPtrn
-	messages []msgPtrn
+	premsgs []msgPtrn
+	msgs    []msgPtrn
 }
 
 func (self *HandshakePattern) LoadDSL(dsl string) error {
@@ -106,48 +107,69 @@ func (self *HandshakePattern) LoadDSL(dsl string) error {
 		ptrn.tokens = ptrnTokens
 		msgs = append(msgs, ptrn)
 	}
-
-	prereqs := make([]msgPtrn, 2)
-	var roleIdx int
-	var prefix string
-	for _, role := range []string{left, right} {
-		if role == msgs[0].sender {
-			roleIdx = 0
-		} else {
-			roleIdx = 1
-		}
-		prereqs[roleIdx].sender = role
-		tokens = make([]string, 0, 4)
-		for _, pmsg := range preMsgs {
-			if pmsg.sender == role {
-				prefix = ""
-			} else {
-				prefix = "r"
-			}
-			for _, token := range pmsg.tokens {
-				tokens = append(tokens, prefix+token)
-			}
-		}
-		if !slices.Contains(tokens, "s") {
-			switch role {
-			case left:
-				if slices.Contains(leftTokens, "s") {
-					tokens = append(tokens, "s")
-				}
-			case right:
-				if slices.Contains(rightTokens, "s") {
-					tokens = append(tokens, "s")
-				}
-			}
-		}
-		tokens = append(tokens, psks...)
-		slices.Sort(tokens) // ease testing
-		prereqs[roleIdx].tokens = tokens
+	if 0 == len(msgs) {
+		return ErrInvalidPatternDSL
 	}
-	self.prereqs = prereqs
-	self.messages = msgs
+
+	// fill premsgs ensuring that initiator pre msg is at index 0...
+	var initiator, peer string
+	initiator = msgs[0].sender
+	if left == initiator {
+		peer = right
+	} else {
+		peer = left
+	}
+	premsgs := []msgPtrn{{sender: initiator}, {sender: peer}}
+	for _, msg := range preMsgs {
+		switch msg.sender {
+		case initiator:
+			premsgs[0].tokens = msg.tokens
+		case peer:
+			premsgs[1].tokens = msg.tokens
+		default:
+			continue
+		}
+	}
+	self.premsgs = premsgs
+	self.msgs = msgs
 	return nil
 
+}
+
+func (self HandshakePattern) MsgPtrns(dst []msgPtrn) []msgPtrn {
+	dst = append(dst, self.msgs...)
+	return dst
+}
+
+func (self HandshakePattern) PubkeyHashTokens(initiator bool) (iter.Seq[string], error) {
+	// if self was initialized using LoadDSL
+	// then premsgs has length 2 & premsgs[0] has initiator sender...
+	if 2 != len(self.premsgs) {
+		return nil, ErrInvalidHandshakePattern
+	}
+
+	var mp msgPtrn
+	acc := make([]string, 0, 4)
+
+	var pfxs []string
+	if initiator {
+		pfxs = []string{"", "r"}
+	} else {
+		pfxs = []string{"r", ""}
+	}
+	for pos, pfx := range pfxs {
+		mp = self.premsgs[pos]
+		for tkn := range mp.Tokens() {
+			switch tkn {
+			case "e", "s":
+				acc = append(acc, pfx+tkn)
+			default:
+				continue
+			}
+		}
+	}
+
+	return slices.Values(acc), nil
 }
 
 func (self HandshakePattern) Check() error {
@@ -177,6 +199,10 @@ func (self msgPtrn) Check() error {
 		allTokens = append(allTokens, token)
 	}
 	return nil
+}
+
+func (self msgPtrn) Tokens() iter.Seq[string] {
+	return slices.Values(self.tokens)
 }
 
 func (self *msgPtrn) Append(tkn string) {
