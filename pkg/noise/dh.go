@@ -12,7 +12,8 @@ const (
 var dhRegistry *registry[DH]
 
 type DH interface {
-	GenerateKeyPair() (*Keypair, error)
+	GenerateKeypair() (*Keypair, error)
+	NewPublicKey(srzkey []byte) (*PublicKey, error)
 	DH(keypair *Keypair, pubkey *PublicKey) ([]byte, error)
 	DHLen() int
 }
@@ -42,7 +43,7 @@ type EcDH struct {
 	Size int
 }
 
-func (self EcDH) GenerateKeyPair() (*Keypair, error) {
+func (self EcDH) GenerateKeypair() (*Keypair, error) {
 	return self.GenerateKey(rand.Reader)
 }
 
