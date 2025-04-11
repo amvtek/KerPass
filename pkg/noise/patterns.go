@@ -18,8 +18,9 @@ const (
 )
 
 type HandshakePattern struct {
-	premsgs []msgPtrn
-	msgs    []msgPtrn
+	initspecs [2][]initSpec
+	premsgs   [2]msgPtrn
+	msgs      []msgPtrn
 }
 
 func (self *HandshakePattern) LoadDSL(dsl string) error {
@@ -111,26 +112,72 @@ func (self *HandshakePattern) LoadDSL(dsl string) error {
 		return ErrInvalidPatternDSL
 	}
 
-	// fill premsgs ensuring that initiator pre msg is at index 0...
+	var numtoken int
 	var initiator, peer string
+	var roleTokenss [][]string
 	initiator = msgs[0].sender
 	if left == initiator {
 		peer = right
+		roleTokenss = [][]string{leftTokens, rightTokens}
 	} else {
 		peer = left
+		roleTokenss = [][]string{rightTokens, leftTokens}
 	}
-	premsgs := []msgPtrn{{sender: initiator}, {sender: peer}}
+
+	// fill premsgs ensuring that initiator pre msg is at index 0...
+	self.premsgs[0] = msgPtrn{sender: initiator}
+	self.premsgs[1] = msgPtrn{sender: peer}
 	for _, msg := range preMsgs {
 		switch msg.sender {
 		case initiator:
-			premsgs[0].tokens = msg.tokens
+			self.premsgs[0].tokens = msg.tokens
+			numtoken += len(msg.tokens)
 		case peer:
-			premsgs[1].tokens = msg.tokens
+			self.premsgs[1].tokens = msg.tokens
+			numtoken += len(msg.tokens)
 		default:
 			continue
 		}
 	}
-	self.premsgs = premsgs
+
+	// fill initspecs ensuring that initiator []initSpec is at index 0
+	var mp msgPtrn
+	var specs []initSpec
+	var roleTokens []string
+	var pfxtkn string
+	var preS bool
+	pfxss := [][]string{[]string{"", "r"}, []string{"r", ""}}
+	for roleIdx, pfxs := range pfxss {
+		specs = make([]initSpec, 0, numtoken)
+		preS = false
+		for pos, pfx := range pfxs {
+			mp = self.premsgs[pos]
+			for tkn := range mp.Tokens() {
+				pfxtkn = pfx + tkn
+				switch pfxtkn {
+				case "s":
+					specs = append(specs, initSpec{token: pfxtkn, hash: true, size: 1})
+					preS = true // "s" in premsgs[roleIdx]
+				case "e", "re", "rs":
+					specs = append(specs, initSpec{token: pfxtkn, hash: true, size: 1})
+				default:
+					continue
+				}
+			}
+		}
+		if !preS {
+			// "s" not in premsgs[roleIdx] but the protocol may need to forward it
+			roleTokens = roleTokenss[roleIdx]
+			if slices.Contains(roleTokens, "s") {
+				specs = append(specs, initSpec{token: "s", size: 1})
+			}
+		}
+		if len(psks) > 0 {
+			specs = append(specs, initSpec{token: "psk", size: len(psks)})
+		}
+		self.initspecs[roleIdx] = specs
+	}
+
 	self.msgs = msgs
 	return nil
 
@@ -217,4 +264,10 @@ func (self *msgPtrn) Prepend(tkn string) {
 	tokens = append(tokens, tkn)
 	tokens = append(tokens, self.tokens...)
 	self.tokens = tokens
+}
+
+type initSpec struct {
+	token string
+	hash  bool
+	size  int
 }

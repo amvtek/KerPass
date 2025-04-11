@@ -22,7 +22,8 @@ func TestParsePattern(t *testing.T) {
 			-> ee
 			`,
 			expect: HandshakePattern{
-				premsgs: []msgPtrn{
+				initspecs: [2][]initSpec{[]initSpec{}, []initSpec{}},
+				premsgs: [2]msgPtrn{
 					{sender: "->"},
 					{sender: "<-"},
 				},
@@ -44,13 +45,79 @@ func TestParsePattern(t *testing.T) {
 			<- e, ee, se
 			`,
 			expect: HandshakePattern{
-				premsgs: []msgPtrn{
+				initspecs: [2][]initSpec{
+					[]initSpec{
+						{token: "s", hash: true, size: 1},
+						{token: "rs", hash: true, size: 1},
+					},
+					[]initSpec{
+						{token: "rs", hash: true, size: 1},
+						{token: "s", hash: true, size: 1},
+					},
+				},
+				premsgs: [2]msgPtrn{
 					{sender: "->", tokens: []string{"s"}},
 					{sender: "<-", tokens: []string{"s"}},
 				},
 				msgs: []msgPtrn{
 					{sender: "->", tokens: []string{"e", "es", "ss"}},
 					{sender: "<-", tokens: []string{"e", "ee", "se"}},
+				},
+			},
+		},
+		{
+			dsl: `
+			<- s
+			...
+			-> e, es, s, ss
+			<- e, ee, se
+			`,
+			expect: HandshakePattern{
+				initspecs: [2][]initSpec{
+					[]initSpec{
+						{token: "rs", hash: true, size: 1},
+						{token: "s", hash: false, size: 1},
+					},
+					[]initSpec{
+						{token: "s", hash: true, size: 1},
+					},
+				},
+				premsgs: [2]msgPtrn{
+					{sender: "->", tokens: nil},
+					{sender: "<-", tokens: []string{"s"}},
+				},
+				msgs: []msgPtrn{
+					{sender: "->", tokens: []string{"e", "es", "s", "ss"}},
+					{sender: "<-", tokens: []string{"e", "ee", "se"}},
+				},
+			},
+		},
+		{
+			dsl: `
+			<- s
+			...
+			-> e, es, s, ss, psk
+			<- e, ee, se, psk
+			`,
+			expect: HandshakePattern{
+				initspecs: [2][]initSpec{
+					[]initSpec{
+						{token: "rs", hash: true, size: 1},
+						{token: "s", hash: false, size: 1},
+						{token: "psk", hash: false, size: 2},
+					},
+					[]initSpec{
+						{token: "s", hash: true, size: 1},
+						{token: "psk", hash: false, size: 2},
+					},
+				},
+				premsgs: [2]msgPtrn{
+					{sender: "->", tokens: nil},
+					{sender: "<-", tokens: []string{"s"}},
+				},
+				msgs: []msgPtrn{
+					{sender: "->", tokens: []string{"e", "es", "s", "ss", "psk"}},
+					{sender: "<-", tokens: []string{"e", "ee", "se", "psk"}},
 				},
 			},
 		},
@@ -65,7 +132,17 @@ func TestParsePattern(t *testing.T) {
 			-> e, ee, es
 			`,
 			expect: HandshakePattern{
-				premsgs: []msgPtrn{
+				initspecs: [2][]initSpec{
+					[]initSpec{
+						{token: "s", hash: true, size: 1},
+						{token: "rs", hash: true, size: 1},
+					},
+					[]initSpec{
+						{token: "rs", hash: true, size: 1},
+						{token: "s", hash: true, size: 1},
+					},
+				},
+				premsgs: [2]msgPtrn{
 					{sender: "<-", tokens: []string{"s"}},
 					{sender: "->", tokens: []string{"s"}},
 				},
