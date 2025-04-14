@@ -14,9 +14,11 @@ type HandshakeState struct {
 	e         *Keypair
 	rs        *PublicKey
 	re        *PublicKey
+	psks      [][]byte
+	pskcursor int
 }
 
-func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []byte, s *Keypair, e *Keypair, rs *PublicKey, re *PublicKey) error {
+func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []byte, s *Keypair, e *Keypair, rs *PublicKey, re *PublicKey, psks [][]byte) error {
 
 	err := self.SymetricState.Init(cfg.ProtoName, cfg.CipherFactory, cfg.HashAlgo)
 	if nil != err {
@@ -35,39 +37,61 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 	self.msgPtrns = cfg.HandshakePattern.MsgPtrns(mps)
 	self.msgcursor = 0
 
-	self.s = s
-	self.e = e
-	self.rs = rs
-	self.re = re
+	self.s = nil
+	self.e = nil
+	self.rs = nil
+	self.re = nil
+
+	self.psks = nil
+	self.pskcursor = 0
 
 	self.MixHash(prologue)
 
-	pubkeys, err := cfg.HandshakePattern.PubkeyHashTokens(initiator)
-	if nil != err {
-		return err
-	}
-	for pubkey := range pubkeys {
-		switch pubkey {
+	for spec := range cfg.HandshakePattern.ListInitSpecs(initiator) {
+		switch spec.token {
+		// TODO: ErrInvalidHandshakePattern not correct
 		case "s":
 			if nil == s {
 				return ErrInvalidHandshakePattern
 			}
-			self.MixHash(s.PublicKey().Bytes())
+			self.s = s
+			if spec.hash {
+				self.MixHash(s.PublicKey().Bytes())
+			}
 		case "e":
 			if nil == e {
 				return ErrInvalidHandshakePattern
 			}
-			self.MixHash(e.PublicKey().Bytes())
+			self.e = e
+			if spec.hash {
+				self.MixHash(e.PublicKey().Bytes())
+			}
 		case "rs":
 			if nil == rs {
 				return ErrInvalidHandshakePattern
 			}
-			self.MixHash(rs.Bytes())
+			self.rs = rs
+			if spec.hash {
+				self.MixHash(rs.Bytes())
+			}
 		case "re":
 			if nil == re {
 				return ErrInvalidHandshakePattern
 			}
-			self.MixHash(re.Bytes())
+			self.re = re
+			if spec.hash {
+				self.MixHash(re.Bytes())
+			}
+		case "psk":
+			if len(psks) != spec.size {
+				return ErrInvalidHandshakePattern
+			}
+			for _, psk := range psks {
+				if len(psk) != pskKeySize {
+					return ErrInvalidHandshakePattern
+				}
+			}
+			self.psks = psks
 		default:
 			continue
 		}

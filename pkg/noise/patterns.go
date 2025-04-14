@@ -23,6 +23,16 @@ type HandshakePattern struct {
 	msgs      []msgPtrn
 }
 
+func (self *HandshakePattern) ListInitSpecs(initiator bool) iter.Seq[initSpec] {
+	var roleIdx int
+	if initiator {
+		roleIdx = 0
+	} else {
+		roleIdx = 1
+	}
+	return slices.Values(self.initspecs[roleIdx])
+}
+
 func (self *HandshakePattern) LoadDSL(dsl string) error {
 	leftTokens := make([]string, 0, 12)
 	rightTokens := make([]string, 0, 12)
@@ -113,26 +123,26 @@ func (self *HandshakePattern) LoadDSL(dsl string) error {
 	}
 
 	var numtoken int
-	var initiator, peer string
+	var initiator, responder string
 	var roleTokenss [][]string
 	initiator = msgs[0].sender
 	if left == initiator {
-		peer = right
+		responder = right
 		roleTokenss = [][]string{leftTokens, rightTokens}
 	} else {
-		peer = left
+		responder = left
 		roleTokenss = [][]string{rightTokens, leftTokens}
 	}
 
 	// fill premsgs ensuring that initiator pre msg is at index 0...
 	self.premsgs[0] = msgPtrn{sender: initiator}
-	self.premsgs[1] = msgPtrn{sender: peer}
+	self.premsgs[1] = msgPtrn{sender: responder}
 	for _, msg := range preMsgs {
 		switch msg.sender {
 		case initiator:
 			self.premsgs[0].tokens = msg.tokens
 			numtoken += len(msg.tokens)
-		case peer:
+		case responder:
 			self.premsgs[1].tokens = msg.tokens
 			numtoken += len(msg.tokens)
 		default:

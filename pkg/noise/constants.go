@@ -7,4 +7,5 @@ const (
 	dhMinSize       = 32
 	hashMinSize     = 32
 	hashMaxSize     = 64
+	pskKeySize      = 32
 )
