@@ -15,7 +15,7 @@ func (self *HexBinary) UnmarshalText(text []byte) error {
 		dst = make([]byte, 0, hxsz)
 	}
 
-	_, err := hex.AppendDecode(dst, text)
+	dst, err := hex.AppendDecode(dst, text)
 	if nil != err {
 		return err
 	}
