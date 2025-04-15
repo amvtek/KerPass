@@ -168,4 +168,223 @@ func init() {
 		      <- e, ee, se, s, es
 		`,
 	)
+
+	// deferred patterns
+	MustRegisterPatternSpec(
+		`
+		NK1:
+		      <- s
+		      ...
+		      -> e
+		      <- e, ee, es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		NX1:
+		      -> e
+		      <- e, ee, s
+		      -> es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		X1N:
+		      -> e
+		      <- e, ee
+		      -> s
+		      <- se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		X1K:
+		      <- s
+		      ...
+		      -> e, es
+		      <- e, ee
+		      -> s
+		      <- se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		XK1:
+		      <- s
+		      ...
+		      -> e
+		      <- e, ee, es
+		      -> s, se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		X1K1:
+		      <- s
+		      ...
+		      -> e
+		      <- e, ee, es
+		      -> s
+		      <- se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		X1X:
+		      -> e
+		      <- e, ee, s, es
+		      -> s
+		      <- se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		XX1:
+		      -> e
+		      <- e, ee, s
+		      -> es, s, se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		X1X1:
+		      -> e
+		      <- e, ee, s
+		      -> es, s
+		      <- se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		K1N:
+		      -> s
+		      ...
+		      -> e
+		      <- e, ee
+		      -> se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		K1K:
+		      -> s
+		      <- s
+		      ...
+		      -> e, es
+		      <- e, ee
+		      -> se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		KK1:
+		      -> s
+		      <- s
+		      ...
+		      -> e
+		      <- e, ee, se, es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		K1K1:
+		      -> s
+		      <- s
+		      ...
+		      -> e
+		      <- e, ee, es
+		      -> s
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		K1X:
+		      -> s
+		      ...
+		      -> e
+		      <- e, ee, s, es
+		      -> se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		KX1:
+		      -> s
+		      ...
+		      -> e
+		      <- e, ee, se, s
+		      -> es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		K1X1:
+		      -> s
+		      ...
+		      -> e
+		      <- e, ee, s
+		      -> se, es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		I1N:
+		      -> e, s
+		      <- e, ee
+		      -> se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		I1K:
+		      <- s
+		      ...
+		      -> e, es, s
+		      <- e, ee
+		      -> se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		IK1:
+		      <- s
+		      ...
+		      -> e, s
+		      <- e, ee, se, es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		I1K1:
+		      <- s
+		      ...
+		      -> e, s
+		      <- e, ee, es
+		      -> se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		I1X:
+		      -> e, s
+		      <- e, ee, s, es
+		      -> se
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		IX1:
+		      -> e, s
+		      <- e, ee, se, s
+		      -> es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		I1X1:
+		      -> e, s
+		      <- e, ee, s
+		      -> se, es
+		`,
+	)
 }
