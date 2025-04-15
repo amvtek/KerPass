@@ -37,12 +37,12 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 	self.msgPtrns = cfg.HandshakePattern.MsgPtrns(mps)
 	self.msgcursor = 0
 
-	self.s = nil
-	self.e = nil
-	self.rs = nil
-	self.re = nil
+	self.s = s
+	self.e = e
+	self.rs = rs
+	self.re = re
 
-	self.psks = nil
+	self.psks = psks
 	self.pskcursor = 0
 
 	self.MixHash(prologue)
@@ -51,47 +51,42 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 		switch spec.token {
 		// TODO: ErrInvalidHandshakePattern not correct
 		case "s":
-			if nil == s {
+			if nil == self.s {
 				return ErrInvalidHandshakePattern
 			}
-			self.s = s
 			if spec.hash {
 				self.MixHash(s.PublicKey().Bytes())
 			}
 		case "e":
-			if nil == e {
+			if nil == self.e {
 				return ErrInvalidHandshakePattern
 			}
-			self.e = e
 			if spec.hash {
 				self.MixHash(e.PublicKey().Bytes())
 			}
 		case "rs":
-			if nil == rs {
+			if nil == self.rs {
 				return ErrInvalidHandshakePattern
 			}
-			self.rs = rs
 			if spec.hash {
 				self.MixHash(rs.Bytes())
 			}
 		case "re":
-			if nil == re {
+			if nil == self.re {
 				return ErrInvalidHandshakePattern
 			}
-			self.re = re
 			if spec.hash {
 				self.MixHash(re.Bytes())
 			}
 		case "psk":
-			if len(psks) != spec.size {
+			if len(self.psks) != spec.size {
 				return ErrInvalidHandshakePattern
 			}
-			for _, psk := range psks {
+			for _, psk := range self.psks {
 				if len(psk) != pskKeySize {
 					return ErrInvalidHandshakePattern
 				}
 			}
-			self.psks = psks
 		default:
 			continue
 		}
@@ -126,15 +121,14 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 	for tkn := range self.msgPtrns[cursor].Tokens() {
 		switch tkn {
 		case "e":
-			if nil != self.e {
-				return completed, ErrUnexpectedKey
+			if nil == self.e {
+				keypair, err = self.dh.GenerateKeypair()
+				if nil != err {
+					return completed, err
+				}
+				self.e = keypair
 			}
-			keypair, err = self.dh.GenerateKeypair()
-			if nil != err {
-				return completed, err
-			}
-			self.e = keypair
-			ikm = keypair.PublicKey().Bytes()
+			ikm = self.e.PublicKey().Bytes()
 			self.MixHash(ikm)
 			_, err = message.Write(ikm)
 			if nil != err {
