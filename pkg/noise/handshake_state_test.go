@@ -111,7 +111,7 @@ func TestHandshakeState(t *testing.T) {
 			pbuf := new(bytes.Buffer)
 			var payload, ciphertext []byte
 			var writeCompleted, readCompleted bool
-			var writeIdx, readIdx int
+			var writeIdx, readIdx, untestedIdx int
 			var errWrite, errRead error
 			for pos, msg := range vec.Messages {
 				writeIdx = pos % 2
@@ -123,28 +123,27 @@ func TestHandshakeState(t *testing.T) {
 				ciphertext = []byte(msg.CipherText)
 				writeCompleted, errWrite = hss[writeIdx].WriteMessage(payload, mbuf)
 				if nil != errWrite {
-					t.Errorf("msg[%d] : Failed writemessage, got error %v", pos, errWrite)
+					t.Fatalf("msg[%d] : Failed writemessage, got error %v", pos, errWrite)
 				}
 				if !reflect.DeepEqual(mbuf.Bytes(), ciphertext) {
-					t.Errorf("msg[%d] : Failed ciphertext check", pos)
+					t.Fatalf("msg[%d] : Failed ciphertext check", pos)
 				}
 				readCompleted, errRead = hss[readIdx].ReadMessage(mbuf.Bytes(), pbuf)
 				if nil != errRead {
-					t.Errorf("msg[%d] : Failed readmessage, got error %v", pos, errRead)
+					t.Fatalf("msg[%d] : Failed readmessage, got error %v", pos, errRead)
 				}
 				if !(writeCompleted == readCompleted) {
-					t.Errorf("msg[%d] : readCompleted %v != writeCompleted %v", pos, readCompleted, writeCompleted)
+					t.Fatalf("msg[%d] : readCompleted %v != writeCompleted %v", pos, readCompleted, writeCompleted)
 				}
 				if !reflect.DeepEqual(payload, pbuf.Bytes()) {
-					t.Errorf("msg[%d] : Failed payload check", pos)
-				}
-				if (nil != errWrite) || (nil != errRead) {
-					break
+					t.Fatalf("msg[%d] : Failed payload check", pos)
 				}
 				if writeCompleted && readCompleted {
+					untestedIdx = pos + 1
 					break
 				}
 			}
+			t.Logf("=== %d unprocessed messages", len(vec.Messages[untestedIdx:]))
 
 		})
 	}

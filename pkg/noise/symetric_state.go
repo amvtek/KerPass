@@ -129,7 +129,7 @@ func (self *SymetricState) initCK(protoname string) {
 	psb := []byte(protoname)
 	h := self.hb[:]
 	ck := self.ckb[:]
-	if len(psb) < self.hash.Size() {
+	if len(psb) <= self.hash.Size() {
 		zeros := make([]byte, hashMaxSize)
 		copy(h, zeros)
 		copy(h, psb)
