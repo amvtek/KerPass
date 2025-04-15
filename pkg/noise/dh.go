@@ -13,6 +13,7 @@ var dhRegistry *registry[DH]
 
 type DH interface {
 	GenerateKeypair() (*Keypair, error)
+	NewPrivateKey(srzkey []byte) (*Keypair, error)
 	NewPublicKey(srzkey []byte) (*PublicKey, error)
 	DH(keypair *Keypair, pubkey *PublicKey) ([]byte, error)
 	DHLen() int
