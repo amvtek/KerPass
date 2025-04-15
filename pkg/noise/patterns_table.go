@@ -293,7 +293,7 @@ func init() {
 		      ...
 		      -> e
 		      <- e, ee, es
-		      -> s
+		      -> se
 		`,
 	)
 	MustRegisterPatternSpec(
