@@ -29,4 +29,5 @@ var (
 	ErrMissingKey                  = errors.New("noise: missing key")
 	ErrUnsupportedToken            = errors.New("noise: unsupported token")
 	ErrInvalidMessage              = errors.New("noise: Invalid message")
+	ErrInvalidKeySize              = errors.New("noise: Invalid key size")
 )

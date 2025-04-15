@@ -59,9 +59,9 @@ func (self AEADFactoryFunc) New(key []byte) (AEAD, error) {
 type CipherState struct {
 	factory AEADFactory
 	aead    AEAD
-	k       [cipherKeySize]byte
+	kb      [cipherKeySize]byte
 	n       uint64
-	nonce   [cipherNonceSize]byte
+	nonceb  [cipherNonceSize]byte
 }
 
 func (self *CipherState) HasKey() bool {
@@ -76,20 +76,20 @@ func (self *CipherState) Init(cipherFactory AEADFactory) error {
 func (self *CipherState) InitializeKey(newkey []byte) error {
 	var aead AEAD
 	var err error
-	if len(newkey) == 0 {
+	switch len(newkey) {
+	case 0:
 		// if newkey has length 0, we assume it corresponds to the "empty" key mentionned in noise specs 5.2
 		aead = nil
 		zeros := make([]byte, cipherKeySize)
-		copy(self.key(), zeros)
-	} else {
-		numbytes := copy(self.key(), newkey)
-		if numbytes < cipherKeySize {
-			return ErrRekeyLowEntropy
-		}
-		aead, err = self.factory.New(self.key())
+		copy(self.kb[:], zeros)
+	case cipherKeySize:
+		copy(self.kb[:], newkey)
+		aead, err = self.factory.New(self.kb[:])
 		if nil != err {
 			return err
 		}
+	default:
+		return ErrInvalidKeySize
 	}
 	self.aead = aead
 	self.n = 0
@@ -107,7 +107,7 @@ func (self *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 	if CIPHER_MAX_NONCE == self.n {
 		return nil, ErrCipherKeyOverUse
 	}
-	nonce := self.nonce[:]
+	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)
 	ciphertext := self.aead.Seal(nil, nonce, plaintext, ad)
 	self.n += 1
@@ -121,7 +121,7 @@ func (self *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	if CIPHER_MAX_NONCE == self.n {
 		return nil, ErrCipherKeyOverUse
 	}
-	nonce := self.nonce[:]
+	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)
 	plaintext, err := self.aead.Open(nil, nonce, ciphertext, ad)
 	if nil != err {
@@ -135,8 +135,8 @@ func (self *CipherState) Rekey() error {
 	if !self.HasKey() {
 		return ErrInvalidCipherState
 	}
-	newkey := self.k[:]
-	err := self.aead.Rekey(newkey, self.nonce[:])
+	newkey := self.kb[:]
+	err := self.aead.Rekey(newkey, self.nonceb[:])
 	if nil != err {
 		return err
 	}
@@ -147,10 +147,6 @@ func (self *CipherState) Rekey() error {
 	self.aead = aead
 	// RMQ: we keep n counter inchanged as the spec says nothing about it.
 	return nil
-}
-
-func (self *CipherState) key() []byte {
-	return self.k[:]
 }
 
 type aesGCMAEAD struct {
