@@ -3,6 +3,10 @@ package noise
 import (
 	"crypto"
 
+	_ "crypto/sha512"
+	_ "golang.org/x/crypto/blake2b"
+	_ "golang.org/x/crypto/blake2s"
+
 	"golang.org/x/crypto/hkdf"
 )
 
@@ -21,11 +25,17 @@ type Hash struct {
 
 func (self Hash) Kdf(ck, ikm []byte, keys ...[]byte) error {
 	var err error
-	rdr := hkdf.New(self.New, ck, ikm, nil)
+	hsz := self.Size()
+	// ikm is used as HKDF secret & ck as HKDF salt
+	rdr := hkdf.New(self.New, ikm, ck, nil)
+	var rsz int
 	for _, key := range keys {
-		_, err = rdr.Read(key)
+		rsz, err = rdr.Read(key)
 		if nil != err {
 			return err
+		}
+		if rsz != hsz {
+			return ErrInvalidKeySize
 		}
 	}
 	return nil
@@ -58,8 +68,8 @@ func GetHash(name string) (Hash, error) {
 
 func init() {
 	hashRegistry = newRegistry[Hash]()
-	MustRegisterHash(HASH_SHA256, crypto.SHA256)
 	MustRegisterHash(HASH_SHA512, crypto.SHA512)
+	MustRegisterHash(HASH_SHA256, crypto.SHA256)
 	MustRegisterHash(HASH_BLAKE2B, crypto.BLAKE2b_512)
 	MustRegisterHash(HASH_BLAKE2S, crypto.BLAKE2s_256)
 }
