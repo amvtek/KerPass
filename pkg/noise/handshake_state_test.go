@@ -2,6 +2,7 @@ package noise
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -11,8 +12,8 @@ func TestHandshakeState(t *testing.T) {
 	if nil != err {
 		t.Fatalf("Unable to load vectors from snow.txt, got error %v", err)
 	}
-	for _, vec := range vectors {
-		t.Run(vec.ProtocolName, func(t *testing.T) {
+	for tn, vec := range vectors {
+		t.Run(fmt.Sprintf("vectors[%d]%s", tn, vec.ProtocolName), func(t *testing.T) {
 			var err error
 			var cfg Config
 			var prologue []byte
@@ -125,15 +126,15 @@ func TestHandshakeState(t *testing.T) {
 				if nil != errWrite {
 					t.Fatalf("msg[%d] : Failed writemessage, got error %v", pos, errWrite)
 				}
-				if !reflect.DeepEqual(mbuf.Bytes(), ciphertext) {
-					t.Fatalf("msg[%d] : Failed ciphertext check", pos)
-				}
 				readCompleted, errRead = hss[readIdx].ReadMessage(mbuf.Bytes(), pbuf)
 				if nil != errRead {
 					t.Fatalf("msg[%d] : Failed readmessage, got error %v", pos, errRead)
 				}
 				if !(writeCompleted == readCompleted) {
 					t.Fatalf("msg[%d] : readCompleted %v != writeCompleted %v", pos, readCompleted, writeCompleted)
+				}
+				if !reflect.DeepEqual(mbuf.Bytes(), ciphertext) {
+					t.Fatalf("msg[%d] : Failed ciphertext check", pos)
 				}
 				if !reflect.DeepEqual(payload, pbuf.Bytes()) {
 					t.Fatalf("msg[%d] : Failed payload check", pos)
