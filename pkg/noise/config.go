@@ -32,6 +32,9 @@ func (self *Config) Load(srzproto string) error {
 	if nil != err {
 		return err
 	}
+	if len(proto.HandshakePatternModifiers) > 0 {
+		return ErrPatternUnknown
+	}
 
 	cipherFactory, err := GetAEADFactory(proto.CipherAlgo)
 	if nil != err {
