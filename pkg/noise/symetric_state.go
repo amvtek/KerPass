@@ -55,7 +55,7 @@ func (self *SymetricState) MixHash(data []byte) {
 	hd := self.hash.New()
 	hd.Write(h)
 	hd.Write(data)
-	hd.Sum(h)
+	h = hd.Sum(self.hb[:0])
 }
 
 func (self *SymetricState) MixKeyAndHash(ikm []byte) error {
