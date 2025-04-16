@@ -21,6 +21,7 @@ type TestVector struct {
 	ResponderRemoteEphemeralKey utils.HexBinary   `json:"resp_remote_ephemeral"`
 	ResponderRemoteStaticKey    utils.HexBinary   `json:"resp_remote_static"`
 	ResponderPsks               []utils.HexBinary `json:"resp_psks"`
+	HandshakeHash               utils.HexBinary   `json:"handshake_hash"`
 	Messages                    []TestMessage     `json:"messages"`
 }
 
