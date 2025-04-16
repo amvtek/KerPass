@@ -18,6 +18,7 @@ const (
 )
 
 type HandshakePattern struct {
+	oneway    bool
 	initspecs [2][]initSpec
 	premsgs   [2]msgPtrn
 	msgs      []msgPtrn
