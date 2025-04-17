@@ -212,6 +212,9 @@ func testVector(t *testing.T, vec TestVector) {
 	}
 
 	peers := []cipherPair{{ecs: cs00, dcs: cs10}, {ecs: cs11, dcs: cs01}}
+	if cfg.HandshakePattern.OneWay() {
+		peers[1] = peers[0]
+	}
 	var cp cipherPair
 	var plaintxt, ciphertxt []byte
 	pmsg := len(vec.Messages[:untestedIdx])

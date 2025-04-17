@@ -39,33 +39,32 @@ func LoadPattern(name string, dst *HandshakePattern) error {
 func init() {
 	patternRegistry = newRegistry[*HandshakePattern]()
 
-	// TODO: temporarily disabled to get the tests passing.
 	// 1 way patterns
-	// MustRegisterPatternSpec(
-	// 	`
-	// 	N:
-	// 	  <- s
-	// 	  ...
-	// 	  -> e, es
-	// 	`,
-	// )
-	// MustRegisterPatternSpec(
-	// 	`
-	// 	K:
-	// 	  -> s
-	// 	  <- s
-	// 	  ...
-	// 	  -> e, es, ss
-	// 	`,
-	// )
-	// MustRegisterPatternSpec(
-	// 	`
-	// 	X:
-	// 	  <- s
-	// 	  ...
-	// 	  -> e, es, s, ss
-	// 	`,
-	// )
+	MustRegisterPatternSpec(
+		`
+		N:
+		  <- s
+		  ...
+		  -> e, es
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		K:
+		  -> s
+		  <- s
+		  ...
+		  -> e, es, ss
+		`,
+	)
+	MustRegisterPatternSpec(
+		`
+		X:
+		  <- s
+		  ...
+		  -> e, es, s, ss
+		`,
+	)
 
 	// interactive patterns
 	MustRegisterPatternSpec(
