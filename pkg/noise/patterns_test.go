@@ -1,17 +1,17 @@
 package noise
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
-	"fmt"
 )
 
 func TestShowPatternTable(t *testing.T) {
 	lines := make([]string, 0, 1+2*len(patternRegistry.entries))
 	for k, p := range patternRegistry.entries {
 		lines = append(lines, fmt.Sprintf("---\n%s:", k))
-		lines = append(lines, p.String())
+		lines = append(lines, p.Dsl())
 	}
 	t.Logf("patternRegistry >\n%s", strings.Join(lines, "\n"))
 }

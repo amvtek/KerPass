@@ -1,6 +1,7 @@
 package noise
 
 import (
+	"fmt"
 	"iter"
 	"slices"
 	"strings"
@@ -132,11 +133,11 @@ func (self HandshakePattern) OneWay() bool {
 	return self.oneway
 }
 
-func (self HandshakePattern) String() string {
-	lines := make([]string, 0, 2)
+func (self HandshakePattern) Dsl() string {
+	lines := make([]string, 0, 4)
 	var line string
 	for _, msg := range self.premsgs {
-		line = msg.String()
+		line = msg.Dsl()
 		if "" != line {
 			lines = append(lines, line)
 		}
@@ -145,7 +146,7 @@ func (self HandshakePattern) String() string {
 		lines = append(lines, "...")
 	}
 	for _, msg := range self.msgs {
-		lines = append(lines, msg.String())
+		lines = append(lines, msg.Dsl())
 	}
 	return strings.Join(lines, "\n")
 }
@@ -344,14 +345,11 @@ func (self msgPtrn) Tokens() iter.Seq[string] {
 	return slices.Values(self.tokens)
 }
 
-func (self msgPtrn) String() string {
+func (self msgPtrn) Dsl() string {
 	if len(self.tokens) == 0 {
 		return ""
 	}
-	parts := make([]string, 0, 1+len(self.tokens))
-	parts = append(parts, self.sender)
-	parts = append(parts, self.tokens...)
-	return strings.Join(parts, " ")
+	return fmt.Sprintf("%s %s", self.sender, strings.Join(self.tokens, ", "))
 }
 
 func (self *msgPtrn) Append(tkn string) {
