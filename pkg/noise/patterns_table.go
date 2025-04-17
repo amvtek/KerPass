@@ -4,15 +4,14 @@ import (
 	"strings"
 )
 
-var patternRegistry *registry[HandshakePattern]
+var patternRegistry *registry[*HandshakePattern]
 
 func MustRegisterPatternSpec(dsl string) {
 	parts := strings.SplitN(dsl, ":", 2)
 	if len(parts) != 2 {
 		panic("missing registration name")
 	}
-	pattern := HandshakePattern{}
-	err := pattern.LoadDSL(parts[1])
+	pattern, err := NewPattern(parts[1])
 	if nil != err {
 		panic(err)
 	}
@@ -22,7 +21,7 @@ func MustRegisterPatternSpec(dsl string) {
 	}
 }
 
-func RegisterPattern(name string, pattern HandshakePattern) error {
+func RegisterPattern(name string, pattern *HandshakePattern) error {
 	return registrySet(patternRegistry, name, pattern)
 }
 
@@ -32,13 +31,13 @@ func LoadPattern(name string, dst *HandshakePattern) error {
 		return ErrPatternUnknown
 	}
 	if nil != dst {
-		*dst = src
+		*dst = *src
 	}
 	return nil
 }
 
 func init() {
-	patternRegistry = newRegistry[HandshakePattern]()
+	patternRegistry = newRegistry[*HandshakePattern]()
 
 	// TODO: temporarily disabled to get the tests passing.
 	// 1 way patterns

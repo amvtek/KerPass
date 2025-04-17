@@ -24,6 +24,95 @@ type HandshakePattern struct {
 	msgs      []msgPtrn
 }
 
+func NewPattern(dsl string) (*HandshakePattern, error) {
+	preMsgs := make([]msgPtrn, 0, 2)
+	msgs := make([]msgPtrn, 0, 4)
+	preAllow := true
+
+	var ptrn msgPtrn
+	var prevSender, sender, token string
+	var ptrnTokens, tokens []string
+	for msgdsl := range strings.Lines(dsl) {
+		tokens = strings.Fields(strings.ReplaceAll(msgdsl, ",", " "))
+
+		// skip if empty line
+		if len(tokens) == 0 {
+			continue
+		}
+
+		sender = tokens[0]
+		if sender == prevSender {
+			return nil, ErrInvalidPatternDSL
+		}
+		if "..." == sender {
+			// error if '...' was already encountered or if we have more than 2 pre messages or ...
+			if !preAllow || len(msgs) > 2 || len(tokens) > 1 {
+				return nil, ErrInvalidPatternDSL
+			}
+			preAllow = false
+			preMsgs = append(preMsgs, msgs...)
+			msgs = msgs[:0]
+			prevSender = ""
+			continue
+		}
+
+		ptrn = msgPtrn{}
+		ptrnTokens = make([]string, 0, 4)
+		ptrn.sender = sender
+		prevSender = sender
+
+		for _, token = range tokens[1:] {
+			switch token {
+			case "e", "s":
+			case "ee", "es", "se", "ss":
+				preAllow = false // DH operation can not be inside pre message
+			case "psk":
+				preAllow = false // psk can not be inside pre message
+			default:
+				return nil, ErrInvalidPatternDSL
+			}
+			ptrnTokens = append(ptrnTokens, token)
+
+		}
+		ptrn.tokens = ptrnTokens
+		msgs = append(msgs, ptrn)
+	}
+	if 0 == len(msgs) {
+		return nil, ErrInvalidPatternDSL
+	}
+
+	var initiator, responder string
+	initiator = msgs[0].sender
+	if left == initiator {
+		responder = right
+	} else {
+		responder = left
+	}
+
+	rv := HandshakePattern{msgs: msgs}
+
+	// fill premsgs ensuring that initiator pre msg is at index 0...
+	rv.premsgs[0].sender = initiator
+	rv.premsgs[1].sender = responder
+	for _, msg := range preMsgs {
+		switch msg.sender {
+		case initiator:
+			rv.premsgs[0].tokens = msg.tokens
+		case responder:
+			rv.premsgs[1].tokens = msg.tokens
+		default:
+			continue
+		}
+	}
+
+	err := rv.init()
+	if nil != err {
+		return nil, err
+	}
+
+	return &rv, nil
+}
+
 func (self *HandshakePattern) ListInitSpecs(initiator bool) iter.Seq[initSpec] {
 	var roleIdx int
 	if initiator {
@@ -34,141 +123,147 @@ func (self *HandshakePattern) ListInitSpecs(initiator bool) iter.Seq[initSpec] {
 	return slices.Values(self.initspecs[roleIdx])
 }
 
-func (self *HandshakePattern) LoadDSL(dsl string) error {
-	leftTokens := make([]string, 0, 12)
-	rightTokens := make([]string, 0, 12)
-	preMsgs := make([]msgPtrn, 0, 2)
-	msgs := make([]msgPtrn, 0, 4)
-	preAllow := true
+func (self HandshakePattern) MsgPtrns(dst []msgPtrn) []msgPtrn {
+	dst = append(dst, self.msgs...)
+	return dst
+}
 
-	var ptrn msgPtrn
-	var prevSender, sender, token string
-	var ptrnTokens, senderTokens, tokens, psks []string
-	for msgdsl := range strings.Lines(dsl) {
-		tokens = strings.Fields(strings.ReplaceAll(msgdsl, ",", " "))
+func (self HandshakePattern) OneWay() bool {
+	return self.oneway
+}
 
-		// skip if empty line
-		if len(tokens) == 0 {
-			continue
+func (self *HandshakePattern) init() error {
+	if nil == self || len(self.msgs) == 0 {
+		return ErrInvalidHandshakePattern
+	}
+
+	validSenders := []string{left, right}
+	var initiator, responder string
+	var leftIdx, rightIdx int
+	initiator = self.msgs[0].sender
+	switch initiator {
+	case left:
+		leftIdx = 0
+		rightIdx = 1
+		responder = right
+	case right:
+		leftIdx = 1
+		rightIdx = 0
+		responder = left
+	default:
+		return ErrInvalidHandshakePattern
+	}
+
+	lrTokens := [2][]string{}
+	var prevSender, sender string
+
+	// check the premsgs
+	var senderIdx int
+	for _, msg := range self.premsgs[:] {
+		sender = msg.sender
+		if prevSender == sender {
+			return ErrInvalidHandshakePattern
 		}
-
-		ptrn = msgPtrn{}
-		ptrnTokens = make([]string, 0, 4)
-
-		sender = tokens[0]
-		if sender == prevSender {
-			return ErrInvalidPatternDSL
-		}
-		if "..." == sender {
-			// error if '...' was already encountered or if we have more than 2 pre messages or ...
-			if !preAllow || len(msgs) > 2 || len(tokens) > 1 {
-				return ErrInvalidPatternDSL
-			}
-			preAllow = false
-			preMsgs = append(preMsgs, msgs...)
-			msgs = msgs[:0]
-			prevSender = ""
-			continue
-		}
-		ptrn.sender = sender
 		prevSender = sender
-
-		for _, token = range tokens[1:] {
+		if !slices.Contains(validSenders, sender) {
+			return ErrInvalidHandshakePattern
+		}
+		if sender == initiator {
+			senderIdx = 0
+		} else {
+			senderIdx = 1
+		}
+		for token := range msg.Tokens() {
+			if slices.Contains(lrTokens[senderIdx], token) {
+				return ErrInvalidMsgPtrnTokenRepeat
+			}
 			switch token {
-			// TODO: no enforcement of spec 7.3.4 currently
 			case "e", "s":
-				// error if same key was previously sent
-				// spec 7.3.2
-				if slices.Contains(senderTokens, token) {
-					return ErrInvalidMsgPtrnTokenRepeat
-				}
+				lrTokens[senderIdx] = append(lrTokens[senderIdx], token)
+			default:
+				return ErrInvalidHandshakePattern
+			}
+		}
+	}
+
+	// reorder the premsgs so that initiator is at index 0
+	premsgs := [2]msgPtrn{}
+	var tokens []string
+	for pos, sender := range []string{initiator, responder} {
+		if len(lrTokens[pos]) > 0 {
+			tokens = make([]string, len(lrTokens[pos]))
+			copy(tokens, lrTokens[pos])
+		} else {
+			tokens = nil
+		}
+		premsgs[pos].sender = sender
+		premsgs[pos].tokens = tokens
+	}
+
+	// check the msgs
+	var pskCount int
+	prevSender = ""
+	for _, msg := range self.msgs {
+		sender = msg.sender
+		if prevSender == sender {
+			return ErrInvalidHandshakePattern
+		}
+		prevSender = sender
+		if !slices.Contains(validSenders, sender) {
+			return ErrInvalidHandshakePattern
+		}
+		if sender == initiator {
+			senderIdx = 0
+		} else {
+			senderIdx = 1
+		}
+		for token := range msg.Tokens() {
+			if slices.Contains(lrTokens[senderIdx], token) {
+				return ErrInvalidMsgPtrnTokenRepeat
+			}
+			switch token {
+			case "e", "s":
+				lrTokens[senderIdx] = append(lrTokens[senderIdx], token)
 			case "ee", "es", "se", "ss":
-				// error if same DH operation was previously run
-				// spec 7.3.3
-				if slices.Contains(senderTokens, token) {
-					return ErrInvalidMsgPtrnTokenRepeat
-				}
 				// error if left key was not previously forwarded by left sender
 				// spec 7.3.1
-				if !slices.Contains(leftTokens, token[:1]) {
-					return ErrInvalidPatternDSL
+				if !slices.Contains(lrTokens[leftIdx], token[:1]) {
+					return ErrInvalidHandshakePattern
 				}
 				// error if right key was not previously forwarded by right sender
 				// spec 7.3.1
-				if !slices.Contains(rightTokens, token[1:]) {
-					return ErrInvalidPatternDSL
+				if !slices.Contains(lrTokens[rightIdx], token[1:]) {
+					return ErrInvalidHandshakePattern
 				}
-				preAllow = false // DH operation can not be inside pre message
+				lrTokens[senderIdx] = append(lrTokens[senderIdx], token)
 			case "psk":
-				preAllow = false // psk can not be inside pre message
-				psks = append(psks, "psk")
+				pskCount += 1
 			default:
-				return ErrInvalidPatternDSL
+				return ErrInvalidHandshakePattern
 			}
-			ptrnTokens = append(ptrnTokens, token)
-			switch sender {
-			case left:
-				leftTokens = append(leftTokens, token)
-			case right:
-				rightTokens = append(rightTokens, token)
-			default:
-				return ErrInvalidMsgPtrnSender
-			}
-
-		}
-		ptrn.tokens = ptrnTokens
-		msgs = append(msgs, ptrn)
-	}
-	if 0 == len(msgs) {
-		return ErrInvalidPatternDSL
-	}
-
-	var numtoken int
-	var initiator, responder string
-	var roleTokenss [][]string
-	initiator = msgs[0].sender
-	if left == initiator {
-		responder = right
-		roleTokenss = [][]string{leftTokens, rightTokens}
-	} else {
-		responder = left
-		roleTokenss = [][]string{rightTokens, leftTokens}
-	}
-
-	// fill premsgs ensuring that initiator pre msg is at index 0...
-	self.premsgs[0] = msgPtrn{sender: initiator}
-	self.premsgs[1] = msgPtrn{sender: responder}
-	for _, msg := range preMsgs {
-		switch msg.sender {
-		case initiator:
-			self.premsgs[0].tokens = msg.tokens
-			numtoken += len(msg.tokens)
-		case responder:
-			self.premsgs[1].tokens = msg.tokens
-			numtoken += len(msg.tokens)
-		default:
-			continue
 		}
 	}
 
 	// fill initspecs ensuring that initiator []initSpec is at index 0
 	var mp msgPtrn
 	var specs []initSpec
-	var roleTokens []string
+	var senderTokens []string
 	var pfxtkn string
 	var preS bool
+	initspecs := [2][]initSpec{}
+	numtoken := len(premsgs[0].tokens) + len(premsgs[1].tokens)
 	pfxss := [][]string{[]string{"", "r"}, []string{"r", ""}}
-	for roleIdx, pfxs := range pfxss {
+	for senderIdx, pfxs := range pfxss {
 		specs = make([]initSpec, 0, numtoken)
 		preS = false
 		for pos, pfx := range pfxs {
-			mp = self.premsgs[pos]
+			mp = premsgs[pos]
 			for tkn := range mp.Tokens() {
 				pfxtkn = pfx + tkn
 				switch pfxtkn {
 				case "s":
 					specs = append(specs, initSpec{token: pfxtkn, hash: true, size: 1})
-					preS = true // "s" in premsgs[roleIdx]
+					preS = true // "s" in premsgs[senderIdx]
 				case "e", "re", "rs":
 					specs = append(specs, initSpec{token: pfxtkn, hash: true, size: 1})
 				default:
@@ -177,60 +272,28 @@ func (self *HandshakePattern) LoadDSL(dsl string) error {
 			}
 		}
 		if !preS {
-			// "s" not in premsgs[roleIdx] but the protocol may need to forward it
-			roleTokens = roleTokenss[roleIdx]
-			if slices.Contains(roleTokens, "s") {
+			// "s" not in premsgs[senderIdx] but the protocol may need to forward it
+			senderTokens = lrTokens[senderIdx]
+			if slices.Contains(senderTokens, "s") {
 				specs = append(specs, initSpec{token: "s", size: 1})
 			}
 		}
-		if len(psks) > 0 {
-			specs = append(specs, initSpec{token: "psk", size: len(psks)})
+		if pskCount > 0 {
+			specs = append(specs, initSpec{token: "psk", size: pskCount})
 		}
-		self.initspecs[roleIdx] = specs
+		initspecs[senderIdx] = specs
 	}
 
-	self.msgs = msgs
-	return nil
-
-}
-
-func (self HandshakePattern) MsgPtrns(dst []msgPtrn) []msgPtrn {
-	dst = append(dst, self.msgs...)
-	return dst
-}
-
-func (self HandshakePattern) PubkeyHashTokens(initiator bool) (iter.Seq[string], error) {
-	// if self was initialized using LoadDSL
-	// then premsgs has length 2 & premsgs[0] has initiator sender...
-	if 2 != len(self.premsgs) {
-		return nil, ErrInvalidHandshakePattern
+	// determine if the pattern is 1 way
+	oneway := false
+	if len(self.msgs) == 1 && !slices.Contains(premsgs[0].tokens, "e") && !slices.Contains(premsgs[1].tokens, "e") {
+		oneway = true
 	}
 
-	var mp msgPtrn
-	acc := make([]string, 0, 4)
+	self.initspecs = initspecs
+	self.premsgs = premsgs
+	self.oneway = oneway
 
-	var pfxs []string
-	if initiator {
-		pfxs = []string{"", "r"}
-	} else {
-		pfxs = []string{"r", ""}
-	}
-	for pos, pfx := range pfxs {
-		mp = self.premsgs[pos]
-		for tkn := range mp.Tokens() {
-			switch tkn {
-			case "e", "s":
-				acc = append(acc, pfx+tkn)
-			default:
-				continue
-			}
-		}
-	}
-
-	return slices.Values(acc), nil
-}
-
-func (self HandshakePattern) Check() error {
 	return nil
 }
 
