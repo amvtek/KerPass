@@ -30,4 +30,6 @@ var (
 	ErrUnsupportedToken            = errors.New("noise: unsupported token")
 	ErrInvalidMessage              = errors.New("noise: Invalid message")
 	ErrInvalidKeySize              = errors.New("noise: Invalid key size")
+	ErrFailedPatternModify         = errors.New("noise: required modification not possible on subject pattern")
+	ErrUnsupportedModifier         = errors.New("noise: unknown pattern modifier")
 )
