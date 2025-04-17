@@ -62,6 +62,7 @@ func testVector(t *testing.T, vec TestVector) {
 	var prologue []byte
 	var s, e *Keypair
 	var rs, re *PublicKey
+	var psks, rpsks [][]byte
 	hss := [2]HandshakeState{}
 	err = cfg.Load(vec.ProtocolName)
 	if nil != err {
@@ -104,7 +105,15 @@ func testVector(t *testing.T, vec TestVector) {
 	} else {
 		rs = nil
 	}
-	err = hss[0].Initialize(cfg, true, prologue, s, e, rs, re, nil)
+	if len(vec.InitiatorPsks) > 0 {
+		psks = make([][]byte, 0, len(vec.InitiatorPsks))
+		for _, psk := range vec.InitiatorPsks {
+			psks = append(psks, []byte(psk))
+		}
+	} else {
+		psks = nil
+	}
+	err = hss[0].Initialize(cfg, true, prologue, s, e, rs, re, psks)
 	if nil != err {
 		t.Fatalf("Failed initiator handshake initialization, got error %v", err)
 	}
@@ -146,7 +155,15 @@ func testVector(t *testing.T, vec TestVector) {
 	} else {
 		rs = nil
 	}
-	err = hss[1].Initialize(cfg, false, prologue, s, e, rs, re, nil)
+	if len(vec.ResponderPsks) > 0 {
+		rpsks = make([][]byte, 0, len(vec.ResponderPsks))
+		for _, psk := range vec.ResponderPsks {
+			rpsks = append(rpsks, []byte(psk))
+		}
+	} else {
+		rpsks = nil
+	}
+	err = hss[1].Initialize(cfg, false, prologue, s, e, rs, re, rpsks)
 	if nil != err {
 		t.Fatalf("Failed responder handshake initialization, got error %v", err)
 	}
