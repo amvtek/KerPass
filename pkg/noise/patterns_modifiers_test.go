@@ -24,7 +24,7 @@ func TestPatternModifier(t *testing.T) {
 		},
 		{
 			basePattern: "XX",
-			modifiers: "fallback psk2",
+			modifiers:   "fallback psk2",
 			expectDsl: `
 			-> e
 			...

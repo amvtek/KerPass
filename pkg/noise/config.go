@@ -26,14 +26,21 @@ func (self *Config) Load(srzproto string) error {
 		return err
 	}
 
-	// TODO: needs to modify handshakePattern applying modifiers if any
 	handshakePattern := HandshakePattern{}
 	err = LoadPattern(proto.HandshakePattern, &handshakePattern)
 	if nil != err {
 		return err
 	}
-	if len(proto.HandshakePatternModifiers) > 0 {
-		return ErrPatternUnknown
+	var md PatternModifier
+	for _, mname := range proto.HandshakePatternModifiers {
+		md, err = GetModifier(mname)
+		if nil != err {
+			return err
+		}
+		handshakePattern, err = md.Modify(handshakePattern)
+		if nil != err {
+			return err
+		}
 	}
 
 	cipherFactory, err := GetAEADFactory(proto.CipherAlgo)
