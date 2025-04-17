@@ -132,6 +132,24 @@ func (self HandshakePattern) OneWay() bool {
 	return self.oneway
 }
 
+func (self HandshakePattern) String() string {
+	lines := make([]string, 0, 2)
+	var line string
+	for _, msg := range self.premsgs {
+		line = msg.String()
+		if "" != line {
+			lines = append(lines, line)
+		}
+	}
+	if len(lines) > 0 {
+		lines = append(lines, "...")
+	}
+	for _, msg := range self.msgs {
+		lines = append(lines, msg.String())
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (self *HandshakePattern) init() error {
 	if nil == self || len(self.msgs) == 0 {
 		return ErrInvalidHandshakePattern
@@ -324,6 +342,16 @@ func (self msgPtrn) Check() error {
 
 func (self msgPtrn) Tokens() iter.Seq[string] {
 	return slices.Values(self.tokens)
+}
+
+func (self msgPtrn) String() string {
+	if len(self.tokens) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, 1+len(self.tokens))
+	parts = append(parts, self.sender)
+	parts = append(parts, self.tokens...)
+	return strings.Join(parts, " ")
 }
 
 func (self *msgPtrn) Append(tkn string) {
