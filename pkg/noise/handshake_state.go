@@ -22,7 +22,7 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 
 	err := self.SymetricState.Init(cfg.ProtoName, cfg.CipherFactory, cfg.HashAlgo)
 	if nil != err {
-		return err
+		return wrapError(err, "failed SymetricState initialization")
 	}
 
 	self.dh = cfg.DhAlgo
@@ -47,24 +47,23 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 	var failIfUnusedPsks, usePsks bool
 	for spec := range cfg.HandshakePattern.ListInitSpecs(initiator) {
 		switch spec.token {
-		// TODO: ErrInvalidHandshakePattern not correct
 		case "s":
 			if nil == self.s {
-				return ErrInvalidHandshakePattern
+				return newError("nil s not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
 				self.MixHash(s.PublicKey().Bytes())
 			}
 		case "e":
 			if nil == self.e {
-				return ErrInvalidHandshakePattern
+				return newError("nil e not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
 				self.MixHash(e.PublicKey().Bytes())
 				if len(psks) > 0 {
 					err = self.MixKey(e.PublicKey().Bytes())
 					if nil != err {
-						return err
+						return wrapError(err, "failed mixing e PublicKey")
 					}
 					failIfUnusedPsks = true
 				}
@@ -72,32 +71,32 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 			}
 		case "rs":
 			if nil == self.rs {
-				return ErrInvalidHandshakePattern
+				return newError("nil rs not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
 				self.MixHash(rs.Bytes())
 			}
 		case "re":
 			if nil == self.re {
-				return ErrInvalidHandshakePattern
+				return newError("nil re not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
 				self.MixHash(re.Bytes())
 				if len(psks) > 0 {
 					err = self.MixKey(re.Bytes())
 					if nil != err {
-						return err
+						return wrapError(err, "failed mixing re")
 					}
 					failIfUnusedPsks = true
 				}
 			}
 		case "psk":
 			if len(psks) != spec.size {
-				return ErrInvalidHandshakePattern
+				return newError("psks length not compatible with configured HandshakePattern")
 			}
 			for _, psk := range psks {
 				if len(psk) != pskKeySize {
-					return ErrInvalidHandshakePattern
+					return newError("one of the provided psk is not correctly sized")
 				}
 			}
 			usePsks = true
@@ -108,8 +107,7 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 		}
 	}
 	if failIfUnusedPsks && !usePsks {
-		// the psks argument should have been left empty
-		return ErrInvalidHandshakePattern
+		return newError("configured HandshakePattern does not use psks")
 	}
 	return nil
 }
@@ -127,7 +125,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 	}
 	completed := false
 	if cursor >= len(self.msgPtrns) || (cursor%2) != parity {
-		return completed, ErrOutOfSequence
+		return completed, newError("handshake error, state does not allow calling WriteMessage")
 	}
 	self.msgcursor += 1
 	if self.msgcursor >= len(self.msgPtrns) {
@@ -144,7 +142,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 			if nil == self.e {
 				keypair, err = self.dh.GenerateKeypair()
 				if nil != err {
-					return completed, err
+					return completed, wrapError(err, "failed generating e Keypair")
 				}
 				self.e = keypair
 			}
@@ -153,29 +151,30 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 			if len(self.psks) > 0 {
 				err = self.MixKey(ikm)
 				if nil != err {
-					return completed, err
+					return completed, wrapError(err, "failed mixing e PublicKey")
 				}
 			}
 			_, err = message.Write(ikm)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed adding e PublicKey to the message buffer")
 			}
 		case "s":
 			if nil == self.s {
-				return completed, ErrMissingKey
+				// initialization will detect this
+				return completed, newError("missing s Keypair")
 			}
 			ikm, err = self.EncryptAndHash(self.s.PublicKey().Bytes())
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed encrypting s PublicKey")
 			}
 			_, err = message.Write(ikm)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed adding s PublicKey to the message buffer")
 			}
 		case "ee":
 			err = self.dhmix(self.e, self.re)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed ee DH mix")
 			}
 		case "es":
 			if initiator {
@@ -187,7 +186,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 			}
 			err = self.dhmix(keypair, pubkey)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed es DH mix")
 			}
 		case "se":
 			if initiator {
@@ -199,31 +198,32 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 			}
 			err = self.dhmix(keypair, pubkey)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed se DH mix")
 			}
 		case "ss":
 			err = self.dhmix(self.s, self.rs)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed ss DH mix")
 			}
 		case "psk":
 			// note that len(psks) has been validated in Initialize to match HandshakePattern requirements
 			err = self.MixKeyAndHash(self.psks[self.pskcursor])
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed mixing psk")
 			}
 			self.pskcursor += 1
 		default:
-			return completed, ErrUnsupportedToken
+			// unreachable, as long as the handshake was properly initialized
+			return completed, newError("unsupported token %s", tkn)
 		}
 	}
 	ikm, err = self.EncryptAndHash(payload)
 	if nil != err {
-		return completed, err
+		return completed, wrapError(err, "failed payload encryption")
 	}
 	_, err = message.Write(ikm)
 	if nil != err {
-		return completed, err
+		return completed, wrapError(err, "failed adding payload to the message buffer")
 	}
 	return completed, nil
 
@@ -243,7 +243,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 	}
 	completed := false
 	if cursor >= len(self.msgPtrns) || (cursor%2) != parity {
-		return completed, ErrOutOfSequence
+		return completed, newError("handshake error, state does not allow calling ReadMessage")
 	}
 	self.msgcursor += 1
 	if self.msgcursor >= len(self.msgPtrns) {
@@ -259,12 +259,12 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 		switch tkn {
 		case "e":
 			if (msgsize - rb) < dhlen {
-				return completed, ErrInvalidMessage
+				return completed, newError("message too small for e PublicKey")
 			}
 			ikm = message[rb : rb+dhlen]
 			pubkey, err = self.dh.NewPublicKey(ikm)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "received invalid e PublicKey")
 			}
 			rb += dhlen
 			self.re = pubkey
@@ -272,7 +272,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 			if len(self.psks) > 0 {
 				err = self.MixKey(ikm)
 				if nil != err {
-					return completed, err
+					return completed, wrapError(err, "failed mixing e PublicKey")
 				}
 			}
 		case "s":
@@ -281,23 +281,23 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 				want += cipherTagSize
 			}
 			if (msgsize - rb) < want {
-				return completed, ErrInvalidMessage
+				return completed, newError("message too small for s PublicKey")
 			}
 			ckm = message[rb : rb+want]
 			ikm, err = self.DecryptAndHash(ckm)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed decrypting s PublicKey")
 			}
 			pubkey, err = self.dh.NewPublicKey(ikm)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "received s PublicKey appears invalid")
 			}
 			self.rs = pubkey
 			rb += want
 		case "ee":
 			err = self.dhmix(self.e, self.re)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed ee DH mix")
 			}
 		case "es":
 			if initiator {
@@ -309,7 +309,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 			}
 			err = self.dhmix(keypair, pubkey)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed es DH mix")
 			}
 		case "se":
 			if initiator {
@@ -321,31 +321,32 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 			}
 			err = self.dhmix(keypair, pubkey)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed se DH mix")
 			}
 		case "ss":
 			err = self.dhmix(self.s, self.rs)
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed ss DH mix")
 			}
 		case "psk":
 			// note that len(psks) has been validated in Initialize to match HandshakePattern requirements
 			err = self.MixKeyAndHash(self.psks[self.pskcursor])
 			if nil != err {
-				return completed, err
+				return completed, wrapError(err, "failed mixing psk")
 			}
 			self.pskcursor += 1
 		default:
-			return completed, ErrUnsupportedToken
+			// unreachable, as long as the handshake was properly initialized
+			return completed, newError("unsupported token %s", tkn)
 		}
 	}
 	ikm, err = self.DecryptAndHash(message[rb:])
 	if nil != err {
-		return completed, err
+		return completed, wrapError(err, "failed message decryption")
 	}
 	_, err = payload.Write(ikm)
 	if nil != err {
-		return completed, err
+		return completed, wrapError(err, "failed transferring data to the payload buffer")
 	}
 	return completed, nil
 

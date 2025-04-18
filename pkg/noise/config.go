@@ -23,39 +23,39 @@ func (self *Config) Load(srzproto string) error {
 	var proto NoiseProto
 	err := ParseProtocol(srzproto, &proto)
 	if nil != err {
-		return err
+		return wrapError(err, "failed ParseProtocol")
 	}
 
 	handshakePattern := HandshakePattern{}
 	err = LoadPattern(proto.HandshakePattern, &handshakePattern)
 	if nil != err {
-		return err
+		return wrapError(err, "failed LoadPattern")
 	}
 	var md PatternModifier
 	for _, mname := range proto.HandshakePatternModifiers {
 		md, err = GetModifier(mname)
 		if nil != err {
-			return err
+			return wrapError(err, "failed modifier retrieval")
 		}
 		handshakePattern, err = md.Modify(handshakePattern)
 		if nil != err {
-			return err
+			return wrapError(err, "failed applying pattern modifier")
 		}
 	}
 
 	cipherFactory, err := GetAEADFactory(proto.CipherAlgo)
 	if nil != err {
-		return err
+		return wrapError(err, "failed retrieving AEAD factory")
 	}
 
 	hashAlgo, err := GetHash(proto.HashAlgo)
 	if nil != err {
-		return err
+		return wrapError(err, "failed retrieving Hash algorithm")
 	}
 
 	dhAlgo, err := GetDH(proto.DhAlgo)
 	if nil != err {
-		return err
+		return wrapError(err, "failed retrieving DH algorithm")
 	}
 
 	self.ProtoName = proto.Name
@@ -79,7 +79,7 @@ type NoiseProto struct {
 func ParseProtocol(srzproto string, proto *NoiseProto) error {
 	parts := protoRe.FindStringSubmatch(srzproto)
 	if len(parts) != 6 {
-		return ErrInvalidProtocolName
+		return newError("Invalid protocol name %s", srzproto)
 	}
 	if nil == proto {
 		return nil

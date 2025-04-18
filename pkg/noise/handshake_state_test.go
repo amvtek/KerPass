@@ -41,7 +41,7 @@ func (self cipherPair) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 	// make sure that selected CipherState has a key
 	cs := self.ecs
 	if nil == cs || !cs.HasKey() {
-		return nil, ErrInvalidCipherState
+		return nil, newError("invalid CipherState")
 	}
 	return cs.EncryptWithAd(ad, plaintext)
 
@@ -51,7 +51,7 @@ func (self cipherPair) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	// make sure that selected CipherState has a key
 	cs := self.dcs
 	if nil == cs || !cs.HasKey() {
-		return nil, ErrInvalidCipherState
+		return nil, newError("invalid CipherState")
 	}
 	return cs.DecryptWithAd(ad, ciphertext)
 }

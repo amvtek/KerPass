@@ -33,12 +33,12 @@ type TestMessage struct {
 func LoadTestVectors(srcpath string) ([]TestVector, error) {
 	src, err := os.Open(srcpath)
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed opening file %s", srcpath)
 	}
 	dec := json.NewDecoder(src)
 	s1 := struct {
 		Vectors []TestVector `json:"vectors"`
 	}{}
 	err = dec.Decode(&s1)
-	return s1.Vectors, err
+	return s1.Vectors, wrapError(err, "failed decoding json test vectors")
 }

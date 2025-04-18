@@ -32,10 +32,10 @@ func (self Hash) Kdf(ck, ikm []byte, keys ...[]byte) error {
 	for _, key := range keys {
 		rsz, err = rdr.Read(key)
 		if nil != err {
-			return err
+			return wrapError(err, "failed HKDF key reading")
 		}
 		if rsz != hsz {
-			return ErrInvalidKeySize
+			return newError("HKDF key reading returned incorrect number of bytes")
 		}
 	}
 	return nil
@@ -49,18 +49,22 @@ func MustRegisterHash(name string, algo crypto.Hash) {
 }
 
 func RegisterHash(name string, algo crypto.Hash) error {
-	return registrySet(hashRegistry, name, Hash{Hash: algo})
+	return wrapError(
+		registrySet(hashRegistry, name, Hash{Hash: algo}),
+		"failed registering Hash algorithm, %s",
+		name,
+	)
 }
 
 func GetHash(name string) (Hash, error) {
 	hash, found := registryGet(hashRegistry, name)
 	if !found {
-		return hash, ErrUnsupportedHash
+		return hash, newError("unsupported Hash algorithm, %s", name)
 	}
 	var err error
 	hsz := hash.Size()
 	if !hash.Available() || hsz < hashMinSize || hsz > hashMaxSize {
-		err = ErrUnsupportedHash
+		err = newError("unsupported Hash algorithm, %s", name)
 	}
 	return hash, err
 

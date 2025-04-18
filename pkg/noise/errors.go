@@ -1,35 +1,77 @@
 package noise
 
 import (
-	"errors"
+	"fmt"
+	"path"
+	"runtime"
 )
 
-var (
-	ErrNilCurve                    = errors.New("noise: Nil curve, KeyExch is invalid")
-	ErrNilKeyPair                  = errors.New("noise: Nil keypair")
-	ErrUnsupportedKeyExch          = errors.New("noise: Unsupported KeyExch")
-	ErrUnsupportedHash             = errors.New("noise: Unsupported Hash")
-	ErrNilCipher                   = errors.New("noise: Nil Cipher")
-	ErrCipherKeyOverUse            = errors.New("noise: Cipher Key Overuse")
-	ErrInvalidCipherState          = errors.New("noise: Invalid CipherState")
-	ErrRekeyLowEntropy             = errors.New("noise: Cipher rekey generated less than 256 bits entropy")
-	ErrUnsupportedCipher           = errors.New("noise: Unsupported Cipher")
-	ErrInvalidCipherKeySize        = errors.New("noise: Invalid Cipher Key size")
-	ErrInvalidProtocolName         = errors.New("noise: Invalid Protocol name")
-	ErrInvalidPatternDSL           = errors.New("noise: Invalid Pattern DSL")
-	ErrInvalidMsgPtrnSender        = errors.New("noise: Invalid Message Pattern Sender")
-	ErrInvalidMsgPtrnToken         = errors.New("noise: Invalid Message Pattern Token")
-	ErrInvalidMsgPtrnTokenRepeat   = errors.New("noise: Invalid Message Pattern, Token used multiple times")
-	ErrPatternRegistrationConflict = errors.New("noise: Pattern Registration conflict")
-	ErrPatternUnknown              = errors.New("noise: Pattern Unknown")
-	ErrRegistrationConflict        = errors.New("noise: Registration conflict")
-	ErrInvalidHandshakePattern     = errors.New("noise: Invalid HandshakePattern")
-	ErrOutOfSequence               = errors.New("noise: operation not allowed by protocol state")
-	ErrUnexpectedKey               = errors.New("noise: found non empty key")
-	ErrMissingKey                  = errors.New("noise: missing key")
-	ErrUnsupportedToken            = errors.New("noise: unsupported token")
-	ErrInvalidMessage              = errors.New("noise: Invalid message")
-	ErrInvalidKeySize              = errors.New("noise: Invalid key size")
-	ErrFailedPatternModify         = errors.New("noise: required modification not possible on subject pattern")
-	ErrUnsupportedModifier         = errors.New("noise: unknown pattern modifier")
+type errorFlag string
+
+const (
+	// All package errors are wrapping Error
+	Error   = errorFlag("noise: error")
+	noError = errorFlag("")
 )
+
+func (self errorFlag) Error() string {
+	return string(self)
+}
+
+func (self errorFlag) Unwrap() error {
+	if Error == self || noError == self {
+		return nil
+	} else {
+		return Error
+	}
+}
+
+type raisedErr struct {
+	cause    error
+	msg      string
+	filename string
+	line     int
+}
+
+func (self raisedErr) Error() string {
+	return fmt.Sprintf("noise: %s\n  file: %s line: %d", self.msg, self.filename, self.line)
+}
+
+func (self raisedErr) Unwrap() []error {
+	rv := make([]error, 0, 2)
+	rv = append(rv, Error)
+	if nil != self.cause {
+		rv = append(rv, self.cause)
+	}
+	return rv
+}
+
+func newError(msg string, args ...any) error {
+	if len(args) > 0 {
+		msg = fmt.Sprintf(msg, args...)
+	}
+	err := raisedErr{msg: msg}
+	addCallerFileLine(&err)
+	return err
+}
+
+func wrapError(cause error, msg string, args ...any) error {
+	if nil == cause {
+		return nil
+	}
+	if len(args) > 0 {
+		msg = fmt.Sprintf(msg, args...)
+	}
+	err := raisedErr{cause: cause, msg: msg}
+	addCallerFileLine(&err)
+	return err
+}
+
+func addCallerFileLine(err *raisedErr) {
+	_, filename, line, ok := runtime.Caller(2)
+	dirname, filename := path.Split(filename)
+	if ok {
+		err.filename = path.Join(path.Base(dirname), filename)
+		err.line = line
+	}
+}

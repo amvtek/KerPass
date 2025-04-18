@@ -27,13 +27,17 @@ func MustRegisterDH(name string, algo DH) {
 }
 
 func RegisterDH(name string, algo DH) error {
-	return registrySet(dhRegistry, name, algo)
+	return wrapError(
+		registrySet(dhRegistry, name, algo),
+		"failed registering DH KeyExch %s",
+		name,
+	)
 }
 
 func GetDH(name string) (DH, error) {
 	dh, found := registryGet(dhRegistry, name)
 	if !found || nil == dh || (dh.DHLen() < dhMinSize) {
-		return dh, ErrUnsupportedKeyExch
+		return dh, newError("Unsupported DH KeyExch algorithm, %s", name)
 	}
 	return dh, nil
 
@@ -50,7 +54,7 @@ func (self EcDH) GenerateKeypair() (*Keypair, error) {
 
 func (self EcDH) DH(keypair *Keypair, pubkey *PublicKey) ([]byte, error) {
 	if nil == keypair {
-		return nil, ErrNilKeyPair
+		return nil, newError("nil DH Keypair")
 	}
 	return keypair.ECDH(pubkey)
 }

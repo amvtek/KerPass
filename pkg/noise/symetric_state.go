@@ -14,12 +14,12 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 	proto := NoiseProto{}
 	err := ParseProtocol(protoname, &proto)
 	if nil != err {
-		return err
+		return wrapError(err, "failed parsing protocol %s", protoname)
 	}
 
 	hash, err := GetHash(proto.HashAlgo)
 	if nil != err {
-		return err
+		return wrapError(err, "failed loading Hash algorithm, %s", proto.HashAlgo)
 	}
 	self.hash = hash
 
@@ -27,15 +27,15 @@ func (self *SymetricState) InitializeSymetric(protoname string) error {
 
 	aeadFactory, err := GetAEADFactory(proto.CipherAlgo)
 	if nil != err {
-		return err
+		return wrapError(err, "failed loading AEAD factory, %s", proto.CipherAlgo)
 	}
-	return self.CipherState.Init(aeadFactory)
+	return wrapError(self.CipherState.Init(aeadFactory), "failed CipherState Init")
 }
 
 func (self *SymetricState) Init(protoname string, cipherfactory AEADFactory, hash Hash) error {
 	self.hash = hash
 	self.initCK(protoname)
-	return self.CipherState.Init(cipherfactory)
+	return wrapError(self.CipherState.Init(cipherfactory), "failed CipherState Init")
 }
 
 func (self *SymetricState) MixKey(ikm []byte) error {
@@ -44,9 +44,9 @@ func (self *SymetricState) MixKey(ikm []byte) error {
 	tk := self.tkb[:hsz]
 	err := self.hash.Kdf(ck, ikm, ck, tk)
 	if nil != err {
-		return err
+		return wrapError(err, "failed HKDF")
 	}
-	return self.InitializeKey(tk[:cipherKeySize])
+	return wrapError(self.InitializeKey(tk[:cipherKeySize]), "failed InitializeKey")
 }
 
 func (self *SymetricState) MixHash(data []byte) {
@@ -65,10 +65,10 @@ func (self *SymetricState) MixKeyAndHash(ikm []byte) error {
 	tk := self.tkb[:hsz]
 	err := self.hash.Kdf(ck, ikm, ck, th, tk)
 	if nil != err {
-		return err
+		return wrapError(err, "failed HKDF")
 	}
 	self.MixHash(th)
-	return self.InitializeKey(tk[:cipherKeySize])
+	return wrapError(self.InitializeKey(tk[:cipherKeySize]), "failed InitializeKey")
 }
 
 func (self *SymetricState) GetHandshakeHash() []byte {
@@ -86,7 +86,7 @@ func (self *SymetricState) EncryptAndHash(plaintext []byte) ([]byte, error) {
 	h := self.hb[:hsz]
 	ciphertext, err := self.EncryptWithAd(h, plaintext)
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed EncryptWithAd")
 	}
 	self.MixHash(ciphertext)
 	return ciphertext, nil
@@ -97,7 +97,7 @@ func (self *SymetricState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
 	h := self.hb[:hsz]
 	plaintext, err := self.DecryptWithAd(h, ciphertext)
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed DecryptWithAd")
 	}
 	self.MixHash(ciphertext)
 	return plaintext, nil
@@ -110,17 +110,17 @@ func (self *SymetricState) Split() (*CipherState, *CipherState, error) {
 	tk2 := self.tkb[:hsz]
 	err := self.hash.Kdf(ck, nil, tk1, tk2)
 	if nil != err {
-		return nil, nil, err
+		return nil, nil, wrapError(err, "failed HKDF")
 	}
 	cs1 := CipherState{factory: self.CipherState.factory}
 	err = cs1.InitializeKey(tk1[:cipherKeySize])
 	if nil != err {
-		return nil, nil, err
+		return nil, nil, wrapError(err, "failed InitializeKey")
 	}
 	cs2 := CipherState{factory: self.CipherState.factory}
 	err = cs2.InitializeKey(tk2[:cipherKeySize])
 	if nil != err {
-		return nil, nil, err
+		return nil, nil, wrapError(err, "failed InitializeKey")
 	}
 	return &cs1, &cs2, nil
 }

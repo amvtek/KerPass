@@ -22,13 +22,17 @@ func MustRegisterPatternSpec(dsl string) {
 }
 
 func RegisterPattern(name string, pattern *HandshakePattern) error {
-	return registrySet(patternRegistry, name, pattern)
+	return wrapError(
+		registrySet(patternRegistry, name, pattern),
+		"can not register pattern %s",
+		name,
+	)
 }
 
 func LoadPattern(name string, dst *HandshakePattern) error {
 	src, found := registryGet(patternRegistry, name)
 	if !found {
-		return ErrPatternUnknown
+		return newError("unknown pattern %s", name)
 	}
 	if nil != dst {
 		*dst = *src

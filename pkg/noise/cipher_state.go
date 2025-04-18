@@ -45,7 +45,7 @@ func RegisterAEAD(name string, factory AEADFactory) error {
 func GetAEADFactory(name string) (AEADFactory, error) {
 	factory, found := registryGet(aeadRegistry, name)
 	if !found || nil == factory {
-		return nil, ErrUnsupportedCipher
+		return nil, newError("Unsupported cipher %s", name)
 	}
 	return factory, nil
 }
@@ -86,10 +86,10 @@ func (self *CipherState) InitializeKey(newkey []byte) error {
 		copy(self.kb[:], newkey)
 		aead, err = self.factory.New(self.kb[:])
 		if nil != err {
-			return err
+			return wrapError(err, "Failed AEAD construction")
 		}
 	default:
-		return ErrInvalidKeySize
+		return newError("Invalid key size %d", len(newkey))
 	}
 	self.aead = aead
 	self.n = 0
@@ -105,7 +105,7 @@ func (self *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 		return plaintext, nil
 	}
 	if CIPHER_MAX_NONCE == self.n {
-		return nil, ErrCipherKeyOverUse
+		return nil, newError("Cipher key over use")
 	}
 	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)
@@ -119,13 +119,13 @@ func (self *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 		return ciphertext, nil
 	}
 	if CIPHER_MAX_NONCE == self.n {
-		return nil, ErrCipherKeyOverUse
+		return nil, newError("Cipher key over use")
 	}
 	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)
 	plaintext, err := self.aead.Open(nil, nonce, ciphertext, ad)
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed aead.Open")
 	}
 	self.n += 1 // spec says not to increment if Decrypt fails
 	return plaintext, nil
@@ -133,16 +133,16 @@ func (self *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 
 func (self *CipherState) Rekey() error {
 	if !self.HasKey() {
-		return ErrInvalidCipherState
+		return newError("Invalid CipherState, key is nil")
 	}
 	newkey := self.kb[:]
 	err := self.aead.Rekey(newkey, self.nonceb[:])
 	if nil != err {
-		return err
+		return wrapError(err, "failed aead.Rekey")
 	}
 	aead, err := self.factory.New(newkey)
 	if nil != err {
-		return err
+		return wrapError(err, "failed aead construction")
 	}
 	self.aead = aead
 	// RMQ: we keep n counter inchanged as the spec says nothing about it.
@@ -155,16 +155,16 @@ type aesGCMAEAD struct {
 
 func newAESGCM(key []byte) (AEAD, error) {
 	if len(key) != cipherKeySize {
-		return nil, ErrInvalidCipherKeySize
+		return nil, newError("invalid Cipher key size %d", len(key))
 	}
 
 	block, err := aes.NewCipher(key)
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed AES cipher creation")
 	}
 	aead, err := cipher.NewGCM(block)
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed AES GCM wrapping")
 	}
 	return aesGCMAEAD{AEAD: aead}, nil
 
@@ -176,7 +176,7 @@ func (self aesGCMAEAD) Rekey(newkey []byte, nonce []byte) error {
 	ciphertext := self.Seal(nil, nonce, zeros[:cipherKeySize], nil)
 	numcopied := copy(newkey, ciphertext)
 	if numcopied < cipherKeySize {
-		return ErrRekeyLowEntropy
+		return newError("Rekey low entropy %d bits", 8*numcopied)
 	}
 	copy(ciphertext, zeros)
 	return nil
@@ -197,12 +197,12 @@ type chachaPoly1305AEAD struct {
 
 func newChachaPoly1305(key []byte) (AEAD, error) {
 	if len(key) != cipherKeySize {
-		return nil, ErrInvalidCipherKeySize
+		return nil, newError("invalid Cipher key size %d", len(key))
 	}
 
 	aead, err := chacha20poly1305.New(key)
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed chacha20 poly1305 creation")
 	}
 	rv := chachaPoly1305AEAD{}
 	rv.AEAD = aead

@@ -18,7 +18,7 @@ func registrySet[T any](self *registry[T], name string, value T) error {
 	defer self.mut.Unlock()
 	_, conflict := self.entries[name]
 	if conflict {
-		return ErrRegistrationConflict
+		return newError("name %s already in use", name)
 	}
 	self.entries[name] = value
 	return nil

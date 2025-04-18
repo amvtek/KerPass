@@ -19,13 +19,13 @@ func GetModifier(name string) (PatternModifier, error) {
 	case strings.HasPrefix(name, "psk"):
 		num, err := strconv.ParseUint(name[3:], 10, 8)
 		if nil != err {
-			return nil, ErrUnsupportedModifier
+			return nil, newError("invalid modifier %s", name)
 		}
 		return pskModifier{pos: uint(num)}, nil
 	case name == "fallback":
 		return fallbackModifier{}, nil
 	default:
-		return nil, ErrUnsupportedModifier
+		return nil, newError("invalid modifier %s", name)
 	}
 }
 
@@ -44,7 +44,7 @@ func (self pskModifier) Modify(ptrn HandshakePattern) (HandshakePattern, error) 
 	}
 
 	if msgPos >= len(ptrn.msgs) {
-		return ptrn, ErrFailedPatternModify
+		return ptrn, newError("can not apply psk modifier, no message at %d", msgPos)
 	}
 
 	msgs := make([]msgPtrn, len(ptrn.msgs))
@@ -72,7 +72,7 @@ type fallbackModifier struct{}
 
 func (_ fallbackModifier) Modify(ptrn HandshakePattern) (HandshakePattern, error) {
 	if len(ptrn.msgs) < 2 {
-		return ptrn, ErrFailedPatternModify
+		return ptrn, newError("can not apply fallback modifier, not enough msgs")
 	}
 	msg0 := ptrn.msgs[0]
 

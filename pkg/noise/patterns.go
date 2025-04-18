@@ -43,12 +43,12 @@ func NewPattern(dsl string) (*HandshakePattern, error) {
 
 		sender = tokens[0]
 		if sender == prevSender {
-			return nil, ErrInvalidPatternDSL
+			return nil, newError("invalid pattern DSL")
 		}
 		if "..." == sender {
 			// error if '...' was already encountered or if we have more than 2 pre messages or ...
 			if !preAllow || len(msgs) > 2 || len(tokens) > 1 {
-				return nil, ErrInvalidPatternDSL
+				return nil, newError("invalid pattern DSL")
 			}
 			preAllow = false
 			preMsgs = append(preMsgs, msgs...)
@@ -70,7 +70,7 @@ func NewPattern(dsl string) (*HandshakePattern, error) {
 			case "psk":
 				preAllow = false // psk can not be inside pre message
 			default:
-				return nil, ErrInvalidPatternDSL
+				return nil, newError("invalid token %s", token)
 			}
 			ptrnTokens = append(ptrnTokens, token)
 
@@ -79,7 +79,7 @@ func NewPattern(dsl string) (*HandshakePattern, error) {
 		msgs = append(msgs, ptrn)
 	}
 	if 0 == len(msgs) {
-		return nil, ErrInvalidPatternDSL
+		return nil, newError("invalid pattern DSL")
 	}
 
 	var initiator, responder string
@@ -108,7 +108,7 @@ func NewPattern(dsl string) (*HandshakePattern, error) {
 
 	err := rv.init()
 	if nil != err {
-		return nil, err
+		return nil, wrapError(err, "failed pattern init")
 	}
 
 	return &rv, nil
@@ -153,7 +153,7 @@ func (self HandshakePattern) Dsl() string {
 
 func (self *HandshakePattern) init() error {
 	if nil == self || len(self.msgs) == 0 {
-		return ErrInvalidHandshakePattern
+		return newError("invalid pattern")
 	}
 
 	validSenders := []string{left, right}
@@ -170,7 +170,7 @@ func (self *HandshakePattern) init() error {
 		rightIdx = 0
 		responder = left
 	default:
-		return ErrInvalidHandshakePattern
+		return newError("invalid sender %s for initial message", initiator)
 	}
 
 	lrTokens := [2][]string{}
@@ -181,11 +181,11 @@ func (self *HandshakePattern) init() error {
 	for _, msg := range self.premsgs[:] {
 		sender = msg.sender
 		if prevSender == sender {
-			return ErrInvalidHandshakePattern
+			return newError("invalid pattern, premsgs sender %s appears 2 times", sender)
 		}
 		prevSender = sender
 		if !slices.Contains(validSenders, sender) {
-			return ErrInvalidHandshakePattern
+			return newError("invalid pattern, premsgs sender %s is invalid", sender)
 		}
 		if sender == initiator {
 			senderIdx = 0
@@ -194,13 +194,13 @@ func (self *HandshakePattern) init() error {
 		}
 		for token := range msg.Tokens() {
 			if slices.Contains(lrTokens[senderIdx], token) {
-				return ErrInvalidMsgPtrnTokenRepeat
+				return newError("invalid pattern, token %s appears multiple times in premsgs", token)
 			}
 			switch token {
 			case "e", "s":
 				lrTokens[senderIdx] = append(lrTokens[senderIdx], token)
 			default:
-				return ErrInvalidHandshakePattern
+				return newError("invalid pattern, token %s invalid in premsgs", token)
 			}
 		}
 	}
@@ -225,11 +225,11 @@ func (self *HandshakePattern) init() error {
 	for _, msg := range self.msgs {
 		sender = msg.sender
 		if prevSender == sender {
-			return ErrInvalidHandshakePattern
+			return newError("invalid pattern, repetion of sender %s in msgs", sender)
 		}
 		prevSender = sender
 		if !slices.Contains(validSenders, sender) {
-			return ErrInvalidHandshakePattern
+			return newError("invalid pattern, invalid sender %s in msgs", sender)
 		}
 		if sender == initiator {
 			senderIdx = 0
@@ -238,7 +238,7 @@ func (self *HandshakePattern) init() error {
 		}
 		for token := range msg.Tokens() {
 			if slices.Contains(lrTokens[senderIdx], token) {
-				return ErrInvalidMsgPtrnTokenRepeat
+				return newError("invalid pattern, token %s appears multiple times in msgs", token)
 			}
 			switch token {
 			case "e", "s":
@@ -247,18 +247,18 @@ func (self *HandshakePattern) init() error {
 				// error if left key was not previously forwarded by left sender
 				// spec 7.3.1
 				if !slices.Contains(lrTokens[leftIdx], token[:1]) {
-					return ErrInvalidHandshakePattern
+					return newError("invalid pattern, missing left %s for %s DH", token[:1], token)
 				}
 				// error if right key was not previously forwarded by right sender
 				// spec 7.3.1
 				if !slices.Contains(lrTokens[rightIdx], token[1:]) {
-					return ErrInvalidHandshakePattern
+					return newError("invalid pattern, missing right %s for %s DH", token[1:], token)
 				}
 				lrTokens[senderIdx] = append(lrTokens[senderIdx], token)
 			case "psk":
 				pskCount += 1
 			default:
-				return ErrInvalidHandshakePattern
+				return newError("invalid pattern, invalid token %s appears in msgs", token)
 			}
 		}
 	}
@@ -321,26 +321,6 @@ type msgPtrn struct {
 	tokens []string
 }
 
-func (self msgPtrn) Check() error {
-	validSenders := strings.Fields(valid_senders)
-	if slices.Index(validSenders, self.sender) == -1 {
-		return ErrInvalidMsgPtrnSender
-	}
-
-	validTokens := strings.Fields(valid_tokens)
-	allTokens := make([]string, 0, len(self.tokens))
-	for _, token := range self.tokens {
-		if !slices.Contains(validTokens, token) {
-			return ErrInvalidMsgPtrnToken
-		}
-		if slices.Contains(allTokens, token) {
-			return ErrInvalidMsgPtrnTokenRepeat
-		}
-		allTokens = append(allTokens, token)
-	}
-	return nil
-}
-
 func (self msgPtrn) Tokens() iter.Seq[string] {
 	return slices.Values(self.tokens)
 }
@@ -350,20 +330,6 @@ func (self msgPtrn) Dsl() string {
 		return ""
 	}
 	return fmt.Sprintf("%s %s", self.sender, strings.Join(self.tokens, ", "))
-}
-
-func (self *msgPtrn) Append(tkn string) {
-	tokens := make([]string, 0, 1+len(self.tokens))
-	tokens = append(tokens, self.tokens...)
-	tokens = append(tokens, tkn)
-	self.tokens = tokens
-}
-
-func (self *msgPtrn) Prepend(tkn string) {
-	tokens := make([]string, 0, 1+len(self.tokens))
-	tokens = append(tokens, tkn)
-	tokens = append(tokens, self.tokens...)
-	self.tokens = tokens
 }
 
 type initSpec struct {
