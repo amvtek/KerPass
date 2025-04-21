@@ -103,7 +103,7 @@ func (self *SymetricState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
-func (self *SymetricState) Split() (*CipherState, *CipherState, error) {
+func (self *SymetricState) Split() (*TransportCipher, *TransportCipher, error) {
 	hsz := self.hash.Size()
 	ck := self.ckb[:hsz]
 	tk1 := self.thb[:hsz]
@@ -112,17 +112,17 @@ func (self *SymetricState) Split() (*CipherState, *CipherState, error) {
 	if nil != err {
 		return nil, nil, wrapError(err, "failed HKDF")
 	}
-	cs1 := CipherState{factory: self.CipherState.factory}
-	err = cs1.InitializeKey(tk1[:cipherKeySize])
+	tc1 := TransportCipher{CipherState{factory: self.CipherState.factory}}
+	err = tc1.InitializeKey(tk1[:cipherKeySize])
 	if nil != err {
 		return nil, nil, wrapError(err, "failed InitializeKey")
 	}
-	cs2 := CipherState{factory: self.CipherState.factory}
-	err = cs2.InitializeKey(tk2[:cipherKeySize])
+	tc2 := TransportCipher{CipherState{factory: self.CipherState.factory}}
+	err = tc2.InitializeKey(tk2[:cipherKeySize])
 	if nil != err {
 		return nil, nil, wrapError(err, "failed InitializeKey")
 	}
-	return &cs1, &cs2, nil
+	return &tc1, &tc2, nil
 }
 
 func (self *SymetricState) initCK(protoname string) {

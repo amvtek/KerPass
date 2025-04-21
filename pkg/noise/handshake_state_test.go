@@ -45,25 +45,25 @@ func TestHandshakeStateSizeLimit(t *testing.T) {
 }
 
 type cipherPair struct {
-	ecs *CipherState
-	dcs *CipherState
+	ecs *TransportCipher
+	dcs *TransportCipher
 }
 
 func (self cipherPair) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
-	// make sure that selected CipherState has a key
+	// make sure that selected TransportCipher has a key
 	cs := self.ecs
 	if nil == cs || !cs.HasKey() {
-		return nil, newError("invalid CipherState")
+		return nil, newError("invalid TransportCipher")
 	}
 	return cs.EncryptWithAd(ad, plaintext)
 
 }
 
 func (self cipherPair) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
-	// make sure that selected CipherState has a key
+	// make sure that selected TransportCipher has a key
 	cs := self.dcs
 	if nil == cs || !cs.HasKey() {
-		return nil, newError("invalid CipherState")
+		return nil, newError("invalid TransportCipher")
 	}
 	return cs.DecryptWithAd(ad, ciphertext)
 }
