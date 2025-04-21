@@ -102,10 +102,15 @@ func (self *CipherState) SetNonce(n uint64) {
 
 func (self *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 	if !self.HasKey() {
+		// possible during noise Handshake
 		return plaintext, nil
 	}
 	if CIPHER_MAX_NONCE == self.n {
 		return nil, newError("Cipher key over use")
+	}
+	if (len(plaintext) + cipherTagSize) > msgMaxSize {
+		// this enforce noise msgMaxSize for transport messages
+		return nil, newError("plaintext larger than %d bytes (noise protocol limit)", msgMaxSize-cipherTagSize)
 	}
 	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)
@@ -116,10 +121,15 @@ func (self *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 
 func (self *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	if !self.HasKey() {
+		// possible during noise Handshake
 		return ciphertext, nil
 	}
 	if CIPHER_MAX_NONCE == self.n {
 		return nil, newError("Cipher key over use")
+	}
+	if len(ciphertext) > msgMaxSize {
+		// this enforce noise msgMaxSize for transport messages
+		return nil, newError("ciphertext larger than %d bytes (noise protocol limit)", msgMaxSize)
 	}
 	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)

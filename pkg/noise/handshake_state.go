@@ -134,6 +134,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 
 	var err error
 	var ikm []byte
+	var msglen int
 	var keypair *Keypair
 	var pubkey *PublicKey
 	for tkn := range self.msgPtrns[cursor].Tokens() {
@@ -158,6 +159,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 			if nil != err {
 				return completed, wrapError(err, "failed adding e PublicKey to the message buffer")
 			}
+			msglen += len(ikm)
 		case "s":
 			if nil == self.s {
 				// initialization will detect this
@@ -171,6 +173,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 			if nil != err {
 				return completed, wrapError(err, "failed adding s PublicKey to the message buffer")
 			}
+			msglen += len(ikm)
 		case "ee":
 			err = self.dhmix(self.e, self.re)
 			if nil != err {
@@ -225,6 +228,10 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 	if nil != err {
 		return completed, wrapError(err, "failed adding payload to the message buffer")
 	}
+	msglen += len(ikm)
+	if msglen > msgMaxSize {
+		return completed, newError("generated message larger than %d bytes (noise protocol limit)", msgMaxSize)
+	}
 	return completed, nil
 
 }
@@ -244,6 +251,9 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 	completed := false
 	if cursor >= len(self.msgPtrns) || (cursor%2) != parity {
 		return completed, newError("handshake error, state does not allow calling ReadMessage")
+	}
+	if msgsize > msgMaxSize {
+		return completed, newError("received message larger than %d bytes (noise protocol limit)", msgMaxSize)
 	}
 	self.msgcursor += 1
 	if self.msgcursor >= len(self.msgPtrns) {
