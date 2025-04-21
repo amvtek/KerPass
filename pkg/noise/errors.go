@@ -10,8 +10,9 @@ type errorFlag string
 
 const (
 	// All package errors are wrapping Error
-	Error   = errorFlag("noise: error")
-	noError = errorFlag("")
+	Error        = errorFlag("noise: error")
+	errSizeLimit = errorFlag("noise: message too large")
+	noError      = errorFlag("")
 )
 
 func (self errorFlag) Error() string {

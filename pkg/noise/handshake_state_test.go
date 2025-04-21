@@ -2,6 +2,7 @@ package noise
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -12,7 +13,6 @@ func TestHandshakeState01(t *testing.T) {
 	if nil != err {
 		t.Fatalf("Unable to load vectors from snow.txt, got error %v", err)
 	}
-	// tn := 302
 	for tn, vec := range vectors {
 		t.Run(fmt.Sprintf("vectors[%d]%s", tn, vec.ProtocolName), func(t *testing.T) {
 			testVector(t, vec)
@@ -28,6 +28,18 @@ func TestHandshakeState02(t *testing.T) {
 	for tn, vec := range vectors {
 		t.Run(fmt.Sprintf("vectors[%d]%s", tn, vec.ProtocolName), func(t *testing.T) {
 			testVector(t, vec)
+		})
+	}
+}
+
+func TestHandshakeStateSizeLimit(t *testing.T) {
+	vectors, err := LoadTestVectors("testdata/snow.txt")
+	if nil != err {
+		t.Fatalf("Unable to load vectors from snow.txt, got error %v", err)
+	}
+	for tn, vec := range vectors[:16] {
+		t.Run(fmt.Sprintf("vectors[%d]%s", tn, vec.ProtocolName), func(t *testing.T) {
+			testSizeLimit(t, vec)
 		})
 	}
 }
@@ -253,4 +265,173 @@ func testVector(t *testing.T, vec TestVector) {
 		}
 	}
 
+}
+
+func testSizeLimit(t *testing.T, vec TestVector) {
+	// this test checks that first WriteMessage, ReadMessage
+	//  * succeed when message size is msgMaxSize
+	//  * fail when message size is msgMaxSize + 1
+	// this test has been written duplicating testVector
+	// it could probably be simpler ...
+
+	var err error
+	var cfg Config
+	var prologue []byte
+	var s, e *Keypair
+	var rs, re *PublicKey
+	var psks, rpsks [][]byte
+	hsOks := [2]HandshakeState{}
+	hsFails := [2]HandshakeState{}
+	err = cfg.Load(vec.ProtocolName)
+	if nil != err {
+		t.Skipf("Skipping test for protocol %s, got config error %v", vec.ProtocolName, err)
+	}
+	if len(vec.InitiatorPrologue) > 0 {
+		prologue = []byte(vec.InitiatorPrologue)
+	} else {
+		prologue = nil
+	}
+	if len(vec.InitiatorEphemeralKey) > 0 {
+		e, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.InitiatorEphemeralKey))
+		if nil != err {
+			t.Fatalf("Can not load initiator ephemeral Keypair, got error %v", err)
+		}
+	} else {
+		e = nil
+	}
+	if len(vec.InitiatorStaticKey) > 0 {
+		s, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.InitiatorStaticKey))
+		if nil != err {
+			t.Fatalf("Can not load initiator static Keypair, got error %v", err)
+		}
+	} else {
+		s = nil
+	}
+	if len(vec.InitiatorRemoteEphemeralKey) > 0 {
+		re, err = cfg.DhAlgo.NewPublicKey([]byte(vec.InitiatorRemoteEphemeralKey))
+		if nil != err {
+			t.Fatalf("Can not load initiator remote ephemeral public key, got error %v", err)
+		}
+	} else {
+		re = nil
+	}
+	if len(vec.InitiatorRemoteStaticKey) > 0 {
+		rs, err = cfg.DhAlgo.NewPublicKey([]byte(vec.InitiatorRemoteStaticKey))
+		if nil != err {
+			t.Fatalf("Can not load initiator remote static public key, got error %v", err)
+		}
+	} else {
+		rs = nil
+	}
+	if len(vec.InitiatorPsks) > 0 {
+		psks = make([][]byte, 0, len(vec.InitiatorPsks))
+		for _, psk := range vec.InitiatorPsks {
+			psks = append(psks, []byte(psk))
+		}
+	} else {
+		psks = nil
+	}
+	err = hsOks[0].Initialize(cfg, true, prologue, s, e, rs, re, psks)
+	if nil != err {
+		t.Fatalf("hsOks[0]: Failed initiator handshake initialization, got error %v", err)
+	}
+	err = hsFails[0].Initialize(cfg, true, prologue, s, e, rs, re, psks)
+	if nil != err {
+		t.Fatalf("hsFails[0]: Failed initiator handshake initialization, got error %v", err)
+	}
+
+	if len(vec.ResponderPrologue) > 0 {
+		prologue = []byte(vec.ResponderPrologue)
+	} else {
+		prologue = nil
+	}
+	if len(vec.ResponderEphemeralKey) > 0 {
+		e, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.ResponderEphemeralKey))
+		if nil != err {
+			t.Fatalf("Can not load responder ephemeral Keypair, got error %v", err)
+		}
+	} else {
+		e = nil
+	}
+	if len(vec.ResponderStaticKey) > 0 {
+		s, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.ResponderStaticKey))
+		if nil != err {
+			t.Fatalf("Can not load responder static Keypair, got error %v", err)
+		}
+	} else {
+		s = nil
+	}
+	if len(vec.ResponderRemoteEphemeralKey) > 0 {
+		re, err = cfg.DhAlgo.NewPublicKey([]byte(vec.ResponderRemoteEphemeralKey))
+		if nil != err {
+			t.Fatalf("Can not load responder remote ephemeral public key, got error %v", err)
+		}
+	} else {
+		re = nil
+	}
+	if len(vec.ResponderRemoteStaticKey) > 0 {
+		rs, err = cfg.DhAlgo.NewPublicKey([]byte(vec.ResponderRemoteStaticKey))
+		if nil != err {
+			t.Fatalf("Can not load responder remote static public key, got error %v", err)
+		}
+	} else {
+		rs = nil
+	}
+	if len(vec.ResponderPsks) > 0 {
+		rpsks = make([][]byte, 0, len(vec.ResponderPsks))
+		for _, psk := range vec.ResponderPsks {
+			rpsks = append(rpsks, []byte(psk))
+		}
+	} else {
+		rpsks = nil
+	}
+	err = hsOks[1].Initialize(cfg, false, prologue, s, e, rs, re, rpsks)
+	if nil != err {
+		t.Fatalf("hsOks[1]: Failed responder handshake initialization, got error %v", err)
+	}
+	err = hsFails[1].Initialize(cfg, false, prologue, s, e, rs, re, rpsks)
+	if nil != err {
+		t.Fatalf("hsFails[1]: Failed responder handshake initialization, got error %v", err)
+	}
+
+	mbuf := new(bytes.Buffer)
+	pbuf := new(bytes.Buffer)
+	var payload, ciphertext []byte
+	var writeIdx, readIdx int
+	var errWrite, errRead error
+	for pos, msg := range vec.Messages[:1] {
+		writeIdx = pos % 2
+		readIdx = (pos + 1) % 2
+
+		mbuf.Reset()
+		pbuf.Reset()
+
+		// we use a payload that results in ciphertext which length is msgMaxSize
+		// when using such payload WriteMessage & ReadMessage shall succeed
+		payload = []byte(msg.Payload)
+		payload = append(payload, make([]byte, msgMaxSize-len(msg.CipherText))...)
+
+		_, errWrite = hsOks[writeIdx].WriteMessage(payload, mbuf)
+		if nil != errWrite {
+			t.Fatalf("hsOks[%d] : Failed WriteMessage, got error %v", writeIdx, errWrite)
+		}
+		_, errRead = hsOks[readIdx].ReadMessage(mbuf.Bytes(), pbuf)
+		if nil != errRead {
+			t.Fatalf("hsOks[%d] : Failed ReadMessage, got error %v", readIdx, errRead)
+		}
+		ciphertext = mbuf.Bytes()
+
+		// retest with payload & ciphertext containing 1 more byte...
+		payload = append(payload, 0xFF)
+		ciphertext = append(ciphertext, 0xFF)
+
+		_, errWrite = hsFails[writeIdx].WriteMessage(payload, mbuf)
+		if nil == errWrite || !errors.Is(errWrite, errSizeLimit) {
+			t.Fatalf("hsFails[%d] : Failed WriteMessage did not error on payload size, got error %v", writeIdx, errWrite)
+		}
+		_, errRead = hsFails[readIdx].ReadMessage(ciphertext, pbuf)
+		if nil == errRead || !errors.Is(errRead, errSizeLimit) {
+			t.Fatalf("hsFails[%d] : Failed ReadMessage did not error on ciphertext size, got error %v", readIdx, errRead)
+		}
+	}
 }

@@ -230,7 +230,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 	}
 	msglen += len(ikm)
 	if msglen > msgMaxSize {
-		return completed, newError("generated message larger than %d bytes (noise protocol limit)", msgMaxSize)
+		return completed, wrapError(errSizeLimit, "generated message larger than %d bytes (noise protocol limit)", msgMaxSize)
 	}
 	return completed, nil
 
@@ -253,7 +253,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 		return completed, newError("handshake error, state does not allow calling ReadMessage")
 	}
 	if msgsize > msgMaxSize {
-		return completed, newError("received message larger than %d bytes (noise protocol limit)", msgMaxSize)
+		return completed, wrapError(errSizeLimit, "received message larger than %d bytes (noise protocol limit)", msgMaxSize)
 	}
 	self.msgcursor += 1
 	if self.msgcursor >= len(self.msgPtrns) {

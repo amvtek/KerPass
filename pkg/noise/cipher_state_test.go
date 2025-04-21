@@ -1,8 +1,8 @@
 package noise
 
 import (
+	"errors"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -148,8 +148,8 @@ func TestCipherSizeLimit(t *testing.T) {
 		t.Fatalf("Failed EncryptWithAd, got error %v", err)
 	}
 	_, err = cipher.EncryptWithAd(nil, plaintxt)
-	if nil == err {
-		t.Fatal("Oops, EncryptWithAd did not error, when plaintxt too large")
+	if nil == err || !errors.Is(err, errSizeLimit) {
+		t.Fatalf("Oops, EncryptWithAd did not error on plaintxt too large, got error %v", err)
 	}
 
 	cipher.SetNonce(1024)
@@ -161,10 +161,10 @@ func TestCipherSizeLimit(t *testing.T) {
 	// we can not produce a valid ciphertxt which is oversized
 	// below test is a bit shaky as DecryptWithAd should always fail with invalidtxt
 	// we check the error to see if it corresponds to a size problem
-	invalidtxt := append(ciphertxt, 255)
+	invalidtxt := append(ciphertxt, 0xFF)
 	cipher.SetNonce(1024)
 	_, err = cipher.DecryptWithAd(nil, invalidtxt)
-	if nil == err || !strings.Contains(err.Error(), "(noise protocol size limit)") {
+	if nil == err || !errors.Is(err, errSizeLimit) {
 		t.Fatalf("Failed, DecryptWithAd did not error on cipher text size, got error %v", err)
 	}
 

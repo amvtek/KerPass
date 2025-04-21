@@ -110,7 +110,7 @@ func (self *CipherState) EncryptWithAd(ad, plaintext []byte) ([]byte, error) {
 	}
 	if (len(plaintext) + cipherTagSize) > msgMaxSize {
 		// this enforce noise msgMaxSize for transport messages
-		return nil, newError("plaintext larger than %d bytes (noise protocol size limit)", msgMaxSize-cipherTagSize)
+		return nil, wrapError(errSizeLimit, "plaintext larger than %d bytes (noise protocol size limit)", msgMaxSize-cipherTagSize)
 	}
 	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)
@@ -129,7 +129,7 @@ func (self *CipherState) DecryptWithAd(ad, ciphertext []byte) ([]byte, error) {
 	}
 	if len(ciphertext) > msgMaxSize {
 		// this enforce noise msgMaxSize for transport messages
-		return nil, newError("ciphertext larger than %d bytes (noise protocol size limit)", msgMaxSize)
+		return nil, wrapError(errSizeLimit, "ciphertext larger than %d bytes (noise protocol size limit)", msgMaxSize)
 	}
 	nonce := self.nonceb[:]
 	self.aead.FillNonce(nonce, self.n)
