@@ -78,7 +78,7 @@ func testVector(t *testing.T, vec TestVector) {
 	hss := [2]HandshakeState{}
 	err = cfg.Load(vec.ProtocolName)
 	if nil != err {
-		t.Skipf("Skipping test for protocol %s, got config error %v", vec.ProtocolName, err)
+		t.Fatalf("Failed loading configuration for protocol %s, got error %v", vec.ProtocolName, err)
 	}
 	if len(vec.InitiatorPrologue) > 0 {
 		prologue = []byte(vec.InitiatorPrologue)
@@ -284,7 +284,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	hsFails := [2]HandshakeState{}
 	err = cfg.Load(vec.ProtocolName)
 	if nil != err {
-		t.Skipf("Skipping test for protocol %s, got config error %v", vec.ProtocolName, err)
+		t.Fatalf("Failed loading configuration for protocol %s, got error %v", vec.ProtocolName, err)
 	}
 	if len(vec.InitiatorPrologue) > 0 {
 		prologue = []byte(vec.InitiatorPrologue)
