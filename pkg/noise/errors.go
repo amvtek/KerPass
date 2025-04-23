@@ -41,7 +41,7 @@ type raisedErr struct {
 
 // Error implements the error interfaces.
 func (self raisedErr) Error() string {
-	return fmt.Sprintf("noise: %s\n  file: %s line: %d", self.msg, self.filename, self.line)
+	return fmt.Sprintf("noise: %s\n  file: %s line: %d\n%v", self.msg, self.filename, self.line, self.cause)
 }
 
 // Unwrap returns a slice that contains the cause of the raisedErr and the global Error flag.
