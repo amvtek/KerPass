@@ -218,13 +218,15 @@ func testVector(t *testing.T, vec TestVector) {
 	}
 	t.Logf("=== %d processed messages", len(vec.Messages[0:untestedIdx]))
 	t.Logf("=== %d unprocessed messages", len(vec.Messages[untestedIdx:]))
-	cs00, cs01, err := hss[0].Split()
+	tc0 := TransportCipherPair{}
+	err = hss[0].Split(&tc0)
 	if nil != err {
-		t.Fatalf("Failed hss[0].Split()")
+		t.Fatalf("Failed hss[0].Split, got error %v", err)
 	}
-	cs10, cs11, err := hss[1].Split()
+	tc1 := TransportCipherPair{}
+	err = hss[1].Split(&tc1)
 	if nil != err {
-		t.Fatalf("Failed hss[1].Split()")
+		t.Fatalf("Failed hss[1].Split, got error %v", err)
 	}
 
 	if len(vec.HandshakeHash) > 0 {
@@ -240,7 +242,7 @@ func testVector(t *testing.T, vec TestVector) {
 		}
 	}
 
-	peers := []cipherPair{{ecs: cs00, dcs: cs10}, {ecs: cs11, dcs: cs01}}
+	peers := []cipherPair{{ecs: tc0.Encryptor(), dcs: tc1.Decryptor()}, {ecs: tc1.Encryptor(), dcs: tc0.Decryptor()}}
 	if cfg.HandshakePattern.OneWay() {
 		peers[1] = peers[0]
 	}

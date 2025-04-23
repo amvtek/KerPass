@@ -376,6 +376,51 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 
 }
 
+// Split initializes a TransportCipherPair using internal state.
+//
+// Split should only be called at the end of the handshake.
+//
+// Split appears in noise protocol specs section 5.2.
+func (self *HandshakeState) Split(dst *TransportCipherPair) error {
+	if self.msgcursor < len(self.msgPtrns) {
+		return newError("illegal Split call, handshake is not completed")
+	}
+	if nil == dst {
+		return newError("invalid dst, can not be nil")
+	}
+	hsz := self.hash.Size()
+	ck := self.ckb[:hsz]
+	tk1 := self.thb[:hsz]
+	tk2 := self.tkb[:hsz]
+	err := self.hash.Kdf(ck, nil, tk1, tk2)
+	if nil != err {
+		return wrapError(err, "failed HKDF")
+	}
+	ecrypt := dst.Encryptor()
+	ecrypt.factory = self.factory
+	dcrypt := dst.Decryptor()
+	dcrypt.factory = self.factory
+
+	var ek, dk []byte
+	if self.initiator {
+		ek = tk1
+		dk = tk2
+	} else {
+		ek = tk2
+		dk = tk1
+	}
+	err = ecrypt.InitializeKey(ek[:cipherKeySize])
+	if nil != err {
+		return wrapError(err, "failed initializing encryption key")
+	}
+	err = dcrypt.InitializeKey(dk[:cipherKeySize])
+	if nil != err {
+		return wrapError(err, "failed initializing decryption key")
+	}
+
+	return nil
+}
+
 // dhmix executes Diffie-Hellmann key exchange in between keypair and pubkey.
 // It mixes the resulting shared secret into the HandshakeState.
 func (self *HandshakeState) dhmix(keypair *Keypair, pubkey *PublicKey) error {

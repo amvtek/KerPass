@@ -143,33 +143,6 @@ func (self *SymetricState) DecryptAndHash(ciphertext []byte) ([]byte, error) {
 
 // TODO: move Split to HandshakeState, this will simplify ensuring it is used at the right time.
 
-// Split returns 2 TransportCipher initialized using internal state.
-//
-// Split should only be called at the end of the handshake.
-//
-// Split appears in noise protocol specs section 5.2.
-func (self *SymetricState) Split() (*TransportCipher, *TransportCipher, error) {
-	hsz := self.hash.Size()
-	ck := self.ckb[:hsz]
-	tk1 := self.thb[:hsz]
-	tk2 := self.tkb[:hsz]
-	err := self.hash.Kdf(ck, nil, tk1, tk2)
-	if nil != err {
-		return nil, nil, wrapError(err, "failed HKDF")
-	}
-	tc1 := TransportCipher{CipherState{factory: self.CipherState.factory}}
-	err = tc1.InitializeKey(tk1[:cipherKeySize])
-	if nil != err {
-		return nil, nil, wrapError(err, "failed InitializeKey")
-	}
-	tc2 := TransportCipher{CipherState{factory: self.CipherState.factory}}
-	err = tc2.InitializeKey(tk2[:cipherKeySize])
-	if nil != err {
-		return nil, nil, wrapError(err, "failed InitializeKey")
-	}
-	return &tc1, &tc2, nil
-}
-
 func (self *SymetricState) initCK(protoname string) {
 	psb := []byte(protoname)
 	h := self.hb[:]
