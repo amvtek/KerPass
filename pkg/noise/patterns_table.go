@@ -6,6 +6,13 @@ import (
 
 var patternRegistry *registry[*HandshakePattern]
 
+// MustRegisterPatternSpec parses dsl which contains name of the pattern and definition of
+// the pattern in noise specification language and stores the resulting HandshakePattern in
+// the pattern registry. It panics if provided dsl is invalid or if the parsed pattern name
+// is already in use.
+//
+// Refers to noise protocol specs section 7 for a description of the syntax of the language used
+// to specify handshakes.
 func MustRegisterPatternSpec(dsl string) {
 	parts := strings.SplitN(dsl, ":", 2)
 	if len(parts) != 2 {
@@ -21,7 +28,12 @@ func MustRegisterPatternSpec(dsl string) {
 	}
 }
 
+// RegisterPattern store the pattern in the pattern registry. It errors if name is already
+// in use or if the pattern is invalid.
 func RegisterPattern(name string, pattern *HandshakePattern) error {
+	if nil == pattern {
+		return newError("can not register nil pattern")
+	}
 	return wrapError(
 		registrySet(patternRegistry, name, pattern),
 		"can not register pattern %s",
@@ -29,9 +41,11 @@ func RegisterPattern(name string, pattern *HandshakePattern) error {
 	)
 }
 
+// LoadPattern copies the pattern referenced by name in dst. It errors if name does
+// not correspond to a registered pattern.
 func LoadPattern(name string, dst *HandshakePattern) error {
 	src, found := registryGet(patternRegistry, name)
-	if !found {
+	if !found || nil == src {
 		return newError("unknown pattern %s", name)
 	}
 	if nil != dst {

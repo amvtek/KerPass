@@ -10,10 +10,12 @@ const (
 	afterLast   = -1
 )
 
+// PatternModifier is an interface that allows modifying HandshakePattern.
 type PatternModifier interface {
 	Modify(ptrn HandshakePattern) (HandshakePattern, error)
 }
 
+// GetModifier allows retrieving a PatternModifier by name. It errors if the provided name is invalid.
 func GetModifier(name string) (PatternModifier, error) {
 	switch {
 	case strings.HasPrefix(name, "psk"):
@@ -29,10 +31,12 @@ func GetModifier(name string) (PatternModifier, error) {
 	}
 }
 
+// pskModifier is a PatternModifier that allows mixing a psk in a noise protocol handshake.
 type pskModifier struct {
 	pos uint
 }
 
+// Modify returns a modified HandshakePattern.
 func (self pskModifier) Modify(ptrn HandshakePattern) (HandshakePattern, error) {
 	var msgPos, insertPos int
 	if self.pos > 0 {
@@ -68,8 +72,10 @@ func (self pskModifier) Modify(ptrn HandshakePattern) (HandshakePattern, error) 
 	return ptrn, err
 }
 
+// fallbackModifier is a PatternModifier that allows continuing a failed pattern...
 type fallbackModifier struct{}
 
+// Modify returns a modified HandshakePattern.
 func (_ fallbackModifier) Modify(ptrn HandshakePattern) (HandshakePattern, error) {
 	if len(ptrn.msgs) < 2 {
 		return ptrn, newError("can not apply fallback modifier, not enough msgs")

@@ -6,6 +6,7 @@ import (
 	"runtime"
 )
 
+// errorFlag is a private error type that allows declaring error constants.
 type errorFlag string
 
 const (
@@ -15,6 +16,7 @@ const (
 	noError      = errorFlag("")
 )
 
+// Error implements the error interface.
 func (self errorFlag) Error() string {
 	return string(self)
 }
@@ -27,6 +29,9 @@ func (self errorFlag) Unwrap() error {
 	}
 }
 
+// raisedErr is the type of all package errors.
+//
+// instances of raisedErr are wrapping the Error flag.
 type raisedErr struct {
 	cause    error
 	msg      string
@@ -34,10 +39,12 @@ type raisedErr struct {
 	line     int
 }
 
+// Error implements the error interfaces.
 func (self raisedErr) Error() string {
 	return fmt.Sprintf("noise: %s\n  file: %s line: %d", self.msg, self.filename, self.line)
 }
 
+// Unwrap returns a slice that contains the cause of the raisedErr and the global Error flag.
 func (self raisedErr) Unwrap() []error {
 	rv := make([]error, 0, 2)
 	rv = append(rv, Error)
@@ -47,6 +54,7 @@ func (self raisedErr) Unwrap() []error {
 	return rv
 }
 
+// newError returns a raisedErr{} that contains file & line of where it was called.
 func newError(msg string, args ...any) error {
 	if len(args) > 0 {
 		msg = fmt.Sprintf(msg, args...)
@@ -56,6 +64,7 @@ func newError(msg string, args ...any) error {
 	return err
 }
 
+// wrapError returns a raisedErr{} that contains file & line of where it was called.
 func wrapError(cause error, msg string, args ...any) error {
 	if nil == cause {
 		return nil

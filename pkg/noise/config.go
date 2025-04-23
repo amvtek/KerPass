@@ -11,17 +11,32 @@ var (
 	)
 )
 
+// Config holds noise protocol handshake configuration
 type Config struct {
-	ProtoName        string
+	// "name" of the noise protocol, eg "Noise_XX_25519_AESGCM_SHA256".
+	// Refers to noise protocol specs section 8, for details on how valid names are formed.
+	ProtoName string
+
+	// object that defines how to process the handshake messages.
 	HandshakePattern HandshakePattern
-	CipherFactory    AEADFactory
-	HashAlgo         Hash
-	DhAlgo           DH
+
+	// handshake cipher factory.
+	CipherFactory AEADFactory
+
+	// handshake Hash algorithm.
+	HashAlgo Hash
+
+	// handshake key exchange algorithm.
+	DhAlgo DH
 }
 
-func (self *Config) Load(srzproto string) error {
+// Load parse protoname and loads the algorithms it reference into the Config.
+//
+// Valid protoname looks like "Noise_XX_25519_AESGCM_SHA256".
+// Refers to noise protocol specs section 8, for details on how valid names are formed.
+func (self *Config) Load(protoname string) error {
 	var proto NoiseProto
-	err := ParseProtocol(srzproto, &proto)
+	err := ParseProtocol(protoname, &proto)
 	if nil != err {
 		return wrapError(err, "failed ParseProtocol")
 	}
@@ -67,6 +82,8 @@ func (self *Config) Load(srzproto string) error {
 	return nil
 }
 
+// NoiseProto holds the components of valid noise protocol names.
+// Refers to noise protocol specs section 8, for details on how valid names are formed.
 type NoiseProto struct {
 	Name                      string
 	HandshakePattern          string
@@ -76,10 +93,14 @@ type NoiseProto struct {
 	HashAlgo                  string
 }
 
-func ParseProtocol(srzproto string, proto *NoiseProto) error {
-	parts := protoRe.FindStringSubmatch(srzproto)
+// ParseProtocol extracts the noise protocol name components and stores them into proto.
+//
+// Valid protoname looks like "Noise_XX_25519_AESGCM_SHA256".
+// Refers to noise protocol specs section 8, for details on how valid names are formed.
+func ParseProtocol(protoname string, proto *NoiseProto) error {
+	parts := protoRe.FindStringSubmatch(protoname)
 	if len(parts) != 6 {
-		return newError("Invalid protocol name %s", srzproto)
+		return newError("Invalid protocol name %s", protoname)
 	}
 	if nil == proto {
 		return nil

@@ -7,6 +7,7 @@ import (
 	"dev.kerpass.org/kernel/internal/utils"
 )
 
+// TestVector holds noise protocol test vector fields.
 type TestVector struct {
 	ProtocolName                string            `json:"protocol_name"`
 	InitiatorPrologue           utils.HexBinary   `json:"init_prologue"`
@@ -25,11 +26,13 @@ type TestVector struct {
 	Messages                    []TestMessage     `json:"messages"`
 }
 
+// TestMessage holds noise protocol test vector message fields.
 type TestMessage struct {
 	Payload    utils.HexBinary `json:"payload"`
 	CipherText utils.HexBinary `json:"ciphertext"`
 }
 
+// LoadTestVector loads test vectors from json file at srcpath.
 func LoadTestVectors(srcpath string) ([]TestVector, error) {
 	src, err := os.Open(srcpath)
 	if nil != err {

@@ -4,6 +4,9 @@ import (
 	"io"
 )
 
+// HandshakeState holds noise protocol handshake execution state.
+//
+// HandshakeState appears in section 5.3 of the noise protocol specs.
 type HandshakeState struct {
 	SymetricState
 	initiator bool
@@ -18,6 +21,9 @@ type HandshakeState struct {
 	pskcursor int
 }
 
+// Initialize set handshake initial state. It errors if provided parameters are not compatible with provided cfg.
+//
+// Initialize appears in section 5.3 of the noise protocol specs.
 func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []byte, s *Keypair, e *Keypair, rs *PublicKey, re *PublicKey, psks [][]byte) error {
 
 	err := self.SymetricState.Init(cfg.ProtoName, cfg.CipherFactory, cfg.HashAlgo)
@@ -34,7 +40,7 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 	if nil != mps {
 		mps = mps[:0]
 	}
-	self.msgPtrns = cfg.HandshakePattern.MsgPtrns(mps)
+	self.msgPtrns = cfg.HandshakePattern.msgPtrns(mps)
 	self.msgcursor = 0
 
 	self.s = s
@@ -45,7 +51,7 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 	self.MixHash(prologue)
 
 	var failIfUnusedPsks, usePsks bool
-	for spec := range cfg.HandshakePattern.ListInitSpecs(initiator) {
+	for spec := range cfg.HandshakePattern.listInitSpecs(initiator) {
 		switch spec.token {
 		case "s":
 			if nil == self.s {
@@ -112,6 +118,10 @@ func (self *HandshakeState) Initialize(cfg Config, initiator bool, prologue []by
 	return nil
 }
 
+// WriteMessage prepares a new handshake message taking into account inner state and payload parameter.
+// The returned bool is true when the handshake is completed.
+//
+// WriteMessage appears in section 5.3 of the noise protocol specs.
 func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (bool, error) {
 
 	initiator := self.initiator
@@ -236,6 +246,10 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 
 }
 
+// ReadMessage processes incoming handshake message taking into account inner state.
+// The returned bool is true when the handshake is completed.
+//
+// ReadMessage appears in section 5.3 of the noise protocol specs.
 func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool, error) {
 	initiator := self.initiator
 	cursor := self.msgcursor
@@ -362,6 +376,8 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 
 }
 
+// dhmix executes Diffie-Hellmann key exchange in between keypair and pubkey.
+// It mixes the resulting shared secret into the HandshakeState.
 func (self *HandshakeState) dhmix(keypair *Keypair, pubkey *PublicKey) error {
 	ikm, err := self.dh.DH(keypair, pubkey)
 	if nil != err {

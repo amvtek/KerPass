@@ -18,13 +18,23 @@ const (
 	valid_senders = "-> <-"
 )
 
+// HandshakePattern holds informations that defines a noise protocol handshake.
 type HandshakePattern struct {
-	oneway    bool
-	initspecs [2][]initSpec
 	premsgs   [2]msgPtrn
 	msgs      []msgPtrn
+	oneway    bool
+	initspecs [2][]initSpec
 }
 
+// NewPattern parses dsl that contains a noise protocol handshake description and constructs
+// the corresponding HandshakePattern. It errors if provided dsl is invalid.
+//
+// Refers to noise protocol specs section 7 for a description of the syntax of the language used
+// to define handshakes.
+//
+// You should not normally use NewPattern to create the HandshakePattern{} you need.
+// LoadPattern or Config.Load allows you to obtain or safely modify one of the preverified patterns
+// referenced in the noise protocol specs.
 func NewPattern(dsl string) (*HandshakePattern, error) {
 	preMsgs := make([]msgPtrn, 0, 2)
 	msgs := make([]msgPtrn, 0, 4)
@@ -114,25 +124,18 @@ func NewPattern(dsl string) (*HandshakePattern, error) {
 	return &rv, nil
 }
 
-func (self *HandshakePattern) ListInitSpecs(initiator bool) iter.Seq[initSpec] {
-	var roleIdx int
-	if initiator {
-		roleIdx = 0
-	} else {
-		roleIdx = 1
-	}
-	return slices.Values(self.initspecs[roleIdx])
-}
-
-func (self HandshakePattern) MsgPtrns(dst []msgPtrn) []msgPtrn {
-	dst = append(dst, self.msgs...)
-	return dst
-}
-
+// OneWay returns true if the HandshakePattern is one way.
+//
+// Refers to noise protocol specs section 7.4 for a description of the oneway patterns.
 func (self HandshakePattern) OneWay() bool {
 	return self.oneway
 }
 
+// Dsl returns a string that encodes the HandshakePattern using noise protocol specs pattern definition
+// language.
+//
+// Refers to noise protocol specs section 7 for a description of the syntax of the language used
+// to define handshake patterns.
 func (self HandshakePattern) Dsl() string {
 	lines := make([]string, 0, 4)
 	var line string
@@ -151,6 +154,25 @@ func (self HandshakePattern) Dsl() string {
 	return strings.Join(lines, "\n")
 }
 
+// listInitSpecs returns an initSpec{} iterator which allows validating HandshakeState.Initialize(...) parameters.
+func (self *HandshakePattern) listInitSpecs(initiator bool) iter.Seq[initSpec] {
+	var roleIdx int
+	if initiator {
+		roleIdx = 0
+	} else {
+		roleIdx = 1
+	}
+	return slices.Values(self.initspecs[roleIdx])
+}
+
+// msgPtrns copies the HandshakePattern messages into the dst slice.
+func (self HandshakePattern) msgPtrns(dst []msgPtrn) []msgPtrn {
+	dst = append(dst, self.msgs...)
+	return dst
+}
+
+// init validates the HandshakePattern and generates additional informations that
+// simplifies latter usage.
 func (self *HandshakePattern) init() error {
 	if nil == self || len(self.msgs) == 0 {
 		return newError("invalid pattern")
@@ -316,15 +338,20 @@ func (self *HandshakePattern) init() error {
 	return nil
 }
 
+// msgPtrn holds the processing tokens for a certain handshake message.
+//
+// Refers to noise protocol section 7.1, for details on what msgPtrn{} represents.
 type msgPtrn struct {
 	sender string
 	tokens []string
 }
 
+// Tokens returns an iterator yielding the tokens in the msgPtrn.
 func (self msgPtrn) Tokens() iter.Seq[string] {
 	return slices.Values(self.tokens)
 }
 
+// Dsl returns a string that encodes the msgPtrn in noise pattern specification language.
 func (self msgPtrn) Dsl() string {
 	if len(self.tokens) == 0 {
 		return ""
@@ -332,6 +359,7 @@ func (self msgPtrn) Dsl() string {
 	return fmt.Sprintf("%s %s", self.sender, strings.Join(self.tokens, ", "))
 }
 
+// initSpec holds processing instructions for HandshakeState.Initialize method parameter.
 type initSpec struct {
 	token string
 	hash  bool

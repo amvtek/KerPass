@@ -14,7 +14,7 @@ var (
 	dhRegistry *registry[DH]
 
 	// we maintain private rnd Reader as the global rand.Reader could be replaced by a malicious external package.
-	rnd        io.Reader
+	rnd io.Reader
 )
 
 // DH adapts the golang ecdh.Curve interface to ease noise protocol implementation.
