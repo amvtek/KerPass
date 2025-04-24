@@ -172,7 +172,7 @@ func (self HandshakePattern) msgPtrns(dst []msgPtrn) []msgPtrn {
 }
 
 // init validates the HandshakePattern and generates additional informations that
-// simplifies latter usage.
+// simplifies later usage.
 func (self *HandshakePattern) init() error {
 	if nil == self || len(self.msgs) == 0 {
 		return newError("invalid pattern")
@@ -243,6 +243,7 @@ func (self *HandshakePattern) init() error {
 
 	// check the msgs
 	var pskCount int
+	lrSTransmits := [2]bool{}
 	prevSender = ""
 	for _, msg := range self.msgs {
 		sender = msg.sender
@@ -263,7 +264,10 @@ func (self *HandshakePattern) init() error {
 				return newError("invalid pattern, token %s appears multiple times in msgs", token)
 			}
 			switch token {
-			case "e", "s":
+			case "e":
+				lrTokens[senderIdx] = append(lrTokens[senderIdx], token)
+			case "s":
+				lrSTransmits[senderIdx] = true
 				lrTokens[senderIdx] = append(lrTokens[senderIdx], token)
 			case "ee", "es", "se", "ss":
 				// error if left key was not previously forwarded by left sender
@@ -321,6 +325,12 @@ func (self *HandshakePattern) init() error {
 		}
 		if pskCount > 0 {
 			specs = append(specs, initSpec{token: "psk", size: pskCount})
+		}
+
+		// check if "s" token will be received by senderIdx
+		// in this case, "rs" will need to be verified as it is transmitted...
+		if lrSTransmits[(senderIdx+1)%2] {
+			specs = append(specs, initSpec{token: "verifiers", size: 1})
 		}
 		initspecs[senderIdx] = specs
 	}

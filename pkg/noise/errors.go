@@ -11,9 +11,10 @@ type errorFlag string
 
 const (
 	// All package errors are wrapping Error
-	Error        = errorFlag("noise: error")
-	errSizeLimit = errorFlag("noise: message too large")
-	noError      = errorFlag("")
+	Error                  = errorFlag("noise: error")
+	errSizeLimit           = errorFlag("noise: message too large")
+	errNoStaticKeyVerifier = errorFlag("noise: missing static key verifier")
+	noError                = errorFlag("")
 )
 
 // Error implements the error interface.

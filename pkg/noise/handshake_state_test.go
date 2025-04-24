@@ -125,7 +125,7 @@ func testVector(t *testing.T, vec TestVector) {
 	} else {
 		psks = nil
 	}
-	err = hss[0].Initialize(cfg, true, prologue, s, e, rs, re, psks)
+	err = hss[0].Initialize(cfg, newVerifiers(), true, prologue, s, e, rs, re, psks)
 	if nil != err {
 		t.Fatalf("Failed initiator handshake initialization, got error %v", err)
 	}
@@ -175,7 +175,7 @@ func testVector(t *testing.T, vec TestVector) {
 	} else {
 		rpsks = nil
 	}
-	err = hss[1].Initialize(cfg, false, prologue, s, e, rs, re, rpsks)
+	err = hss[1].Initialize(cfg, newVerifiers(), false, prologue, s, e, rs, re, rpsks)
 	if nil != err {
 		t.Fatalf("Failed responder handshake initialization, got error %v", err)
 	}
@@ -333,11 +333,11 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	} else {
 		psks = nil
 	}
-	err = hsOks[0].Initialize(cfg, true, prologue, s, e, rs, re, psks)
+	err = hsOks[0].Initialize(cfg, newVerifiers(), true, prologue, s, e, rs, re, psks)
 	if nil != err {
 		t.Fatalf("hsOks[0]: Failed initiator handshake initialization, got error %v", err)
 	}
-	err = hsFails[0].Initialize(cfg, true, prologue, s, e, rs, re, psks)
+	err = hsFails[0].Initialize(cfg, newVerifiers(), true, prologue, s, e, rs, re, psks)
 	if nil != err {
 		t.Fatalf("hsFails[0]: Failed initiator handshake initialization, got error %v", err)
 	}
@@ -387,11 +387,11 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	} else {
 		rpsks = nil
 	}
-	err = hsOks[1].Initialize(cfg, false, prologue, s, e, rs, re, rpsks)
+	err = hsOks[1].Initialize(cfg, newVerifiers(), false, prologue, s, e, rs, re, rpsks)
 	if nil != err {
 		t.Fatalf("hsOks[1]: Failed responder handshake initialization, got error %v", err)
 	}
-	err = hsFails[1].Initialize(cfg, false, prologue, s, e, rs, re, rpsks)
+	err = hsFails[1].Initialize(cfg, newVerifiers(), false, prologue, s, e, rs, re, rpsks)
 	if nil != err {
 		t.Fatalf("hsFails[1]: Failed responder handshake initialization, got error %v", err)
 	}
@@ -436,4 +436,12 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 			t.Fatalf("hsFails[%d] : Failed ReadMessage did not error on ciphertext size, got error %v", readIdx, errRead)
 		}
 	}
+}
+
+// newVerifiers returns a VerifierProvider that accept all static keys
+func newVerifiers() *VerifierProvider {
+	rv := &VerifierProvider{}
+	cv := &AcceptOrRejectAnyKey{} // cv has nil Status hence it accept all keys...
+	rv.SetVerifier("s", cv)
+	return rv
 }

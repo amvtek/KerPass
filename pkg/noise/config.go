@@ -30,7 +30,7 @@ type Config struct {
 	DhAlgo DH
 }
 
-// Load parse protoname and loads the algorithms it reference into the Config.
+// Load parse protoname and loads the algorithms it references into the Config.
 //
 // Valid protoname looks like "Noise_XX_25519_AESGCM_SHA256".
 // Refers to noise protocol specs section 8, for details on how valid names are formed.

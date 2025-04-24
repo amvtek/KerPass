@@ -87,6 +87,7 @@ func TestNewPattern(t *testing.T) {
 					},
 					[]initSpec{
 						{token: "s", hash: true, size: 1},
+						{token: "verifiers", size: 1},
 					},
 				},
 				premsgs: [2]msgPtrn{
@@ -116,6 +117,7 @@ func TestNewPattern(t *testing.T) {
 					[]initSpec{
 						{token: "s", hash: true, size: 1},
 						{token: "psk", hash: false, size: 2},
+						{token: "verifiers", hash: false, size: 1},
 					},
 				},
 				premsgs: [2]msgPtrn{
