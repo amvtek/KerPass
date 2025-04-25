@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"dev.kerpass.org/kernel/internal/utils"
+	"code.kerpass.org/golang/internal/utils"
 )
 
 // TestVector holds noise protocol test vector fields.
