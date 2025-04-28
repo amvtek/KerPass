@@ -6,6 +6,11 @@ import (
 	"runtime"
 )
 
+const (
+	Error   = errorFlag("utils: error")
+	noError = errorFlag("")
+)
+
 // RaisedErr is an error type that tracks error occurence location.
 // All errors returned by KerPass code base functions are RaisedError instances.
 //
@@ -82,4 +87,30 @@ func addCallerFileLine(skip int, err *RaisedErr) {
 		err.Filename = path.Join(path.Base(dirname), filename)
 		err.Line = line
 	}
+}
+
+// errorFlag is a private error type that allows declaring error constants.
+type errorFlag string
+
+// Error implements the error interface.
+func (self errorFlag) Error() string {
+	return string(self)
+}
+
+func (self errorFlag) Unwrap() error {
+	if Error == self || noError == self {
+		return nil
+	} else {
+		return Error
+	}
+}
+
+// newError returns a RaisedErr that contains file & line of where it was called.
+func newError(msg string, args ...any) error {
+	return NewError(1, Error, msg, args...)
+}
+
+// wrapError returns a RaisedErr that contains file & line of where it was called.
+func wrapError(cause error, msg string, args ...any) error {
+	return WrapError(cause, 1, Error, msg, args...)
 }
