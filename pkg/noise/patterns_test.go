@@ -5,11 +5,14 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"code.kerpass.org/golang/internal/utils"
 )
 
 func TestShowPatternTable(t *testing.T) {
-	lines := make([]string, 0, 1+2*len(patternRegistry.entries))
-	for k, p := range patternRegistry.entries {
+	entries := utils.RegistryEntries(patternRegistry)
+	lines := make([]string, 0, 1+2*len(entries))
+	for k, p := range entries {
 		lines = append(lines, fmt.Sprintf("---\n%s:", k))
 		lines = append(lines, p.Dsl())
 	}

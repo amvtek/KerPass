@@ -2,9 +2,11 @@ package noise
 
 import (
 	"strings"
+
+	"code.kerpass.org/golang/internal/utils"
 )
 
-var patternRegistry *registry[*HandshakePattern]
+var patternRegistry *utils.Registry[*HandshakePattern]
 
 // MustRegisterPatternSpec parses dsl which contains name of the pattern and definition of
 // the pattern in noise specification language and stores the resulting HandshakePattern in
@@ -22,7 +24,7 @@ func MustRegisterPatternSpec(dsl string) {
 	if nil != err {
 		panic(err)
 	}
-	err = registrySet(patternRegistry, strings.TrimSpace(parts[0]), pattern)
+	err = utils.RegistrySet(patternRegistry, strings.TrimSpace(parts[0]), pattern)
 	if nil != err {
 		panic(err)
 	}
@@ -35,7 +37,7 @@ func RegisterPattern(name string, pattern *HandshakePattern) error {
 		return newError("can not register nil pattern")
 	}
 	return wrapError(
-		registrySet(patternRegistry, name, pattern),
+		utils.RegistrySet(patternRegistry, name, pattern),
 		"can not register pattern %s",
 		name,
 	)
@@ -44,7 +46,7 @@ func RegisterPattern(name string, pattern *HandshakePattern) error {
 // LoadPattern copies the pattern referenced by name in dst. It errors if name does
 // not correspond to a registered pattern.
 func LoadPattern(name string, dst *HandshakePattern) error {
-	src, found := registryGet(patternRegistry, name)
+	src, found := utils.RegistryGet(patternRegistry, name)
 	if !found || nil == src {
 		return newError("unknown pattern %s", name)
 	}
@@ -55,7 +57,7 @@ func LoadPattern(name string, dst *HandshakePattern) error {
 }
 
 func init() {
-	patternRegistry = newRegistry[*HandshakePattern]()
+	patternRegistry = utils.NewRegistry[*HandshakePattern]()
 
 	// 1 way patterns
 	MustRegisterPatternSpec(
