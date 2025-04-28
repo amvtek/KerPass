@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 
 	"golang.org/x/crypto/chacha20poly1305"
+
+	"code.kerpass.org/golang/internal/utils"
 )
 
 const (
@@ -18,7 +20,7 @@ const (
 	CIPHER_CHACHA20_POLY1305 = "ChaChaPoly"
 )
 
-var aeadRegistry *registry[AEADFactory]
+var aeadRegistry *utils.Registry[AEADFactory]
 
 // AEAD extends cipher.AEAD with methods usefull for noise protocol implementation.
 type AEAD interface {
@@ -51,12 +53,12 @@ func RegisterAEAD(name string, factory AEADFactory) error {
 	if nil == factory {
 		return newError("AEAD factory can not be nil")
 	}
-	return registrySet(aeadRegistry, name, factory)
+	return utils.RegistrySet(aeadRegistry, name, factory)
 }
 
 // GetAEADFactory loads an AEADFactory from the registry. It errors if no factory was registered with name.
 func GetAEADFactory(name string) (AEADFactory, error) {
-	factory, found := registryGet(aeadRegistry, name)
+	factory, found := utils.RegistryGet(aeadRegistry, name)
 	if !found || nil == factory {
 		return nil, newError("Unsupported cipher %s", name)
 	}
@@ -306,7 +308,7 @@ func (_ chachaPoly1305AEAD) FillNonce(nonce []byte, n uint64) {
 }
 
 func init() {
-	aeadRegistry = newRegistry[AEADFactory]()
+	aeadRegistry = utils.NewRegistry[AEADFactory]()
 	MustRegisterAEAD(CIPHER_AES256_GCM, AEADFactoryFunc(newAESGCM))
 	MustRegisterAEAD(CIPHER_CHACHA20_POLY1305, AEADFactoryFunc(newChachaPoly1305))
 }

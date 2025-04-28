@@ -8,6 +8,8 @@ import (
 	_ "golang.org/x/crypto/blake2s"
 
 	"golang.org/x/crypto/hkdf"
+
+	"code.kerpass.org/golang/internal/utils"
 )
 
 const (
@@ -17,7 +19,7 @@ const (
 	HASH_BLAKE2S = "BLAKE2s"
 )
 
-var hashRegistry *registry[Hash]
+var hashRegistry *utils.Registry[Hash]
 
 // Hash embeds the crypto.Hash type and adds methods usefull for noise protocol implementation.
 type Hash struct {
@@ -57,7 +59,7 @@ func MustRegisterHash(name string, hash crypto.Hash) {
 // RegisterHash adds hash to the Hash registry. It errors if name is already in use or hash is invalid.
 func RegisterHash(name string, hash crypto.Hash) error {
 	return wrapError(
-		registrySet(hashRegistry, name, Hash{Hash: hash}),
+		utils.RegistrySet(hashRegistry, name, Hash{Hash: hash}),
 		"failed registering Hash algorithm, %s",
 		name,
 	)
@@ -65,7 +67,7 @@ func RegisterHash(name string, hash crypto.Hash) error {
 
 // GetHash loads Hash implementation from the registry. It errors if no hash was registered with name.
 func GetHash(name string) (Hash, error) {
-	hash, found := registryGet(hashRegistry, name)
+	hash, found := utils.RegistryGet(hashRegistry, name)
 	if !found {
 		return hash, newError("unsupported Hash algorithm, %s", name)
 	}
@@ -79,7 +81,7 @@ func GetHash(name string) (Hash, error) {
 }
 
 func init() {
-	hashRegistry = newRegistry[Hash]()
+	hashRegistry = utils.NewRegistry[Hash]()
 	MustRegisterHash(HASH_SHA512, crypto.SHA512)
 	MustRegisterHash(HASH_SHA256, crypto.SHA256)
 	MustRegisterHash(HASH_BLAKE2B, crypto.BLAKE2b_512)

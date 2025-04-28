@@ -4,6 +4,8 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"io"
+
+	"code.kerpass.org/golang/internal/utils"
 )
 
 const (
@@ -11,7 +13,7 @@ const (
 )
 
 var (
-	dhRegistry *registry[DH]
+	dhRegistry *utils.Registry[DH]
 
 	// we maintain private rnd Reader as the global rand.Reader could be replaced by a malicious external package.
 	rnd io.Reader
@@ -45,7 +47,7 @@ func RegisterDH(name string, algo DH) error {
 		return newError("Invalid DH algorithm")
 	}
 	return wrapError(
-		registrySet(dhRegistry, name, algo),
+		utils.RegistrySet(dhRegistry, name, algo),
 		"failed registering DH KeyExch %s",
 		name,
 	)
@@ -53,7 +55,7 @@ func RegisterDH(name string, algo DH) error {
 
 // GetDH loads a DH from the registry. It errors if no DH was registered with name.
 func GetDH(name string) (DH, error) {
-	dh, found := registryGet(dhRegistry, name)
+	dh, found := utils.RegistryGet(dhRegistry, name)
 	if !found || nil == dh || (dh.DHLen() < dhMinSize) {
 		return dh, newError("Unsupported DH KeyExch algorithm, %s", name)
 	}
@@ -93,6 +95,6 @@ func (_ randReader) Read(b []byte) (int, error) {
 
 func init() {
 	rnd = randReader{}
-	dhRegistry = newRegistry[DH]()
+	dhRegistry = utils.NewRegistry[DH]()
 	MustRegisterDH(KEYEXCH_25519, EcDH{Curve: ecdh.X25519(), Size: 32})
 }
