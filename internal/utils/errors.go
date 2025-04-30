@@ -9,6 +9,9 @@ import (
 const (
 	Error   = errorFlag("utils: error")
 	noError = errorFlag("")
+
+	baseErrFmt   = "%s: %s\n  file: %s line: %d"
+	causalErrFmt = baseErrFmt + "\n%v"
 )
 
 // RaisedErr is an error type that tracks error occurence location.
@@ -35,7 +38,12 @@ type RaisedErr struct {
 
 // Error implements the error interface.
 func (self RaisedErr) Error() string {
-	return fmt.Sprintf("%s: %s\n  file: %s line: %d\n%v", path.Dir(self.Filename), self.Msg, self.Filename, self.Line, self.Cause)
+	switch self.Cause {
+	case nil:
+		return fmt.Sprintf(baseErrFmt, path.Dir(self.Filename), self.Msg, self.Filename, self.Line)
+	default:
+		return fmt.Sprintf(causalErrFmt, path.Dir(self.Filename), self.Msg, self.Filename, self.Line, self.Cause)
+	}
 }
 
 // Unwrap returns a slice that contains the causes of the RaisedErr.
