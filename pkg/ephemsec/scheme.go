@@ -1,7 +1,6 @@
 package ephemsec
 
 import (
-	"fmt"
 	"math"
 	"regexp"
 	"strconv"
@@ -31,7 +30,7 @@ type scheme struct {
 
 	// K Diffie-Hellman Key Exchange requirements
 	// K defines the number of Ephemeral & Static keys used to derive the shared secret
-	// K is a string of form E1S1
+	// K is a string of form E1S2
 	//   E prefix is followed by the number (1 or 2) of ephemeral keys used in the exchange
 	//   S prefix is followed by the number (1 or 2) of static keys used in the exchange
 	K string
@@ -64,23 +63,22 @@ type scheme struct {
 // be parsed or if the constructed scheme is invalid.
 //
 // scheme name have the following form
-// Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8_S1
 //
-//	1st subgroup (eg SHA512/256) is the name of the scheme Hash function
-//	2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
-//	3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
-//	  E is the number of ephemeral keys and S the number of static keys
-//	4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
-//	5th subgroup (eg B32) is the OTP encoding alphabet
-//	6th subgroup (eg P8) is the number of alphabet digits of the generated OTP/OTK excluding
-//	  scheme synchronization digits
-//	7th subgroup (eg S1) is the number of synchronization digits added to generated OTP/OTK
+//	Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8_S1
+//	  1st subgroup (eg SHA512/256) is the name of the scheme Hash function
+//	  2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
+//	  3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
+//	    E is the number of ephemeral keys and S the number of static keys
+//	  4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
+//	  5th subgroup (eg B32) is the OTP encoding alphabet
+//	  6th subgroup (eg P8) is the number of alphabet digits of the generated OTP/OTK excluding
+//	    scheme synchronization digits
+//	  7th subgroup (eg S1) is the number of synchronization digits added to generated OTP/OTK
 func NewScheme(name string) (*scheme, error) {
 	parts := schemeRe.FindStringSubmatch(name)
 	if len(parts) != 8 {
 		return nil, newError("Invalid scheme name %s", name)
 	}
-	fmt.Printf("parts -> %+v\n", parts)
 	rv := scheme{}
 
 	// TODO: we need to load algorithms
