@@ -1,7 +1,10 @@
 package ephemsec
 
 import (
+	"fmt"
 	"math"
+	"regexp"
+	"strconv"
 )
 
 const (
@@ -10,8 +13,19 @@ const (
 	otkMaxBits    = 512
 )
 
+var (
+	schemeRe = regexp.MustCompile(
+		`Kerpass_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_(E[1-2]S[1-2])_T([0-9]+)_B([0-9]+)_P([0-9]+)_S([0-2])`,
+	)
+)
+
 // Scheme holds configuration parameters for OTP/OTK generation.
 type Scheme struct {
+	pHash string
+
+	pCurveName string
+
+	pDH string
 
 	// T timeWindow size in seconds
 	// T > 0
@@ -35,6 +49,65 @@ type Scheme struct {
 	// pre calculated OTP generation modulus
 	// zero for binary code used for OTK
 	maxCode int64
+}
+
+// NewScheme parses the name string to extract Scheme fields values. It errors if name can not
+// be parsed or if the constructed scheme is invalid.
+//
+// Scheme name have the following form
+// Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8_S1
+//
+//	1st subgroup (eg SHA512/256) is the name of the scheme Hash function
+//	2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
+//	3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
+//	  E is the number of ephemeral keys and S the number of static keys
+//	4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
+//	5th subgroup (eg B32) is the OTP encoding alphabet
+//	6th subgroup (eg P8) is the number of alphabet digits of the generated OTP/OTK excluding
+//	  scheme synchronization digits
+//	7th subgroup (eg S1) is the number of synchronization digits added to generated OTP/OTK
+func NewScheme(name string) (*Scheme, error) {
+	parts := schemeRe.FindStringSubmatch(name)
+	if len(parts) != 8 {
+		return nil, newError("Invalid scheme name %s", name)
+	}
+	fmt.Printf("parts -> %+v\n", parts)
+	rv := Scheme{}
+
+	// TODO: we need to load algorithms
+	rv.pHash = parts[1]
+	rv.pCurveName = parts[2]
+	rv.pDH = parts[3]
+
+	// pT
+	val, err := strconv.Atoi(parts[4])
+	if nil != err {
+		return nil, wrapError(err, "can not decode pT")
+	}
+	rv.pT = float64(val)
+
+	// pB
+	val, err = strconv.Atoi(parts[5])
+	if nil != err {
+		return nil, wrapError(err, "can not decode pB")
+	}
+	rv.pB = val
+
+	// pP
+	val, err = strconv.Atoi(parts[6])
+	if nil != err {
+		return nil, wrapError(err, "can not decode pP")
+	}
+	rv.pP = val
+
+	// pS
+	val, err = strconv.Atoi(parts[7])
+	if nil != err {
+		return nil, wrapError(err, "can not decode pS")
+	}
+	rv.pS = val
+
+	return &rv, rv.Init()
 }
 
 // Init validates inner parameters and prepares the Scheme for usage.

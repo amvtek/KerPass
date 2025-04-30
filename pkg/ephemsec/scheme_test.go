@@ -3,9 +3,81 @@ package ephemsec
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 )
+
+func TestNewScheme(t *testing.T) {
+	testcases := []struct {
+		name   string
+		expect Scheme
+		fail   bool
+	}{
+		{
+			name: "Kerpass_SHA512/256_X25519_E2S2_T400_B16_P8_S1",
+			expect: Scheme{
+				pHash: "SHA512/256", pCurveName: "X25519", pDH: "E2S2",
+				pT: 400, pB: 16, pP: 8, pS: 1,
+			},
+		},
+		{
+			name: "Kerpass_Blake2s_P256_E1S1_T600_B10_P8_S1",
+			expect: Scheme{
+				pHash: "Blake2s", pCurveName: "P256", pDH: "E1S1",
+				pT: 600, pB: 10, pP: 8, pS: 1,
+			},
+		},
+		{
+			// fail due to missing Kerpass prefix
+			name: "Nopass_SHA256_X25519_E1S1_T400_B10_P8_S1",
+			fail: true,
+		},
+		{
+			// fail due to E set to 0 in E0S1
+			name: "Kerpass_SHA256_X25519_E0S1_T400_B10_P8_S1",
+			fail: true,
+		},
+		{
+			// fail due to S set to 0 in E1S0
+			name: "Kerpass_SHA256_X25519_E1S0_T400_B10_P8_S1",
+			fail: true,
+		},
+		{
+			// fail due to invalid E3S4 (E & S shall be 1 or 2)
+			name: "Kerpass_SHA256_X25519_E1S0_T400_B10_P8_S1",
+			fail: true,
+		},
+		{
+			// fail due to non supported B
+			name: "Kerpass_SHA256_X25519_E1S0_T400_B57_P8_S1",
+			fail: true,
+		},
+	}
+	for pos, tc := range testcases {
+		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
+			scm, err := NewScheme(tc.name)
+			if tc.fail {
+				if nil == err {
+					t.Fatalf("Expected NewScheme to fail for %s, but it returned nil error", tc.name)
+				} else {
+					return
+				}
+			}
+			if nil != err {
+				t.Fatalf("Failed NewScheme, got error %v", err)
+			}
+			expect := &tc.expect
+			err = expect.Init()
+			if nil != err {
+				t.Fatalf("Failed expect Init, got error %v", err)
+			}
+			if !reflect.DeepEqual(scm, expect) {
+				t.Fatalf("Failed scheme control, got\n%+v\n!=\n%+v", scm, expect)
+			}
+		})
+	}
+}
 
 func TestSchemeInit(t *testing.T) {
 	testcases := []struct {
