@@ -1,9 +1,13 @@
 package ephemsec
 
 import (
+	"crypto"
+	"crypto/ecdh"
 	"math"
 	"regexp"
 	"strconv"
+
+	"code.kerpass.org/golang/pkg/algos"
 )
 
 const (
@@ -18,6 +22,17 @@ var (
 	)
 )
 
+const (
+	// below constants index the schemeRe subgroups
+	schH = 1
+	schD = 2
+	schK = 3
+	schT = 4
+	schB = 5
+	schP = 6
+	schS = 7
+)
+
 // scheme holds configuration parameters for OTP/OTK generation.
 // scheme is an opaque type.
 type scheme struct {
@@ -25,7 +40,7 @@ type scheme struct {
 	// H hash algorithm name
 	H string
 
-	// D Diffie-Hellman Key Exchange function
+	// D Diffie-Hellman Key Exchange function name
 	D string
 
 	// K Diffie-Hellman Key Exchange requirements
@@ -50,6 +65,14 @@ type scheme struct {
 	// S OTP/OTK number of synchronization digits
 	// S in 0..1
 	S int
+
+	// Hash algorithm implementation
+	// loaded from registry using H as name
+	hash crypto.Hash
+
+	// ecdh Curve implementation
+	// loaded from registry using D as name
+	curve ecdh.Curve
 
 	// pre calculated OTP step
 	step float64
@@ -81,34 +104,38 @@ func NewScheme(name string) (*scheme, error) {
 	}
 	rv := scheme{}
 
-	// TODO: we need to load algorithms
-	rv.H = parts[1]
-	rv.D = parts[2]
-	rv.K = parts[3]
+	// H
+	rv.H = parts[schH]
+
+	// D & curve
+	rv.D = parts[schD]
+
+	// K
+	rv.K = parts[schK]
 
 	// T
-	val, err := strconv.Atoi(parts[4])
+	val, err := strconv.Atoi(parts[schT])
 	if nil != err {
 		return nil, wrapError(err, "can not decode T")
 	}
 	rv.T = float64(val)
 
 	// B
-	val, err = strconv.Atoi(parts[5])
+	val, err = strconv.Atoi(parts[schB])
 	if nil != err {
 		return nil, wrapError(err, "can not decode B")
 	}
 	rv.B = val
 
 	// P
-	val, err = strconv.Atoi(parts[6])
+	val, err = strconv.Atoi(parts[schP])
 	if nil != err {
 		return nil, wrapError(err, "can not decode P")
 	}
 	rv.P = val
 
 	// S
-	val, err = strconv.Atoi(parts[7])
+	val, err = strconv.Atoi(parts[schS])
 	if nil != err {
 		return nil, wrapError(err, "can not decode S")
 	}
@@ -122,15 +149,50 @@ func (self *scheme) Init() error {
 	if nil == self {
 		return newError("nil scheme")
 	}
+
+	// hash reload
+	hash, err := algos.GetHash(self.H)
+	if nil != err {
+		return wrapError(err, "error loading Hash %s", self.H)
+	}
+	if !hash.Available() {
+		return newError("missing implementation for Hash %s", hash)
+	}
+	self.hash = hash
+
+	// curve reload
+	curve, err := algos.GetCurve(self.D)
+	if nil != err {
+		return wrapError(err, "error loading Curve %s", self.D)
+	}
+	if nil == curve {
+		// normally unreachable
+		return newError("got a nil Curve loading %s", self.D)
+	}
+	self.curve = curve
+
+	// K validation
+	switch self.K {
+	case "E1S1", "E1S2", "E2S2":
+		// ok
+	default:
+		return newError("non supported K %s", self.K)
+	}
+
+	// T validation
 	if self.T <= 0 {
 		return newError("invalid T timeWindow (%v <= 0)", self.T)
 	}
+
+	// S validation
 	switch self.S {
 	case 0, 1:
+		// ok
 	default:
 		return newError("invalid S (number of synchronization digits) %d not in [0..1]", self.S)
 	}
 
+	// P validation
 	var maxBits int
 	base := self.B
 	switch base {
@@ -150,12 +212,16 @@ func (self *scheme) Init() error {
 	if (float64(digits) * math.Log2(float64(base))) > float64(maxBits) {
 		return newError("not enough entropy for P (code number of digits = %d", digits)
 	}
+
+	// maxcode calculation
 	var M int64
 	if 256 != base {
 		M = int64(math.Pow(float64(base), float64(digits)))
 	}
-	self.step = self.T / float64(base)
 	self.maxcode = M
+
+	// step calculation
+	self.step = self.T / float64(base)
 	return nil
 }
 
