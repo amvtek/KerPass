@@ -15,46 +15,55 @@ const (
 
 var (
 	schemeRe = regexp.MustCompile(
-		`Kerpass_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_(E[1-2]S[1-2])_T([0-9]+)_B([0-9]+)_P([0-9]+)_S([0-2])`,
+		`Kerpass_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_(E[1-2]S[1-2])_T([0-9]+)_B([0-9]+)_P([0-9]+)_S([0-1])`,
 	)
 )
 
-// Scheme holds configuration parameters for OTP/OTK generation.
-type Scheme struct {
-	pHash string
+// scheme holds configuration parameters for OTP/OTK generation.
+// scheme is an opaque type.
+type scheme struct {
 
-	pCurveName string
+	// H hash algorithm name
+	H string
 
-	pDH string
+	// D Diffie-Hellman Key Exchange function
+	D string
+
+	// K Diffie-Hellman Key Exchange requirements
+	// K defines the number of Ephemeral & Static keys used to derive the shared secret
+	// K is a string of form E1S1
+	//   E prefix is followed by the number (1 or 2) of ephemeral keys used in the exchange
+	//   S prefix is followed by the number (1 or 2) of static keys used in the exchange
+	K string
 
 	// T timeWindow size in seconds
 	// T > 0
-	pT float64
+	T float64
 
 	// B OTP/OTK encoding base
 	// B in 2..256
-	pB int
+	B int
 
 	// P OTP/OTK number of pseudo random digits
 	// P > 0
-	pP int
+	P int
 
 	// S OTP/OTK number of synchronization digits
-	// S >= 0
-	pS int
+	// S in 0..1
+	S int
 
 	// pre calculated OTP step
 	step float64
 
 	// pre calculated OTP generation modulus
 	// zero for binary code used for OTK
-	maxCode int64
+	maxcode int64
 }
 
-// NewScheme parses the name string to extract Scheme fields values. It errors if name can not
+// NewScheme parses the name string to extract scheme fields values. It errors if name can not
 // be parsed or if the constructed scheme is invalid.
 //
-// Scheme name have the following form
+// scheme name have the following form
 // Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8_S1
 //
 //	1st subgroup (eg SHA512/256) is the name of the scheme Hash function
@@ -66,64 +75,66 @@ type Scheme struct {
 //	6th subgroup (eg P8) is the number of alphabet digits of the generated OTP/OTK excluding
 //	  scheme synchronization digits
 //	7th subgroup (eg S1) is the number of synchronization digits added to generated OTP/OTK
-func NewScheme(name string) (*Scheme, error) {
+func NewScheme(name string) (*scheme, error) {
 	parts := schemeRe.FindStringSubmatch(name)
 	if len(parts) != 8 {
 		return nil, newError("Invalid scheme name %s", name)
 	}
 	fmt.Printf("parts -> %+v\n", parts)
-	rv := Scheme{}
+	rv := scheme{}
 
 	// TODO: we need to load algorithms
-	rv.pHash = parts[1]
-	rv.pCurveName = parts[2]
-	rv.pDH = parts[3]
+	rv.H = parts[1]
+	rv.D = parts[2]
+	rv.K = parts[3]
 
-	// pT
+	// T
 	val, err := strconv.Atoi(parts[4])
 	if nil != err {
-		return nil, wrapError(err, "can not decode pT")
+		return nil, wrapError(err, "can not decode T")
 	}
-	rv.pT = float64(val)
+	rv.T = float64(val)
 
-	// pB
+	// B
 	val, err = strconv.Atoi(parts[5])
 	if nil != err {
-		return nil, wrapError(err, "can not decode pB")
+		return nil, wrapError(err, "can not decode B")
 	}
-	rv.pB = val
+	rv.B = val
 
-	// pP
+	// P
 	val, err = strconv.Atoi(parts[6])
 	if nil != err {
-		return nil, wrapError(err, "can not decode pP")
+		return nil, wrapError(err, "can not decode P")
 	}
-	rv.pP = val
+	rv.P = val
 
-	// pS
+	// S
 	val, err = strconv.Atoi(parts[7])
 	if nil != err {
-		return nil, wrapError(err, "can not decode pS")
+		return nil, wrapError(err, "can not decode S")
 	}
-	rv.pS = val
+	rv.S = val
 
 	return &rv, rv.Init()
 }
 
-// Init validates inner parameters and prepares the Scheme for usage.
-func (self *Scheme) Init() error {
+// Init validates inner parameters and prepares the scheme for usage.
+func (self *scheme) Init() error {
 	if nil == self {
-		return newError("nil Scheme")
+		return newError("nil scheme")
 	}
-	if self.pT <= 0 {
-		return newError("invalid T timeWindow (%v <= 0)", self.pT)
+	if self.T <= 0 {
+		return newError("invalid T timeWindow (%v <= 0)", self.T)
 	}
-	if self.pS < 0 {
-		return newError("invalid S (number of synchronization digits) (%d < 0)", self.pS)
+	switch self.S {
+	case 0, 1:
+	default:
+		return newError("invalid S (number of synchronization digits) %d not in [0..1]", self.S)
 	}
 
 	var maxBits int
-	base := self.pB
+	base := self.B
 	switch base {
 	case 256:
 		maxBits = otkMaxBits
@@ -134,7 +145,7 @@ func (self *Scheme) Init() error {
 	default:
 		return newError("invalid B (encoding base) %d", base)
 	}
-	digits := self.pP
+	digits := self.P
 	if digits <= 0 {
 		return newError("invalid P (code number of digits) (%d <= 0)", digits)
 	}
@@ -145,23 +156,23 @@ func (self *Scheme) Init() error {
 	if 256 != base {
 		M = int64(math.Pow(float64(base), float64(digits)))
 	}
-	self.step = self.pT / float64(base)
-	self.maxCode = M
+	self.step = self.T / float64(base)
+	self.maxcode = M
 	return nil
 }
 
 // Time transforms a second precision Unix timestamp into a pseudo time that can be used as
 // input for OTP/OTK calculation. It returns the pseudo time and its synchronization hint.
-func (self Scheme) Time(timestamp int64) (int64, int) {
+func (self scheme) Time(timestamp int64) (int64, int) {
 	ts := int64(math.Round(float64(timestamp) / self.step))
-	return ts, int(ts % int64(self.pB))
+	return ts, int(ts % int64(self.B))
 }
 
 // SyncTime returns the pseudo time which is the closest from Time(timestamp)
 // having a synchronization hint that matches sync. It errors if the sync
 // parameter is invalid.
-func (self Scheme) SyncTime(timestamp int64, sync int) (int64, error) {
-	codeBase := self.pB
+func (self scheme) SyncTime(timestamp int64, sync int) (int64, error) {
+	codeBase := self.B
 	if sync < 0 || sync >= codeBase {
 		return 0, newError("invalid sync %d", sync)
 	}
