@@ -283,3 +283,43 @@ func (self scheme) SyncTime(timestamp int64, sync int) (int64, error) {
 	}
 	return bestTime, nil
 }
+
+func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
+	B := self.B
+	P := self.P
+
+	var minSize int
+	switch B {
+	case 256:
+		minSize = P
+	default:
+		minSize = 8
+	}
+	if len(src) < minSize {
+		return nil, newError("src does not contain enough entropy")
+	}
+
+	switch B {
+	case 256:
+		src[P-1] = byte(ptime % int64(B))
+		return src[:P], nil
+	default:
+		src = slices.Grow(src[:0], P)
+		src = src[:P]
+		isrc := binary.BigEndian.Uint64(src[:8]) % uint64(self.maxcode)
+		base := uint64(B)
+		for i := range P - 1 {
+			src[P-2-i] = byte(isrc % base)
+			isrc /= base
+		}
+		src[P-1] = byte(ptime % int64(B))
+		return src, nil
+	}
+}
+
+func (self scheme) ecdh(seckey *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error) {
+	if nil == seckey || seckey.Curve() != self.curve {
+		return nil, newError("invalid seckey")
+	}
+	return seckey.ECDH(pubkey)
+}
