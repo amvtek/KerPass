@@ -68,6 +68,7 @@ func TestNewScheme(t *testing.T) {
 				t.Fatalf("Failed NewScheme, got error %v", err)
 			}
 			expect := &tc.expect
+			expect.N = tc.name
 			err = expect.Init()
 			if nil != err {
 				t.Fatalf("Failed expect Init, got error %v", err)
@@ -85,27 +86,27 @@ func TestSchemeInit(t *testing.T) {
 		fail   bool
 	}{
 		// OTP schemes
-		{scheme: scheme{H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 32, P: 8, S: 1}},
-		{scheme: scheme{H: "SHA512/256", D: "X25519", K: "E1S2", T: 400, B: 32, P: 11, S: 1}},
-		{scheme: scheme{H: "SHA256", D: "P256", K: "E2S2", T: 400, B: 32, P: 5, S: 1}},
-		{scheme: scheme{H: "SHA3/256", D: "P384", K: "E1S1", T: 400, B: 16, P: 8, S: 1}},
-		{scheme: scheme{H: "SHA3/512", D: "P521", K: "E1S1", T: 400, B: 16, P: 11, S: 1}},
-		{scheme: scheme{H: "BLAKE2b", D: "P256", K: "E1S1", T: 400, B: 16, P: 5, S: 1}},
-		{scheme: scheme{H: "BLAKE2s", D: "P256", K: "E1S1", T: 400, B: 10, P: 8, S: 1}},
-		{scheme: scheme{H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 10, P: 11, S: 1}},
-		{scheme: scheme{H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 10, P: 5, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 32, P: 8, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA512/256", D: "X25519", K: "E1S2", T: 400, B: 32, P: 11, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA256", D: "P256", K: "E2S2", T: 400, B: 32, P: 5, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA3/256", D: "P384", K: "E1S1", T: 400, B: 16, P: 8, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA3/512", D: "P521", K: "E1S1", T: 400, B: 16, P: 11, S: 1}},
+		{scheme: scheme{N: "1", H: "BLAKE2b", D: "P256", K: "E1S1", T: 400, B: 16, P: 5, S: 1}},
+		{scheme: scheme{N: "1", H: "BLAKE2s", D: "P256", K: "E1S1", T: 400, B: 10, P: 8, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 10, P: 11, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 10, P: 5, S: 1}},
 		// OTK schemes
-		{scheme: scheme{H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 256, P: 32, S: 1}},
-		{scheme: scheme{H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 256, P: 64, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 256, P: 32, S: 1}},
+		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 256, P: 64, S: 1}},
 		// Invalid schemes
-		{scheme: scheme{H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 33, P: 8, S: 1}, fail: true},   // B not supported
-		{scheme: scheme{H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 13, S: 1}, fail: true},  // P too large (65 > 64 entropy bits)
-		{scheme: scheme{H: "BLAKE2b", D: "X25519", K: "E1S1", T: -400, B: 32, P: 11, S: 1}, fail: true}, // T < 0
-		{scheme: scheme{H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 0, S: 1}, fail: true},   // P == 0
-		{scheme: scheme{H: "BLAKE2b", D: "X25519", K: "E1S1", T: 0, B: 10, P: 6, S: 0}, fail: true},     // T == 0
-		{scheme: scheme{H: "FOO", D: "X25519", K: "E1S1", T: 400, B: 10, P: 6, S: 0}, fail: true},       // H == FOO unsupported
-		{scheme: scheme{H: "SHA256", D: "XBAR", K: "E1S1", T: 400, B: 10, P: 6, S: 0}, fail: true},      // D == XBAR unsupported
-		{scheme: scheme{H: "SHA256", D: "XBAR", K: "E0S1", T: 400, B: 10, P: 6, S: 0}, fail: true},      // K == E0S1 unsupported
+		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 33, P: 8, S: 1}, fail: true},   // B not supported
+		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 13, S: 1}, fail: true},  // P too large (65 > 64 entropy bits)
+		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: -400, B: 32, P: 11, S: 1}, fail: true}, // T < 0
+		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 0, S: 1}, fail: true},   // P == 0
+		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 0, B: 10, P: 6, S: 0}, fail: true},     // T == 0
+		{scheme: scheme{N: "1", H: "FOO", D: "X25519", K: "E1S1", T: 400, B: 10, P: 6, S: 0}, fail: true},       // H == FOO unsupported
+		{scheme: scheme{N: "1", H: "SHA256", D: "XBAR", K: "E1S1", T: 400, B: 10, P: 6, S: 0}, fail: true},      // D == XBAR unsupported
+		{scheme: scheme{N: "1", H: "SHA256", D: "XBAR", K: "E0S1", T: 400, B: 10, P: 6, S: 0}, fail: true},      // K == E0S1 unsupported
 	}
 	for pos, tc := range testcases {
 		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
@@ -130,23 +131,23 @@ func TestSchemeTime(t *testing.T) {
 		reftime string
 	}{
 		{
-			scheme:  scheme{H: "BLAKE2s", D: "X25519", K: "E1S1", T: 300, B: 10, P: 7, S: 1},
+			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 300, B: 10, P: 7, S: 1},
 			reftime: "2008-03-12T12:45:56Z",
 		},
 		{
-			scheme:  scheme{H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 16, P: 8, S: 1},
+			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 16, P: 8, S: 1},
 			reftime: "2018-06-06T05:32:07Z",
 		},
 		{
-			scheme:  scheme{H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 32, P: 8, S: 1},
+			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 32, P: 8, S: 1},
 			reftime: "2025-09-14T11:48:07Z",
 		},
 		{
-			scheme:  scheme{H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 32, P: 11, S: 1},
+			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 32, P: 11, S: 1},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 		{
-			scheme:  scheme{H: "BLAKE2s", D: "X25519", K: "E1S1", T: 1024, B: 256, P: 32, S: 1},
+			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 1024, B: 256, P: 32, S: 1},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 	}
@@ -197,23 +198,23 @@ func FuzzSchemeTime(f *testing.F) {
 		reftime string
 	}{
 		{
-			scheme:  scheme{H: "SHA256", D: "P256", K: "E1S1", T: 300, B: 10, P: 7, S: 1},
+			scheme:  scheme{N: "1", H: "SHA256", D: "P256", K: "E1S1", T: 300, B: 10, P: 7, S: 1},
 			reftime: "2008-03-12T12:45:56Z",
 		},
 		{
-			scheme:  scheme{H: "SHA256", D: "X25519", K: "E1S1", T: 400, B: 16, P: 8, S: 1},
+			scheme:  scheme{N: "1", H: "SHA256", D: "X25519", K: "E1S1", T: 400, B: 16, P: 8, S: 1},
 			reftime: "2018-06-06T05:32:07Z",
 		},
 		{
-			scheme:  scheme{H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 32, P: 8, S: 1},
+			scheme:  scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 32, P: 8, S: 1},
 			reftime: "2025-09-14T11:48:07Z",
 		},
 		{
-			scheme:  scheme{H: "SHA3/256", D: "P256", K: "E1S1", T: 400, B: 32, P: 11, S: 1},
+			scheme:  scheme{N: "1", H: "SHA3/256", D: "P256", K: "E1S1", T: 400, B: 32, P: 11, S: 1},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 		{
-			scheme:  scheme{H: "BLAKE2b", D: "X25519", K: "E1S1", T: 1024, B: 256, P: 32, S: 1},
+			scheme:  scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 1024, B: 256, P: 32, S: 1},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 	}

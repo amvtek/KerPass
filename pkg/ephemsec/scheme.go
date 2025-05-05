@@ -3,8 +3,10 @@ package ephemsec
 import (
 	"crypto"
 	"crypto/ecdh"
+	"encoding/binary"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 
 	"code.kerpass.org/golang/pkg/algos"
@@ -13,7 +15,7 @@ import (
 const (
 	otpMaxBits    = 64
 	otpB10MaxBits = 48 // TODO: check RFC 4226 Annex A, B10 bias analysis
-	otkMaxBits    = 512
+	otkMaxBytes   = 64
 )
 
 var (
@@ -24,6 +26,7 @@ var (
 
 const (
 	// below constants index the schemeRe subgroups
+	schN = 0
 	schH = 1
 	schD = 2
 	schK = 3
@@ -36,6 +39,9 @@ const (
 // scheme holds configuration parameters for OTP/OTK generation.
 // scheme is an opaque type.
 type scheme struct {
+
+	// N scheme name
+	N string
 
 	// H hash algorithm name
 	H string
@@ -65,6 +71,9 @@ type scheme struct {
 	// S OTP/OTK number of synchronization digits
 	// S in 0..1
 	S int
+
+	// init tracks if Init was successfully called
+	init bool
 
 	// Hash algorithm implementation
 	// loaded from registry using H as name
@@ -103,6 +112,9 @@ func NewScheme(name string) (*scheme, error) {
 		return nil, newError("Invalid scheme name %s", name)
 	}
 	rv := scheme{}
+
+	// N
+	rv.N = parts[schN]
 
 	// H
 	rv.H = parts[schH]
@@ -158,6 +170,9 @@ func (self *scheme) Init() error {
 	if !hash.Available() {
 		return newError("missing implementation for Hash %s", hash)
 	}
+	if hash.Size() > maxHashSize || hash.Size() < minHashSize {
+		return newError("invalid hash %s, digest size %d not in %d..%d range", hash, minHashSize, maxHashSize)
+	}
 	self.hash = hash
 
 	// curve reload
@@ -170,6 +185,11 @@ func (self *scheme) Init() error {
 		return newError("got a nil Curve loading %s", self.D)
 	}
 	self.curve = curve
+
+	// N validation
+	if self.N == "" || len(self.N) > maxSchemeName {
+		return newError("invalid N, empty or longer than %d bytes", maxSchemeName)
+	}
 
 	// K validation
 	switch self.K {
@@ -197,7 +217,7 @@ func (self *scheme) Init() error {
 	base := self.B
 	switch base {
 	case 256:
-		maxBits = otkMaxBits
+		maxBits = otkMaxBytes * 8
 	case 16, 32:
 		maxBits = otpMaxBits
 	case 10:
@@ -222,6 +242,9 @@ func (self *scheme) Init() error {
 
 	// step calculation
 	self.step = self.T / float64(base)
+
+	self.init = true // simplify testing that self was properly initialized
+
 	return nil
 }
 
