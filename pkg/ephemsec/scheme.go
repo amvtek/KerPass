@@ -20,7 +20,7 @@ const (
 
 var (
 	schemeRe = regexp.MustCompile(
-		`Kerpass_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_(E[1-2]S[1-2])_T([0-9]+)_B([0-9]+)_P([0-9]+)_S([0-1])`,
+		`Kerpass_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_(E[1-2]S[1-2])_T([0-9]+)_B([0-9]+)_P([0-9]+)`,
 	)
 )
 
@@ -33,7 +33,6 @@ const (
 	schT = 4
 	schB = 5
 	schP = 6
-	schS = 7
 )
 
 // scheme holds configuration parameters for OTP/OTK generation.
@@ -70,7 +69,7 @@ type scheme struct {
 
 	// S OTP/OTK number of synchronization digits
 	// S in 0..1
-	S int
+	// S int
 
 	// init tracks if Init was successfully called
 	init bool
@@ -96,7 +95,7 @@ type scheme struct {
 //
 // scheme name have the following form
 //
-//	Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8_S1
+//	Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8
 //	  1st subgroup (eg SHA512/256) is the name of the scheme Hash function
 //	  2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
 //	  3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
@@ -105,10 +104,9 @@ type scheme struct {
 //	  5th subgroup (eg B32) is the OTP encoding alphabet
 //	  6th subgroup (eg P8) is the number of alphabet digits of the generated OTP/OTK excluding
 //	    scheme synchronization digits
-//	  7th subgroup (eg S1) is the number of synchronization digits added to generated OTP/OTK
 func NewScheme(name string) (*scheme, error) {
 	parts := schemeRe.FindStringSubmatch(name)
-	if len(parts) != 8 {
+	if len(parts) != 7 {
 		return nil, newError("Invalid scheme name %s", name)
 	}
 	rv := scheme{}
@@ -145,13 +143,6 @@ func NewScheme(name string) (*scheme, error) {
 		return nil, wrapError(err, "can not decode P")
 	}
 	rv.P = val
-
-	// S
-	val, err = strconv.Atoi(parts[schS])
-	if nil != err {
-		return nil, wrapError(err, "can not decode S")
-	}
-	rv.S = val
 
 	return &rv, rv.Init()
 }
@@ -202,14 +193,6 @@ func (self *scheme) Init() error {
 	// T validation
 	if self.T <= 0 {
 		return newError("invalid T timeWindow (%v <= 0)", self.T)
-	}
-
-	// S validation
-	switch self.S {
-	case 0, 1:
-		// ok
-	default:
-		return newError("invalid S (number of synchronization digits) %d not in [0..1]", self.S)
 	}
 
 	// P validation
