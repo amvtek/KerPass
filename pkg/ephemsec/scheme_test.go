@@ -1,6 +1,7 @@
 package ephemsec
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"reflect"
@@ -186,6 +187,57 @@ func TestSchemeTime(t *testing.T) {
 						sc, dT, rts, pts0, pts1,
 					)
 				}
+			}
+
+		})
+	}
+}
+
+func TestSchemeMakeOTP(t *testing.T) {
+	// TODO: no coverage through this approach for base 256
+	testcases := []struct {
+		B      int
+		P      int
+		digits []byte
+		PT     int64
+	}{
+		{B: 10, P: 9, digits: []byte{1, 2, 3, 4, 9, 8, 7, 6}, PT: 5},
+		{B: 10, P: 8, digits: []byte{1, 2, 3, 0, 8, 7, 6}, PT: 4},
+		{B: 16, P: 10, digits: []byte{15, 14, 13, 12, 11, 10, 9, 8, 7}, PT: 6},
+		{B: 32, P: 6, digits: []byte{0, 31, 30, 29, 28}, PT: 7},
+	}
+	for pos, tc := range testcases {
+		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
+			sch := scheme{N: "1", H: "SHA256", D: "P256", K: "E1S2", T: 400}
+			sch.B = tc.B
+			sch.P = tc.P
+			err := sch.Init()
+			if nil != err {
+				t.Fatalf("Failed sch.Init, got error %v", err)
+			}
+
+			// uses digits to calculate corresponding uint64
+			b := uint64(tc.B)
+			var v, digit uint64
+			for _, d := range tc.digits {
+				digit = uint64(d)
+				v *= b
+				v += digit
+			}
+
+			// serialize v to []byte
+			src := make([]byte, 8)
+			binary.BigEndian.PutUint64(src, v)
+			otp, err := sch.NewOTP(src, tc.PT)
+			if nil != err {
+				t.Fatalf("Failed sch.NewOTP, got error %v", err)
+			}
+
+			expect := make([]byte, 0, tc.P)
+			expect = append(expect, tc.digits...)
+			expect = append(expect, byte(tc.PT))
+			if !reflect.DeepEqual(otp, expect) {
+				t.Errorf("Failed otp control\n%v\n!=\n%v", otp, expect)
 			}
 
 		})
