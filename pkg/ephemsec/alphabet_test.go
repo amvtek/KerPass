@@ -169,11 +169,11 @@ func TestAlphabetDecode(t *testing.T) {
 		},
 		{
 			alphabet: Alphabet("aBcD"),
-			otp: "Ab:Bd",
-			sep: ':',
-			size: 4,
-			expect: []byte{0, 1, 1, 3},
-			fail: false, // succeed as Decode toggle the case of non matching characters
+			otp:      "Ab:Bd",
+			sep:      ':',
+			size:     4,
+			expect:   []byte{0, 1, 1, 3},
+			fail:     false, // succeed as Decode toggle the case of non matching characters
 		},
 	}
 	for pos, tc := range testcases {
