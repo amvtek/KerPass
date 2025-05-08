@@ -19,5 +19,5 @@ const (
 	markNonce        = byte('N')
 	markPTime        = byte('T')
 	markMessage      = byte('M')
-	markSchemeName   = byte('K')
+	markSchemeName   = byte('S')
 )

@@ -231,6 +231,42 @@ func (self *scheme) Init() error {
 	return nil
 }
 
+// Name returns the scheme name.
+func (self scheme) Name() string {
+	return self.N
+}
+
+// KeyExchangePattern returns the scheme Key Exchange pattern.
+// Possible values are E1S1, E1S2 & E2S2.
+func (self scheme) KeyExchangePattern() string {
+	return self.K
+}
+
+// TimeWindow returns the scheme Time Window size in seconds.
+func (self scheme) TimeWindow() float64 {
+	return self.T
+}
+
+// DigitBase returns the scheme digit base.
+func (self scheme) DigitBase() int {
+	return self.B
+}
+
+// CodeSize returns the scheme code size.
+func (self scheme) CodeSize() int {
+	return self.P
+}
+
+// Curve returns the scheme curve.
+func (self scheme) Curve() ecdh.Curve {
+	return self.curve
+}
+
+// Hash returns the scheme hash.
+func (self scheme) Hash() crypto.Hash {
+	return self.hash
+}
+
 // Time transforms a second precision Unix timestamp into a pseudo time that can be used as
 // input for OTP/OTK calculation. It returns the pseudo time and its synchronization hint.
 func (self scheme) Time(timestamp int64) (int64, int) {
