@@ -44,6 +44,16 @@ func GetCurve(name string) (ecdh.Curve, error) {
 	return curve, nil
 }
 
+// ListCurves returns a slice containing the names of the registered elliptic curves.
+func ListCurves() []string {
+	curveIdx := utils.RegistryEntries(curveRegistry)
+	rv := make([]string, 0, len(curveIdx))
+	for name, _ := range curveIdx {
+		rv = append(rv, name)
+	}
+	return rv
+}
+
 func init() {
 	curveRegistry = utils.NewRegistry[ecdh.Curve]()
 	MustRegisterCurve(CURVE_X25519, ecdh.X25519())
