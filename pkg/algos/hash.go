@@ -3,6 +3,7 @@ package algos
 import (
 	"crypto"
 
+	_ "crypto/sha256"
 	_ "crypto/sha512"
 	_ "golang.org/x/crypto/blake2b"
 	_ "golang.org/x/crypto/blake2s"
@@ -51,6 +52,16 @@ func GetHash(name string) (crypto.Hash, error) {
 	}
 	return hash, nil
 
+}
+
+// ListHashes returns a slice containing the names of the registered Hash algorithms.
+func ListHashes() []string {
+	hashIdx := utils.RegistryEntries(hashRegistry)
+	rv := make([]string, 0, len(hashIdx))
+	for name, _ := range hashIdx {
+		rv = append(rv, name)
+	}
+	return rv
 }
 
 func init() {
