@@ -209,6 +209,7 @@ func makeInfo(nonce []byte, ptime int64) []byte {
 	rv := make([]byte, 0, 2+len(nonce)+10)
 	rv = append(rv, byte('N'))
 	rv = append(rv, byte(len(nonce)))
+	rv = append(rv, nonce...)
 	rv = append(rv, byte('T'))
 	rv = append(rv, 8)
 	rv = binary.BigEndian.AppendUint64(rv, uint64(ptime))
