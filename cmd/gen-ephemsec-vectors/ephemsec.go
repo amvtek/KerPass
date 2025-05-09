@@ -92,6 +92,7 @@ func fillVector(schemename string, vect *ephemsec.TestVector) error {
 	rng.Read(psk) // rng.Read can not fail
 	vect.Psk = utils.HexBinary(psk)
 	Z = append(Z, psk...)
+	vect.HkdfSecret = utils.HexBinary(Z)
 
 	// generate Initiator nonce
 	nsz := 16 + rand.IntN(64-16)
@@ -130,8 +131,10 @@ func fillVector(schemename string, vect *ephemsec.TestVector) error {
 
 	// generate the shared secret
 	salt := makeSalt(context, scheme.Name())
+	vect.HkdfSalt = salt
 	info := makeInfo(nonce, ptime)
-	secret, err := makeOTP( scheme.Hash(), scheme.DigitBase(), scheme.CodeSize(), Z, salt, info)
+	vect.HkdfInfo = info
+	secret, err := makeOTP(scheme.Hash(), scheme.DigitBase(), scheme.CodeSize()-1, Z, salt, info)
 	if nil != err {
 		return fmt.Errorf("Failed generating the shared secret, got error %w", err)
 	}
