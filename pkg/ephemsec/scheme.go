@@ -95,15 +95,15 @@ type scheme struct {
 //
 // scheme name have the following form
 //
-//	Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8
-//	  1st subgroup (eg SHA512/256) is the name of the scheme Hash function
-//	  2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
-//	  3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
-//	    E is the number of ephemeral keys and S the number of static keys
-//	  4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
-//	  5th subgroup (eg B32) is the OTP encoding alphabet
-//	  6th subgroup (eg P8) is the number of alphabet digits of the generated OTP/OTK excluding
-//	    scheme synchronization digits
+//		Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8
+//		  1st subgroup (eg SHA512/256) is the name of the scheme Hash function
+//		  2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
+//		  3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
+//		    E is the number of ephemeral keys and S the number of static keys
+//		  4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
+//		  5th subgroup (eg B32) is the OTP encoding alphabet
+//		  6th subgroup (eg P8) is the number of digits of the generated OTP/OTK
+//	         including scheme synchronization digits
 func NewScheme(name string) (*scheme, error) {
 	parts := schemeRe.FindStringSubmatch(name)
 	if len(parts) != 7 {
@@ -208,9 +208,9 @@ func (self *scheme) Init() error {
 	default:
 		return newError("invalid B (encoding base) %d", base)
 	}
-	digits := self.P
-	if digits <= 0 {
-		return newError("invalid P (code number of digits) (%d <= 0)", digits)
+	digits := self.P - 1
+	if digits <= 1 {
+		return newError("invalid P (code number of digits) (%d <= 2)", digits+1)
 	}
 	if (float64(digits) * math.Log2(float64(base))) > float64(maxBits) {
 		return newError("not enough entropy for P (code number of digits = %d", digits)
@@ -282,6 +282,7 @@ func (self scheme) SyncTime(timestamp int64, sync int) (int64, error) {
 	if sync < 0 || sync >= codeBase {
 		return 0, newError("invalid sync %d", sync)
 	}
+
 	reftime, _ := self.Time(timestamp)
 
 	B := int64(codeBase)
@@ -323,9 +324,9 @@ func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
 		src[P-1] = byte(ptime % int64(B))
 		return src[:P], nil
 	default:
+		isrc := binary.BigEndian.Uint64(src[:8]) % uint64(self.maxcode)
 		src = slices.Grow(src[:0], P)
 		src = src[:P]
-		isrc := binary.BigEndian.Uint64(src[:8]) % uint64(self.maxcode)
 		base := uint64(B)
 		for i := range P - 1 {
 			src[P-2-i] = byte(isrc % base)
