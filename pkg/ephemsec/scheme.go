@@ -103,7 +103,7 @@ type scheme struct {
 //		  4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
 //		  5th subgroup (eg B32) is the OTP encoding alphabet
 //		  6th subgroup (eg P8) is the number of digits of the generated OTP/OTK
-//	         including scheme synchronization digits
+//	            including scheme synchronization digits
 func NewScheme(name string) (*scheme, error) {
 	parts := schemeRe.FindStringSubmatch(name)
 	if len(parts) != 7 {
@@ -224,7 +224,7 @@ func (self *scheme) Init() error {
 	self.maxcode = M
 
 	// step calculation
-	self.step = self.T / float64(base)
+	self.step = self.T / float64(base-1)
 
 	self.init = true // simplify testing that self was properly initialized
 
@@ -269,39 +269,33 @@ func (self scheme) Hash() crypto.Hash {
 
 // Time transforms a second precision Unix timestamp into a pseudo time that can be used as
 // input for OTP/OTK calculation. It returns the pseudo time and its synchronization hint.
-func (self scheme) Time(timestamp int64) (int64, int) {
-	ts := int64(math.Round(float64(timestamp) / self.step))
+func (self scheme) Time(t int64) (int64, int) {
+	ts := int64(math.Round(float64(t) / self.step))
 	return ts, int(ts % int64(self.B))
 }
 
-// SyncTime returns the pseudo time which is the closest from Time(timestamp)
+// SyncTime returns the pseudo time which is the closest from Time(t)
 // having a synchronization hint that matches sync. It errors if the sync
 // parameter is invalid.
-func (self scheme) SyncTime(timestamp int64, sync int) (int64, error) {
-	codeBase := self.B
-	if sync < 0 || sync >= codeBase {
+func (self scheme) SyncTime(t int64, sync int) (int64, error) {
+	if sync < 0 || sync >= self.B {
 		return 0, newError("invalid sync %d", sync)
 	}
 
-	reftime, _ := self.Time(timestamp)
+	// synchronization algorithm
+	// t normally corresponds to current time on validator side
+	// sync is the synchro hint forwarded by the responder (last OTP/OTK digit)
+	// solution PTIME has sync synchro hint and correspond to time in [t - T/2 .. t + T/2] interval
 
-	B := int64(codeBase)
-	Q := (reftime / B) - 1
-	S := int64(sync)
-	var c, bestTime int64
-	var d, delta float64
-	c = Q*B + S // c % B == S
-	delta = math.Inf(1)
-	for _ = range 3 {
-		d = math.Abs(float64(reftime - c))
-		if d < delta {
-			delta = d
-			bestTime = c
-
-		}
-		c += B
+	ptm, sm := self.Time(t - int64(self.T/2)) // ptm is minimum PTIME that can be valid
+	b := int64(self.B)
+	s := int64(sync)
+	qm := ptm / b
+	pt := qm*b + s
+	if sync < sm {
+		pt += b
 	}
-	return bestTime, nil
+	return pt, nil
 }
 
 func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
