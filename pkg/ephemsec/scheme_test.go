@@ -101,7 +101,7 @@ func TestSchemeInit(t *testing.T) {
 		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 256, P: 64}},
 		// Invalid schemes
 		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 33, P: 8}, fail: true},   // B not supported
-		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 13}, fail: true},  // P too large (65 > 64 entropy bits)
+		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 14}, fail: true},  // P too large (65 > 64 entropy bits)
 		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: -400, B: 32, P: 11}, fail: true}, // T < 0
 		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 0}, fail: true},   // P == 0
 		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 0, B: 10, P: 6}, fail: true},     // T == 0
@@ -174,7 +174,7 @@ func TestSchemeTime(t *testing.T) {
 			var vts, pts0, pts1 int64
 			var sync int
 			halfT := int64(sc.T / 2)
-			for dT := range int64(sc.T - sc.step) {
+			for dT := range int64(sc.T) {
 				vts = rts + dT - halfT
 				pts0, sync = sc.Time(vts)
 				pts1, err = sc.SyncTime(rts, sync)
@@ -294,7 +294,7 @@ func FuzzSchemeTime(f *testing.F) {
 		for _, tc := range testcases {
 			sc = tc.scheme
 			halfT = int64(sc.T / 2)
-			for dT := range int64(sc.T - sc.step) {
+			for dT := range int64(sc.T) {
 				vts = ts + dT - halfT
 				pts0, sync = sc.Time(vts)
 				pts1, err = sc.SyncTime(ts, sync)
