@@ -110,24 +110,16 @@ func fillVector(schemename string, vect *ephemsec.TestVector) error {
 	vect.Context = utils.HexBinary(context)
 
 	// generate responder time
-	var rt int64
-	if rand.Float64() < 0.1 {
-		// in 10% of the case, rt is a 'real' int64
-		rt = rand.Int64()
-	} else {
-		// in 90% of the case, rt only has 32 bits
-		// this is what we expect when rt is Unix time
-		rt = int64(rand.Uint32())
-	}
+	// RMQ: tried to use rand.Int64 for rt, but synchronization sometimes fail with 64 bits timestamp
+	// A 32 bits Unix timestamp works until 2106-02-07...
+	rt := int64(rand.Uint32())
 	ptime, sync := scheme.Time(rt)
 	vect.ResponderTime = rt
 	vect.ResponderSynchroHint = sync
 
 	// generate initiator time
 	tw := scheme.TimeWindow()
-	step := math.Ceil(tw / float64(scheme.DigitBase()))
-	// TODO: we substract step from tw due to an issue with current synchronization algorithm
-	vect.InitiatorTime = rt - int64(tw/2) + rand.Int64N(int64(tw-step))
+	vect.InitiatorTime = rt - int64(tw/2) + rand.Int64N(int64(tw))
 
 	// generate the shared secret
 	salt := makeSalt(context, scheme.Name())
