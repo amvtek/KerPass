@@ -94,15 +94,16 @@ type scheme struct {
 // be parsed or if the constructed scheme is invalid.
 //
 // scheme name have the following form
-//   Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8
-//     1st subgroup (eg SHA512/256) is the name of the scheme Hash function
-//     2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
-//     3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
-//       E is the number of ephemeral keys and S the number of static keys
-//     4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
-//     5th subgroup (eg B32) is the OTP encoding alphabet
-//     6th subgroup (eg P8) is the number of digits of the generated OTP/OTK
-//       including scheme synchronization digits
+//
+//	Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8
+//	  1st subgroup (eg SHA512/256) is the name of the scheme Hash function
+//	  2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
+//	  3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
+//	    E is the number of ephemeral keys and S the number of static keys
+//	  4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
+//	  5th subgroup (eg B32) is the OTP encoding alphabet
+//	  6th subgroup (eg P8) is the number of digits of the generated OTP/OTK
+//	    including scheme synchronization digits
 func NewScheme(name string) (*scheme, error) {
 	parts := schemeRe.FindStringSubmatch(name)
 	if len(parts) != 7 {
