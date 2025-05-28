@@ -15,9 +15,7 @@ author:
     email: marc.vieuille@polytechnique.org
 
 normative:
-  RFC2119:
   RFC7748:
-  RFC8174:
 
 informative:
   RFC4226:
@@ -129,10 +127,7 @@ a wide range of use cases.
 
 # Requirements Notation
 
-The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD
-NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be
-interpreted as described in BCP 14 {{RFC2119}} {{RFC8174}} when, and only when, they appear
-in all capitals, as shown here.
+{::boilerplate bcp14}
 
 # Functions and Notation
 
@@ -485,6 +480,7 @@ Inputs:
 ## Responder E1S1 Z Derivation
 
 Inputs:
+
 - `sr` Responder static Keypair
 - `Ei` Initiator ephemeral PublicKey
 
