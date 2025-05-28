@@ -14,101 +14,125 @@ author:
     name: Marc Vieuille
     email: marc.vieuille@polytechnique.org
 
+normative:
+  RFC2119:
+  RFC7748:
+  RFC8174:
+
 informative:
   RFC4226:
   RFC5869:
   RFC6238:
-  RFC7748:
-  SP80056:
-    target: "https://bib.ietf.org/public/rfc/bibxml-nist/reference.NIST.SP.800-56Ar3.xml"
-    title: ""
-  NIST56A:
-    title: "Recommendation for Pair-Wise Key-Establishment Schemes Using Discrete Logarithm Cryptography"
-    author:
-      -
-        ins: E. Barker
-        name: Elaine Barker
-      -
-        ins: L. Chen
-        name: Lily Chen
-      -
-        ins: A. Roginsky
-        name: Allen Roginsky
-      -
-        ins: R. Davis
-        name: Richard Davis
-    date: 2018-04
-    seriesinfo:
-      NIST: Special Publication 800-56A Revision 3
-    target: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-56Ar3.pdf
+  PASSKEY:
+    title: "passkeys-Specifications"
+    target: "https://passkeys.dev/docs/reference/specs/"
 
 --- abstract
 
-This document specifies KerPass EPHEMSEC, an algorithm for generating time-synchronized
-one-time passwords (OTPs) or one-time keys (OTKs). Unlike traditional OTP algorithms
-that rely solely on static shared secret credentials, EPHEMSEC derives one-time secrets
-by combining ephemeral secrets established via Diffie-Hellman key exchange with
-account-specific static secrets. The algorithm supports incorporating context data into
-secret generation and embeds a time synchronization hint in each OTP/OTK. These
-enhancements improve security by preventing user impersonation even after server
-credential compromise and enable context-binding to resist phishing and MITM attacks.
-Unlike traditional OTP algorithms, EPHEMSEC supports automatic resynchronization, making
-the generated OTPs compatible with Password-Authenticated Key Exchange protocols and
-allowing EPHEMSEC OTKs to serve as primary credentials in TLS-PSK protocol
-implementations.
+This document specifies EPHEMSEC, an algorithm for generating one-time passwords (OTPs)
+and one-time keys (OTKs). Unlike traditional OTP algorithms that rely solely on static
+shared secrets, EPHEMSEC uses public key cryptography, which simplifies secure
+deployment on authentication servers. EPHEMSEC also supports binding the generated
+OTP/OTK to contextual data. When this context is obtained and injected by a trusted
+agent, the resulting codes can be made resistant to phishing and man-in-the-middle
+attacks. Finally, EPHEMSEC includes a built-in time synchronization mechanism that
+embeds a synchronization hint into the generated output. This allows both parties to
+deterministically derive the same OTP/OTK value without requiring trial-and-error
+validation, enabling compatibility with protocols such as Password Authenticated Key
+Exchange (PAKE) and TLS with Pre-Shared Key (TLS-PSK) that require exact secret
+agreement.
+
 
 --- middle
 
 # Introduction
 
-The primary goal of the KerPass project is to develop an authentication solution in
-which a user's smartphone securely hosts credentials compatible with the **KerPass
-EPHEMSEC** algorithm, as specified in this document.
+The concept of one-time passwords has existed for decades. Proprietary systems such as
+RSA SecurID have been available since the early days of the Internet and have
+demonstrated the viability of time-based and event-based one-time passwords. HOTP
+(specified in {{RFC4226}}) and TOTP (specified in {{RFC6238}}) are open algorithms that
+enable the implementation of one-time password generators operating similarly to earlier
+proprietary systems. These algorithms now form the foundation of various hardware tokens
+and numerous smartphone authenticator applications that provide a second authentication
+factor for high-profile web applications.
 
-The concept of leveraging smartphones as secure authentication devices is well
-established. For instance, numerous authenticator apps exist today that implement
-one-time password (OTP) generation using the algorithm defined in {{RFC4226}}.
+While OTP authenticator applications are simple to use and widely available, they have
+had limited impact on web application security. Two factors contribute to this limited
+success:
 
-While such applications are simple to use and widely available, they have had limited
-impact on the security of web-based applications. Several factors contribute to this
-limited success:
+1. Deployment of corresponding authentication servers introduces additional risks, as
+stored credentials can be used to impersonate users if compromised. This problem is
+particularly serious in today's cloud environments.
 
-1. The design of traditional authenticator apps does not address specific security
-   challenges of web applications. In particular, modern web browsers do not provide a
-   trusted input interface for entering authentication data, making users vulnerable to
-   phishing attacks that capture credentials.
-2. Deployment of the corresponding authentication servers introduces additional risks,
-   as the stored credentials can be used to impersonate users if compromised.
+2. The design of traditional authenticator applications does not address specific
+security challenges of web applications. In particular, modern web browsers do not
+provide a trusted input interface for entering authentication data, making users
+vulnerable to phishing attacks that capture credentials.
 
-Traditional OTP systems, such as those specified in {{RFC4226}}, focus primarily on
-defining an authenticator app and a corresponding validation server. However, these
-systems do not account for the specific challenges of web-based authentication,
-particularly the inability of web browsers to provide trusted input paths for entering
-authentication codes, leaving users vulnerable to phishing attacks.
+These problems are the main reasons explaining the lack of attractiveness of one-time
+passwords for securing web applications. In the current technological ecosystem,
+one-time password solutions are seen as obsolete, and the current trend is toward using
+authentication credentials such as {{PASSKEY}}, which address problems 1 and 2 by
+relying on digital signature key pairs.
 
-KerPass addresses these limitations by introducing two coordinated components: an
-authenticator app that incorporates context data into the OTP/OTK computation, and a
-browser-integrated Agent responsible for acquiring and supplying this context. This
-architecture enables KerPass to resist attacks that traditional OTP deployments are not
-designed to mitigate.
+The KerPass EPHEMSEC algorithm also addresses problems 1 and 2 but takes a meaningfully
+different approach than digital signatures. The EPHEMSEC client credential contains a
+Diffie-Hellman key pair, and the server stores only the public part of this key pair. To
+obtain a new OTP from EPHEMSEC, a trusted agent obtains the server's ephemeral public
+key and acquires context information such as the login page URL. This information is
+passed to the EPHEMSEC client (also known as the Responder; see {{responder}}) in a
+challenge message. The client first calculates a Diffie-Hellman secret using the
+received public key and local key pair, then uses this ephemeral secret key to generate
+an OTP using an algorithm based on principles similar to the HOTP algorithm described in
+{{RFC4226}}. This simplified description excludes many important details but should be
+sufficient to provide an understanding of how public key cryptography is used in
+EPHEMSEC.
 
-A typical authentication flow in the KerPass system proceeds as follows:
+Assuming that both EPHEMSEC OTP and digital signature solutions like {{PASSKEY}} can
+solve the server credential storage issue described in problem 1 and the phishing issue
+described in problem 2 (by having their output depend upon context input provided by a
+trusted agent), are there differences between the two that could help determine which
+option is better in a specific context?
 
-1. An Initiator (e.g., a relying web application) sends an authentication request to the
-   user's web browser.
-2. The KerPass Agent augments the request with context data and renders it as a signed
-   2D barcode.
-3. A Responder (the authenticator app on the smartphone) scans the barcode and computes
-   an OTP/OTK response using the EPHEMSEC algorithm in the Responder role.
-4. The user transmits the response back to the Agent, which uses it to initiate an
-   authentication protocol with the Initiator.
-5. The Initiator runs the EPHEMSEC algorithm in the Initiator role using inputs provided
-   by the Agent.
+One advantage that an OTP authenticator application has over a digital signature
+authenticator application is simpler integration, resulting from the smaller size of
+OTPs compared to digital signatures. Integration of smartphone interfaces such as NFC
+and Bluetooth to computing devices may eventually lessen this advantage, and EPHEMSEC
+can also generate one-time keys (OTK) that would benefit from the ubiquity of such
+interfaces.
 
-A full specification of the KerPass Agent and the broader authentication system
-architecture is outside the scope of this document. However, the simplified description
-above is intended to clarify the practical use case and design motivations of the
-EPHEMSEC algorithm.
+The main difference between OTP/OTK and digital signature credentials is that OTP/OTK
+are ephemeral **shared** secrets known by both peers involved in an authentication
+session, whereas digital signatures can only be generated by the peer controlling the
+private key. There are contexts such as transaction validation in which the one-way
+nature of digital signatures is an advantage. However, shared secrets have the
+distinctive advantage that they can be used as the main credential with protocols like
+Password Authenticated Key Exchange (PAKE) or TLS-PSK that enable **mutual**
+authentication of the peers involved in an authentication session. The potential to use
+EPHEMSEC OTP/OTK for mutual authentication is the distinctive feature of this solution.
+
+OTPs generated by HOTP/TOTP algorithms are also ephemeral shared secrets, but
+synchronization problems make their integration with PAKE protocols complex (see
+{{key-exchange}}). EPHEMSEC has a built-in auto-synchronization feature (see {{PTIME}})
+that addresses this issue.
+
+This document specifies the KerPass EPHEMSEC algorithm, which addresses the fundamental
+limitations of HOTP/TOTP that have contributed to the low attractivity of OTP
+authenticator applications for securing web applications. EPHEMSEC solves the server
+credential storage security problem by using credentials based on public key
+cryptography, provides a context binding mechanism that enables the generation of OTPs
+and OTKs resistant to phishing and man-in-the-middle attacks, and produces shared
+secrets that can be used with mutual authentication protocols such as PAKE and TLS-PSK.
+Given the ease of implementing OTP/OTK authenticator applications on smartphones, an
+OTP/OTK generation algorithm with properties similar to EPHEMSEC may be valuable across
+a wide range of use cases.
+
+# Requirements Notation
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD
+NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be
+interpreted as described in BCP 14 {{RFC2119}} {{RFC8174}} when, and only when, they appear
+in all capitals, as shown here.
 
 # Functions and Notation
 
@@ -185,6 +209,9 @@ which yields a 32-byte shared secret.
 
 The key exchange pattern determines which types of keys (ephemeral or static) are
 contributed by the Initiator and Responder during the ECDH exchanges.
+
+Note that in each of the pattern below, the Initiator always contribute an ephemeral key
+and the Responder always contribute a static key.
 
 ### E1S1 Pattern {#E1S1}
 
@@ -356,7 +383,7 @@ parties involved:
   Responder’s local clock state.
 
 These nonces serve as independent inputs to the intermediary secret derivation process
-(see 10).
+(see {{ISK}}).
 
 ## INONCE – Initiator Nonce {#INONCE}
 
@@ -606,7 +633,7 @@ OTK = ISK || SYNCHINT
 return OTK  # byte string of length P
 ~~~
 
-# Key Exchange Protocol Integration
+# Key Exchange Protocol Integration {#key-exchange}
 
 EPHEMSEC OTPs/OTKs are ephemeral **shared secrets** that can serve as primary
 credentials in mutually authenticated key exchange protocols, such as:
@@ -782,36 +809,184 @@ No IANA action is required.
 
 --- back
 
-# OTP Sampling bias {#otp-bias}
+# OTP Sampling Bias {#otp-bias}
 
-Struggling with this, work in progress
+EPHEMSEC generates `P` (see {{P}}) digits OTPs from 64-bit pseudo-random integers as
+described in {{OTP}}. This final operation may introduce a non-uniform distribution in
+the generated OTP when the code base `B` (see {{B}}) does not evenly divide 2^64, which
+occurs for all bases except `B` = 10.
 
-## Lemma: Distribution of Remainders in `[0, M)`
+We apply the Bias Formula below to evaluate the bias for code base 10.
 
-Let `m` and `M` be positive integers where `m` ≤ `M`.
+The bias reaches its maximum when the code size `P` is at its maximum value. While
+EPHEMSEC supports a maximum P of 15, only 14 digits are used to encode the pseudo-random
+value. Therefore:
 
-For any integer `r` in [0, `m`), the number of integers `v` in [0, `M`) that satisfy `v`
-≡ `r` mod `m` is:
+`bias = 1 / floor(2^64 / 10^14) ≈ 5.4e-6`
 
-1. When `M` is divisible by `m` (`M` mod `m` = 0):
-   - Exactly `M`/`m` values for every `r` in [0, `m`)
+This value is negligibly close to zero, making the code base 10 bias insignificant.
 
-2. When `M` is not divisible by `m` (`M` mod `m` = `s` where 0 < `s` < `m`):
-   - (floor(`M`/`m`) + 1) values for `r` in [0, `s`)
-   - floor(`M`/`m`) values for `r` in [`s`, `m`)
+For comparison, {{RFC4226}} generates 6-digit base-10 OTPs from 31-bit pseudo-random
+integers, resulting in:
+
+`bias = 1 / floor(2^31 / 10^6) ≈ 0.5e-3`
+
+While this value is also close to zero, it is approximately 100 times larger than
+EPHEMSEC's code base 10 bias.
+
+## Bias Formula
+
+For integers `m` and `M` where `m` ≤ `M` and `m` > 0, when sampling uniformly from `[0, M)` and
+taking remainder modulo m, remainder distribution may not be uniform.
+
+To quantify this non uniformity we can calculate a bias coefficient using:
+
+- `bias = 0 when M % m = 0`
+- `bias = 1/floor(M/m) when M % m ≠ 0`
+
+The `bias` value varies in `[0,1]` and indicates the relative overrepresentation of certain
+remainders. When `bias = 0`, distribution is uniform.
+
+### Derivation
+
+Let `X` be a uniformly distributed random variable that generates integers in the range `[0,M)`.
+Let `R = X % m`, where `R` is a random variable that maps `X` to the remainder of the
+division by `m`.
+
+We want to determine the probability distribution of `R` and quantify any bias that arises.
+
+Since `X` is uniformly distributed, the probability of `X` taking any specific value `v`
+in `[0, M)` is `1/M`.
+
+Using the results from Lemma 1 below, we can determine the probability distribution of
+`R`.
+
+### Case 1: When M is divisible by m (M % m = 0)
+
+From Lemma 1, each remainder `r` in `[0, m)` occurs exactly `M/m` times among the values
+`[0, M)`.\\
+Therefore, `R` is uniformly distributed with:
+
+`p(r) = (M/m) × (1/M) = 1/m for all r in [0, m)`
+
+In this case, there is no bias since all remainders are equally likely.
+
+### Case 2: When M is not divisible by m (M % m = s where 0 < s < m)
+
+From Lemma 1, the remainders have different frequencies:
+
+- Remainders `r` in `[0, s)` occur `floor(M/m) + 1` times each
+- Remainders `r` in `[s, m)` occur `floor(M/m)` times each
+
+This leads to a non-uniform distribution:
+
+- `p(r) = p1 = (floor(M/m) + 1)/M for r in [0, s)`
+- `p(r) = p2 = floor(M/m)/M for r in [s, m)`
+
+### Bias Quantification
+
+The bias arises because `p1` > `p2`. We can express this relationship as:
+
+~~~
+p1 = p2 × (1 + 1/floor(M/m)) = p2 × (1 + bias)
+
+where:
+bias = 1/floor(M/m)
+~~~
+
+This bias factor measures the non-uniformity of the distribution:
+
+- `bias` = 0 when `M` is divisible by m (uniform case)
+- `bias` ∈ (0, 1] when `M` is not divisible by `m`, with larger values indicating greater non-uniformity
+- The bias is maximized when `floor(M/m) = 1`, giving `bias` = 1
+
+## Lemma 1: Distribution of Remainders in [0, M)
+
+Let `m` and `M` be integers where `m` ≤ `M` and `m` > 0.
+
+For any integer `r` in `[0, m)`, the number of integers `v` in `[0, M)` that satisfy
+`v` % `m` = `r` is:
+
+1. When `M` is divisible by `m` (`M` % `m` = 0):
+   - Exactly `M/m` values for every `r` in `[0, m)`
+
+2. When `M` is not divisible by `m` (`M` % `m` = `s` where 0 < `s` < `m`):
+   - `floor(M/m) + 1` values for `r` in `[0, s)`
+   - `floor(M/m)` values for `r` in `[s, m)`
 
 ### Proof:
 
-Any `v` ≡ `r` mod `m` can be written as `v` = `q`·`m` + `r` where `q` ≥ 0. To keep `v`
-in [0, `M`):
+~~~
+For r in [0, m) let count(r) be the count of v satisfying v % m = r for v in [0, M)
 
-`q` ≤ (`M` - 1 - `r`)/`m`
+Any v, such that v % m = r can be written as v = q·m + r where q ≥ 0
+To keep v in [0, M), we must have q ≤ (M - 1 - r)/m, hence
+count(r) = floor((M -1 - r)/m) + 1
 
-The count of valid `q` values is floor((`M` - 1 - `r`)/`m`) + 1.
+When M = k·m (divisible case):
 
-When `M` = `k`·`m` (divisible case):
-- Count = floor((`k`·`m` - 1 - `r`)/`m`) + 1 = `k` = `M`/`m`
+- count(r) = floor((k·m - 1 - r)/m) + 1 = k = M/m
 
-When `M` = `k`·`m` + `s` (non-divisible case):
-- For `r` < `s`: count = `k` + 1
-- For `r` ≥ `s`: count = `k`
+When M = k·m + s (non-divisible case):
+
+- For r < s: count(r) = k + 1
+- For r ≥ s: count(r) = k
+~~~
+
+# Design Rationale
+
+The EPHEMSEC algorithm has undergone several implementation iterations, initially
+starting by modifying the HOTP algorithm described in {{RFC4226}} to achieve the desired
+security properties.
+
+The following sections explain the rationale behind key design choices.
+
+## Use of HKDF
+
+HKDF was chosen over the {{RFC4226}} HMAC approach for two reasons:
+
+1. The HKDF domain separation feature enabled by the HKDF `salt` parameter (see
+{{hkdf-use}}) provides the necessary context binding used for phishing protection.
+
+2. HKDF allows adjusting output size, which reduces the complexity of supporting the
+range of OTP/OTK sizes supported by EPHEMSEC (see {{code-limits}}).
+
+## Usage of PSK
+
+The inclusion of a pre-shared key (PSK) ensures that generated OTP/OTKs are always a
+**mutual** secret, which the `E1S1` pattern (see {{E1S1}}) alone cannot guarantee.
+
+The incremental cost of mixing the `PSK` (see {{PSK}}) into the HKDF `ikm` input (see
+{{hkdf-use}}) is expected to be low, and the `PSK` improves the secrecy of `ikm`.
+Therefore, it is always used even when the pattern (e.g., `E1S2`; see {{E1S2}}) already
+provides the desired **mutual** secrecy.
+
+## Usage of Nonces
+
+The design requires that both the Initiator and Responder contribute a nonce and are
+responsible for ensuring that their respective nonces are not reused.
+
+During development, it was considered whether the Initiator nonce could serve dual
+purposes with the ephemeral public key contributed by the Initiator. However, after
+recognizing that all practical authentication server designs supporting EPHEMSEC require
+maintaining unique session identifiers, no attempt was made to evaluate whether removing
+the Initiator nonce could provide benefits.
+
+### Transmission of the Responder Nonce
+
+When using OTP output, bandwidth between the Responder and the Initiator is severely
+constrained. Therefore, a synchronization digit `SYNCHINT` is used to "compress" the
+Responder nonce `PTIME` (see {{PTIME}}).
+
+When using OTK output, it is assumed that the application has addressed the bandwidth
+limitations that necessitate OTP output, and therefore `PTIME` could potentially be
+transmitted in uncompressed form.
+
+However, explicit support for uncompressed transmission was not included for two
+reasons:
+
+1. The computational cost of running the synchronization algorithm to recover `PTIME`
+from `SYNCHINT` is very low.
+
+2. Having the server rely on `SYNCHINT` to reconstruct `PTIME` limits the Responder's
+ability to reuse its own nonces, which provides additional security benefits.
