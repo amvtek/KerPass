@@ -1,8 +1,8 @@
 ---
 title: "KerPass EPHEMSEC One-Time Password Algorithm"
 abbrev: "EPHEMSEC"
-docname: draft-mvieuille-kerpass-ephemsec-00
-date: 2025-05-20
+docname: draft-mvieuille-kerpass-ephemsec-01
+date: 2025-05-30
 ipr: trust200902
 keyword: Internet-Draft
 workgroup: Individual Submission
@@ -21,6 +21,9 @@ informative:
   RFC4226:
   RFC5869:
   RFC6238:
+  KerPass:
+    title: "KerPass open source project"
+    target: "https://github.com/amvtek/KerPass"
   PASSKEY:
     title: "passkeys-Specifications"
     target: "https://passkeys.dev/docs/reference/specs/"
@@ -420,19 +423,19 @@ The following parameters are used throughout this section:
 This function is executed by the Responder to compute the `PTIME` nonce and the
 associated synchronization hint:
 
-~~~ pseudo
+~~~~ pseudo
 step = T / (B - 1) # floating point division
 PTIME = round(time / step) 
 SYNCHINT = PTIME % B
 return PTIME, SYNCHINT
-~~~
+~~~~
 
 ### Initiator Function – `SyncPTime(time, SYNCHINT) → PTIME`
 
 This function is executed by the Initiator to reconstruct the Responder’s PTIME using
 its local time and the received SYNCHINT:
 
-~~~ pseudo
+~~~~ pseudo
 mintime = time - (T / 2)
 step = T / (B - 1) # floating point division
 mpt = round(mintime / step)
@@ -445,7 +448,7 @@ if SYNCHINT < mphint:
     PTIME += B
 
 return PTIME
-~~~
+~~~~
 
 This algorithm works correctly if the clock difference between the Responder and
 Initiator is less than T / 2. Outside this range, synchronization will fail, resulting in
@@ -553,7 +556,7 @@ The function uses the following inputs:
 
 The `ISK` is derived using the following steps:
 
-~~~ pseudo
+~~~~ pseudo
 # CONTEXT & SCHEME are used for domain separation
 salt = TLV(byte('C'), CONTEXT) || TLV(byte('S'), SCHEME)
 
@@ -571,7 +574,7 @@ else:
 ISK = HKDF(salt, ikm, info, L)
 
 return ISK
-~~~
+~~~~
 
 # OTP/OTK Derivation {#OTP}
 
@@ -594,7 +597,7 @@ hint (`SYNCHINT`) derived from `PTIME`.
 
 `ISK` MUST be exactly 8 bytes long and is interpreted as an unsigned 64-bit integer.
 
-~~~ pseudo
+~~~~ pseudo
 # Interpret ISK as a big-endian unsigned integer
 maxcode = B ^ (P - 1)
 isrc = U64(ISK) % maxcode
@@ -611,7 +614,7 @@ SYNCHINT = byte(PTIME % B)
 OTP = OTP || SYNCHINT
 
 return OTP  # byte string of P digits in [0 .. B)
-~~~
+~~~~
 
 **Note**: The result is returned as a sequence of `P` integer digits in base `B`.
 Conversion to a human-readable representation (e.g., alphanumeric alphabet) is outside
@@ -622,12 +625,12 @@ the scope of this specification.
 When `B` is 256, the output is an opaque binary key. The first `P - 1` bytes are taken
 directly from `ISK`, and the last byte encodes the synchronization hint.
 
-~~~ pseudo
+~~~~ pseudo
 SYNCHINT = byte(PTIME % 256)
 OTK = ISK || SYNCHINT
 
 return OTK  # byte string of length P
-~~~
+~~~~
 
 # Key Exchange Protocol Integration {#key-exchange}
 
@@ -883,12 +886,12 @@ This leads to a non-uniform distribution:
 
 The bias arises because `p1` > `p2`. We can express this relationship as:
 
-~~~
+~~~~ pseudo
 p1 = p2 × (1 + 1/floor(M/m)) = p2 × (1 + bias)
 
 where:
 bias = 1/floor(M/m)
-~~~
+~~~~
 
 This bias factor measures the non-uniformity of the distribution:
 
@@ -912,7 +915,7 @@ For any integer `r` in `[0, m)`, the number of integers `v` in `[0, M)` that sat
 
 ### Proof:
 
-~~~
+~~~~ pseudo
 For r in [0, m) let count(r) be the count of v satisfying v % m = r for v in [0, M)
 
 Any v, such that v % m = r can be written as v = q·m + r where q ≥ 0
@@ -927,7 +930,7 @@ When M = k·m + s (non-divisible case):
 
 - For r < s: count(r) = k + 1
 - For r ≥ s: count(r) = k
-~~~
+~~~~
 
 # Design Rationale
 
@@ -986,3 +989,120 @@ from `SYNCHINT` is very low.
 
 2. Having the server rely on `SYNCHINT` to reconstruct `PTIME` limits the Responder's
 ability to reuse its own nonces, which provides additional security benefits.
+
+# Test Vectors
+
+A minimal set of test vectors is provided for OTP and OTK schemes that use the SHA512
+hash function and the X25519 ECDH function.
+
+The {{KerPass}} open source project provides an extensive set of vectors that allow
+testing EPHEMSEC output generated using common hash functions and curves.
+
+## Kerpass_SHA512_X25519_E1S1_T600B10P8 vector
+
+~~~~ json
+{
+  "scheme": "Kerpass_SHA512_X25519_E1S1_T600B10P8",
+  "context": "a33698e33f8ac3aae8c3b1527cc019e5b3e34e5569883283b1a75fbfbe8f3d7d1d5c17d10d90533d33305a90560bfe",
+  "psk": "55a439e62aefd92eebb7f4bc7e5f1626ef4545fa499252dd8658b61547f9df0e",
+  "shared_secret": "0803020700020800",
+  "otp": "83270280",
+  "init_nonce": "d8421a5a86f2caf8d45e6ef5c62d3b5421ba7a",
+  "init_time": 4134179892,
+  "init_static_key": "",
+  "init_ephemeral_key": "50d2af0ee110bd06604eb03e57a37763c9194400015290f3ef612be18ecd0583",
+  "init_remote_static_key": "f1e1116982475e7fd252a2ca69c1459b3a4439029fa3f33059d7e657b3318912",
+  "init_remote_ephemeral_key": "",
+  "resp_time": 4134179984,
+  "resp_synchro_hint": 0,
+  "resp_static_key": "fad1034e60389317dd0e405c84fff2d17248fa1112d66a1979515ddf65a44a06",
+  "resp_ephemeral_key": "",
+  "resp_remote_static_key": "",
+  "resp_remote_ephemeral_key": "0fc4c28b9d85a476a1b664050901c78c9b4ff69bde707829bd1e05e5602a3d55",
+  "hkdf_salt": "432fa33698e33f8ac3aae8c3b1527cc019e5b3e34e5569883283b1a75fbfbe8f3d7d1d5c17d10d90533d33305a90560bfe53244b6572706173735f5348413531325f5832353531395f453153315f543630304231305038",
+  "hkdf_info": "4e13d8421a5a86f2caf8d45e6ef5c62d3b5421ba7a54080000000003b23d1c",
+  "hkdf_secret": "31215fcaafce8df63bd3a21371d15233501da05b5c52248fb6d4cafbdad20d3655a439e62aefd92eebb7f4bc7e5f1626ef4545fa499252dd8658b61547f9df0e"
+}
+~~~~
+
+## Kerpass_SHA512_X25519_E1S2_T600B16P8 vector
+
+~~~~ json
+{
+  "scheme": "Kerpass_SHA512_X25519_E1S2_T600B16P8",
+  "context": "037f9aae0e39c770b7c216572382e1b78ccff597a27aeb004cd14c881fe1944eb630e8af0f9840b1ef3ffaf2cf697fb0a08d9cacd5e8c5ff4a1be583b4",
+  "psk": "a2096639c4a3b6de9bb4d76bfe5b047545eaa3ccb8b67839c55e580ba54feb0d",
+  "shared_secret": "0e0f0b02070e020e",
+  "otp": "EFB27E2E",
+  "init_nonce": "a5ddd81c502e054357c58ac483b8d39ce1e7",
+  "init_time": 568923577,
+  "init_static_key": "77166d9d14b2cc221a3829f600aad1f2f18872e8a7e7cb7aae2def72b69bff58",
+  "init_ephemeral_key": "90533d33305a90560bfef99d07c496ca92ef5001b62441860509af3d226d8ba4",
+  "init_remote_static_key": "dc94881a2063e4d30a0e7fe377838202e542b46d8836e57187e9abef99216078",
+  "init_remote_ephemeral_key": "",
+  "resp_time": 568923459,
+  "resp_synchro_hint": 14,
+  "resp_static_key": "dcad0c9e9aafe811761199f7e2286fda5036e5f5fc6f98c5f4b97fce71532ef8",
+  "resp_ephemeral_key": "",
+  "resp_remote_static_key": "176198d01d29325b022a5efff4d315bbf9fb4a07755d19581f857754797f6b54",
+  "resp_remote_ephemeral_key": "ecb63fa01c06b8d2c4de23d1abc4a5d57647481fbed22fb5866fda4c7989103c",
+  "hkdf_salt": "433d037f9aae0e39c770b7c216572382e1b78ccff597a27aeb004cd14c881fe1944eb630e8af0f9840b1ef3ffaf2cf697fb0a08d9cacd5e8c5ff4a1be583b453244b6572706173735f5348413531325f5832353531395f453153325f543630304231365038",
+  "hkdf_info": "4e12a5ddd81c502e054357c58ac483b8d39ce1e754080000000000d906ee",
+  "hkdf_secret": "ca2a1d1f71d686ad52f6ef62571d38a5d579f96a86150861e736ea3e71aeba59c85cae9ec5404221a87423eaf952c151bc74b0213fa8a41fba0786ccf315fd5ba2096639c4a3b6de9bb4d76bfe5b047545eaa3ccb8b67839c55e580ba54feb0d"
+}
+~~~~
+
+## Kerpass_SHA512_X25519_E2S2_T600B32P9 vector
+
+~~~~ json
+{
+  "scheme": "Kerpass_SHA512_X25519_E2S2_T600B32P9",
+  "context": "9e2d582a0afac79709941506151e9e6ce20cef6da6c3aa457b",
+  "psk": "3ec69559723db8a20cdace8bee0bf6534a1de8902786fc3b3626e4897f261dee",
+  "shared_secret": "13010a191603100111",
+  "otp": "K1ASP3G1H",
+  "init_nonce": "716fbb9b9872e0b49dce2723a52ade9d5fdc59",
+  "init_time": 2246779725,
+  "init_static_key": "6a846ddc06f426e60dd4ae3fbd5b9b06286abc3862e473855e89a138c56ea0b2",
+  "init_ephemeral_key": "aa2b0e1b2e4704f08a377ba26e4475aaf1aab010fb8c6ad4bf63890816d3d3f2",
+  "init_remote_static_key": "acc4416cd58c4a1a43272253c75a8f27708174f24548466757e13374e161c74b",
+  "init_remote_ephemeral_key": "d32119b92d8a61d0c204a4355c86e19c7027376c2e42be84ffa907a1aaec9e6a",
+  "resp_time": 2246779996,
+  "resp_synchro_hint": 17,
+  "resp_static_key": "6716e0cf047f6721662c501ad15f9884cada29210c019c7df566a0e71b67b1dd",
+  "resp_ephemeral_key": "d45cf4b5736ef3f3fb0d2a98459a304e595276243d4af91aa5ef2366d44ade2e",
+  "resp_remote_static_key": "f7c192278ea1c2323e92cc13da9ac5f0a8d53ac879eadbd774413c66659d865e",
+  "resp_remote_ephemeral_key": "86e53308c5bcefe25707f0ffee26cbdc260fc98d22fc9f9e53f4c1994347c27c",
+  "hkdf_salt": "43199e2d582a0afac79709941506151e9e6ce20cef6da6c3aa457b53244b6572706173735f5348413531325f5832353531395f453253325f543630304233325039",
+  "hkdf_info": "4e13716fbb9b9872e0b49dce2723a52ade9d5fdc5954080000000006eb4bb1",
+  "hkdf_secret": "36d0bdc70509bb9cff6f2d899e4b9dd261c91da06604f43e408e96da1253827fc37f09bdd64436333faab1150a0bd26d9c8ef3d5935e175b9db3c5ebacdbe7633ec69559723db8a20cdace8bee0bf6534a1de8902786fc3b3626e4897f261dee"
+}
+~~~~
+
+##  Kerpass_SHA512_X25519_E1S2_T1024B256P33 vector
+
+~~~~ json
+
+{
+  "scheme": "Kerpass_SHA512_X25519_E1S2_T1024B256P33",
+  "context": "c58ac483b8d39ce1e7037f9aae0e39c770b7c216572382e1",
+  "psk": "aad1f2f18872e8a7e7cb7aae2def72b69bff58a2096639c4a3b6de9bb4d76bfe",
+  "shared_secret": "8479fca69f6d1dbc9164f20eaa4d799ba3b8dae83f915864766fa66d4cae17422c",
+  "otp": "",
+  "init_nonce": "5b047545eaa3ccb8b67839c55e580ba54feb0da5ddd81c502e054357",
+  "init_time": 3762980154,
+  "init_static_key": "6fda5036e5f5fc6f98c5f4b97fce71532ef8d077166d9d14b2cc221a3829f600",
+  "init_ephemeral_key": "4e5569883283b1a75fbfbe8f3d7d1d5c17d10d90533d33305a90560bfef99d07",
+  "init_remote_static_key": "2f92f4b84f1b107ca934e641f34bfae2b2251e9b70876cd1a256301f8f3ccc0e",
+  "init_remote_ephemeral_key": "",
+  "resp_time": 3762980663,
+  "resp_synchro_hint": 44,
+  "resp_static_key": "c496ca92ef5001b62441860509af3d226d8ba4dcad0c9e9aafe811761199f7e2",
+  "resp_ephemeral_key": "",
+  "resp_remote_static_key": "c52b20d6825127ecb33dfff5c1d9a0ed7f57b41eda1dd6855d7ad6268372fc70",
+  "resp_remote_ephemeral_key": "6a5a0dd77082720ebd55bcab514a68be8db117af5a17fbb06a7e035e44959307",
+  "hkdf_salt": "4318c58ac483b8d39ce1e7037f9aae0e39c770b7c216572382e153274b6572706173735f5348413531325f5832353531395f453153325f543130323442323536503333",
+  "hkdf_info": "4e1c5b047545eaa3ccb8b67839c55e580ba54feb0da5ddd81c502e05435754080000000037da8f2c",
+  "hkdf_secret": "04b954ad9d6d42e39217b6a32ae83bc52ba662a39e2bcf18240e6b07034a8c4c86e7a23622ce6b4cd46665d4309b624dd16fa39e57c86c7daf115ddd17f24039aad1f2f18872e8a7e7cb7aae2def72b69bff58a2096639c4a3b6de9bb4d76bfe"
+}
+~~~~
