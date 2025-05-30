@@ -24,8 +24,8 @@ Flags:
 `
 
 var (
-	defaultCodes = []string{"T400_B10_P8", "T500_B16_P9", "T600_B32_P9", "T550_B256_P33", "T1024_B256_P64"}
-	codeRe       = regexp.MustCompile(`T[0-9]+_B(?:10|16|32|256)_P[0-9]+`)
+	defaultCodes = []string{"T400B10P8", "T500B16P9", "T600B32P9", "T550B256P33", "T1024B256P64"}
+	codeRe       = regexp.MustCompile(`T[0-9]+B(?:10|16|32|256)P[0-9]+`)
 )
 
 type Cmd struct {
