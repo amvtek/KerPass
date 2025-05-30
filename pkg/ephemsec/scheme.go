@@ -14,13 +14,13 @@ import (
 
 const (
 	otpMaxBits    = 64
-	otpB10MaxBits = 48 // TODO: check RFC 4226 Annex A, B10 bias analysis
+	otpB10MaxBits = 48
 	otkMaxBytes   = 64
 )
 
 var (
 	schemeRe = regexp.MustCompile(
-		`Kerpass_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_(E[1-2]S[1-2])_T([0-9]+)_B([0-9]+)_P([0-9]+)`,
+		`Kerpass_([A-Za-z0-9/]+)_([A-Za-z0-9/]+)_(E[1-2]S[1-2])_T([0-9]+)B([0-9]+)P([0-9]+)`,
 	)
 )
 
@@ -95,7 +95,7 @@ type scheme struct {
 //
 // scheme name have the following form
 //
-//	Kerpass_SHA512/256_X25519_E1S2_T400_B32_P8
+//	Kerpass_SHA512/256_X25519_E1S2_T400B32P8
 //	  1st subgroup (eg SHA512/256) is the name of the scheme Hash function
 //	  2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
 //	  3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,

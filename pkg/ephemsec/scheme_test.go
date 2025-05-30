@@ -16,14 +16,14 @@ func TestNewScheme(t *testing.T) {
 		fail   bool
 	}{
 		{
-			name: "Kerpass_SHA512/256_X25519_E2S2_T400_B16_P8",
+			name: "Kerpass_SHA512/256_X25519_E2S2_T400B16P8",
 			expect: scheme{
 				H: "SHA512/256", D: "X25519", K: "E2S2",
 				T: 400, B: 16, P: 8,
 			},
 		},
 		{
-			name: "Kerpass_BLAKE2s_P256_E1S1_T600_B10_P8",
+			name: "Kerpass_BLAKE2s_P256_E1S1_T600B10P8",
 			expect: scheme{
 				H: "BLAKE2s", D: "P256", K: "E1S1",
 				T: 600, B: 10, P: 8,
@@ -31,27 +31,27 @@ func TestNewScheme(t *testing.T) {
 		},
 		{
 			// fail due to missing Kerpass prefix
-			name: "Nopass_SHA256_X25519_E1S1_T400_B10_P8",
+			name: "Nopass_SHA256_X25519_E1S1_T400B10P8",
 			fail: true,
 		},
 		{
 			// fail due to E set to 0 in E0S1
-			name: "Kerpass_SHA256_X25519_E0S1_T400_B10_P8",
+			name: "Kerpass_SHA256_X25519_E0S1_T400B10P8",
 			fail: true,
 		},
 		{
 			// fail due to S set to 0 in E1S0
-			name: "Kerpass_SHA256_X25519_E1S0_T400_B10_P8",
+			name: "Kerpass_SHA256_X25519_E1S0_T400B10P8",
 			fail: true,
 		},
 		{
 			// fail due to invalid E3S4 (E & S shall be 1 or 2)
-			name: "Kerpass_SHA256_X25519_E1S0_T400_B10_P8",
+			name: "Kerpass_SHA256_X25519_E1S0_T400B10P8",
 			fail: true,
 		},
 		{
 			// fail due to non supported B
-			name: "Kerpass_SHA256_X25519_E1S0_T400_B57_P8",
+			name: "Kerpass_SHA256_X25519_E1S0_T400B57P8",
 			fail: true,
 		},
 	}
