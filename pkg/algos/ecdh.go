@@ -2,6 +2,7 @@ package algos
 
 import (
 	"crypto/ecdh"
+	"math/rand/v2"
 
 	"code.kerpass.org/golang/internal/utils"
 )
@@ -13,7 +14,60 @@ const (
 	CURVE_P521   = "P521"
 )
 
-var curveRegistry *utils.Registry[ecdh.Curve]
+// Curve embeds ecdh.Curve and adds methods that simplify usage.
+type Curve struct {
+	ecdh.Curve
+	privkeySize int
+	pubkeySize  int
+	dhsecSize   int
+}
+
+// PrivateKeyLen returns byte length of Curve PrivateKey
+func (self Curve) PrivateKeyLen() int {
+	return self.privkeySize
+}
+
+// PublicKeyLen returns byte length of uncompressed form of Curve PublicKey
+func (self Curve) PublicKeyLen() int {
+	return self.pubkeySize
+}
+
+// DHLen returns byte length of Diffie-Hellmann shared secret
+func (self Curve) DHLen() int {
+	return self.dhsecSize
+}
+
+func (self *Curve) init() error {
+	if nil == self || nil == self.Curve {
+		return newError("can not initialize nil curve")
+	}
+
+	// rnd is just used to determine Curve outputs size, hence it does not need to be crypto rand.Reader
+	rnd := rand.NewChaCha8([32]byte{})
+
+	curve := self.Curve
+	pk1, err := curve.GenerateKey(rnd)
+	if nil != err {
+		return wrapError(err, "failed generating pk1")
+	}
+	self.privkeySize = len(pk1.Bytes())
+	self.pubkeySize = len(pk1.PublicKey().Bytes())
+
+	pk2, err := curve.GenerateKey(rnd)
+	if nil != err {
+		return wrapError(err, "failed generating pk2")
+	}
+
+	dhsec, err := pk1.ECDH(pk2.PublicKey())
+	if nil != err {
+		return wrapError(err, "failed generating dhsec")
+	}
+	self.dhsecSize = len(dhsec)
+
+	return nil
+}
+
+var curveRegistry *utils.Registry[Curve]
 
 // MustRegisterCurve adds curve to the Curve registry. It panics if name is already in use or curve is invalid.
 func MustRegisterCurve(name string, curve ecdh.Curve) {
@@ -25,18 +79,20 @@ func MustRegisterCurve(name string, curve ecdh.Curve) {
 
 // RegisterCurve adds curve to the Curve registry. It errors if name is already in use or curve is invalid.
 func RegisterCurve(name string, curve ecdh.Curve) error {
-	if nil == curve {
-		return newError("nil curve can not be registered")
+	regcurve := Curve{Curve: curve}
+	err := regcurve.init()
+	if nil != err {
+		return wrapError(err, "failed initializing Curve %s", name)
 	}
 	return wrapError(
-		utils.RegistrySet(curveRegistry, name, curve),
+		utils.RegistrySet(curveRegistry, name, regcurve),
 		"failed registering Curve algorithm, %s",
 		name,
 	)
 }
 
 // GetCurve loads Curve implementation from the registry. It errors if no curve was registered with name.
-func GetCurve(name string) (ecdh.Curve, error) {
+func GetCurve(name string) (Curve, error) {
 	curve, found := utils.RegistryGet(curveRegistry, name)
 	if !found {
 		return curve, newError("unsupported Curve algorithm, %s", name)
@@ -55,7 +111,7 @@ func ListCurves() []string {
 }
 
 func init() {
-	curveRegistry = utils.NewRegistry[ecdh.Curve]()
+	curveRegistry = utils.NewRegistry[Curve]()
 	MustRegisterCurve(CURVE_X25519, ecdh.X25519())
 	MustRegisterCurve(CURVE_P256, ecdh.P256())
 	MustRegisterCurve(CURVE_P384, ecdh.P384())

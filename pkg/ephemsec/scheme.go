@@ -171,11 +171,11 @@ func (self *scheme) Init() error {
 	if nil != err {
 		return wrapError(err, "error loading Curve %s", self.D)
 	}
-	if nil == curve {
+	if nil == curve.Curve {
 		// normally unreachable
 		return newError("got a nil Curve loading %s", self.D)
 	}
-	self.curve = curve
+	self.curve = curve.Curve
 
 	// N validation
 	if self.N == "" || len(self.N) > maxSchemeName {
