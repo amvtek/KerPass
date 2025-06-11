@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	"code.kerpass.org/golang/pkg/algos"
+	"code.kerpass.org/golang/internal/algos"
 	"code.kerpass.org/golang/pkg/ephemsec"
 )
 

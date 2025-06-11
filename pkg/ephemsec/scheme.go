@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strconv"
 
-	"code.kerpass.org/golang/pkg/algos"
+	"code.kerpass.org/golang/internal/algos"
 )
 
 const (
