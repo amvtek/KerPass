@@ -17,9 +17,15 @@ const (
 // Curve embeds ecdh.Curve and adds methods that simplify usage.
 type Curve struct {
 	ecdh.Curve
+	name        string
 	privkeySize int
 	pubkeySize  int
 	dhsecSize   int
+}
+
+// Name returns Name of Curve
+func (self Curve) Name() string {
+	return self.name
 }
 
 // PrivateKeyLen returns byte length of Curve PrivateKey
@@ -79,7 +85,7 @@ func MustRegisterCurve(name string, curve ecdh.Curve) {
 
 // RegisterCurve adds curve to the Curve registry. It errors if name is already in use or curve is invalid.
 func RegisterCurve(name string, curve ecdh.Curve) error {
-	regcurve := Curve{Curve: curve}
+	regcurve := Curve{Curve: curve, name: name}
 	err := regcurve.init()
 	if nil != err {
 		return wrapError(err, "failed initializing Curve %s", name)

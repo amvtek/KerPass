@@ -23,6 +23,9 @@ func TestECDHRegistry(t *testing.T) {
 			if nil != err {
 				t.Fatalf("failed loading Curve %s, got error %v", tc.name, err)
 			}
+			if tc.name != curve.Name() {
+				t.Errorf("failed Name control, got %s != %s", curve.Name(), tc.name)
+			}
 			if tc.privkey != curve.PrivateKeyLen() {
 				t.Errorf("failed PrivateKeyLen control, got %d != %d", curve.PrivateKeyLen(), tc.privkey)
 			}
