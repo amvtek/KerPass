@@ -125,7 +125,18 @@ func testVector(t *testing.T, vec TestVector) {
 	} else {
 		psks = nil
 	}
-	err = hss[0].Initialize(cfg, newVerifiers(), true, prologue, s, e, rs, re, psks)
+	params := HandshakeParams{
+		Cfg:                cfg,
+		Verifiers:          newVerifiers(),
+		Initiator:          true,
+		Prologue:           prologue,
+		StaticKeypair:      s,
+		EphemeralKeypair:   e,
+		RemoteStaticKey:    rs,
+		RemoteEphemeralKey: re,
+		Psks:               psks,
+	}
+	err = hss[0].Initialize(params)
 	if nil != err {
 		t.Fatalf("Failed initiator handshake initialization, got error %v", err)
 	}
@@ -175,7 +186,18 @@ func testVector(t *testing.T, vec TestVector) {
 	} else {
 		rpsks = nil
 	}
-	err = hss[1].Initialize(cfg, newVerifiers(), false, prologue, s, e, rs, re, rpsks)
+	params = HandshakeParams{
+		Cfg:                cfg,
+		Verifiers:          newVerifiers(),
+		Initiator:          false,
+		Prologue:           prologue,
+		StaticKeypair:      s,
+		EphemeralKeypair:   e,
+		RemoteStaticKey:    rs,
+		RemoteEphemeralKey: re,
+		Psks:               rpsks,
+	}
+	err = hss[1].Initialize(params)
 	if nil != err {
 		t.Fatalf("Failed responder handshake initialization, got error %v", err)
 	}
@@ -333,11 +355,24 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	} else {
 		psks = nil
 	}
-	err = hsOks[0].Initialize(cfg, newVerifiers(), true, prologue, s, e, rs, re, psks)
+
+	params := HandshakeParams{
+		Cfg:                cfg,
+		Verifiers:          newVerifiers(),
+		Initiator:          true,
+		Prologue:           prologue,
+		StaticKeypair:      s,
+		EphemeralKeypair:   e,
+		RemoteStaticKey:    rs,
+		RemoteEphemeralKey: re,
+		Psks:               psks,
+	}
+	err = hsOks[0].Initialize(params)
 	if nil != err {
 		t.Fatalf("hsOks[0]: Failed initiator handshake initialization, got error %v", err)
 	}
-	err = hsFails[0].Initialize(cfg, newVerifiers(), true, prologue, s, e, rs, re, psks)
+	params.Verifiers = newVerifiers()
+	err = hsFails[0].Initialize(params)
 	if nil != err {
 		t.Fatalf("hsFails[0]: Failed initiator handshake initialization, got error %v", err)
 	}
@@ -387,11 +422,23 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	} else {
 		rpsks = nil
 	}
-	err = hsOks[1].Initialize(cfg, newVerifiers(), false, prologue, s, e, rs, re, rpsks)
+	params = HandshakeParams{
+		Cfg:                cfg,
+		Verifiers:          newVerifiers(),
+		Initiator:          false,
+		Prologue:           prologue,
+		StaticKeypair:      s,
+		EphemeralKeypair:   e,
+		RemoteStaticKey:    rs,
+		RemoteEphemeralKey: re,
+		Psks:               rpsks,
+	}
+	err = hsOks[1].Initialize(params)
 	if nil != err {
 		t.Fatalf("hsOks[1]: Failed responder handshake initialization, got error %v", err)
 	}
-	err = hsFails[1].Initialize(cfg, newVerifiers(), false, prologue, s, e, rs, re, rpsks)
+	params.Verifiers = newVerifiers()
+	err = hsFails[1].Initialize(params)
 	if nil != err {
 		t.Fatalf("hsFails[1]: Failed responder handshake initialization, got error %v", err)
 	}
