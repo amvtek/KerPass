@@ -127,7 +127,6 @@ func testVector(t *testing.T, vec TestVector) {
 	}
 	params := HandshakeParams{
 		Cfg:                cfg,
-		Verifiers:          newVerifiers(),
 		Initiator:          true,
 		Prologue:           prologue,
 		StaticKeypair:      s,
@@ -188,7 +187,6 @@ func testVector(t *testing.T, vec TestVector) {
 	}
 	params = HandshakeParams{
 		Cfg:                cfg,
-		Verifiers:          newVerifiers(),
 		Initiator:          false,
 		Prologue:           prologue,
 		StaticKeypair:      s,
@@ -358,7 +356,6 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 
 	params := HandshakeParams{
 		Cfg:                cfg,
-		Verifiers:          newVerifiers(),
 		Initiator:          true,
 		Prologue:           prologue,
 		StaticKeypair:      s,
@@ -371,7 +368,6 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	if nil != err {
 		t.Fatalf("hsOks[0]: Failed initiator handshake initialization, got error %v", err)
 	}
-	params.Verifiers = newVerifiers()
 	err = hsFails[0].Initialize(params)
 	if nil != err {
 		t.Fatalf("hsFails[0]: Failed initiator handshake initialization, got error %v", err)
@@ -424,7 +420,6 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	}
 	params = HandshakeParams{
 		Cfg:                cfg,
-		Verifiers:          newVerifiers(),
 		Initiator:          false,
 		Prologue:           prologue,
 		StaticKeypair:      s,
@@ -437,7 +432,6 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 	if nil != err {
 		t.Fatalf("hsOks[1]: Failed responder handshake initialization, got error %v", err)
 	}
-	params.Verifiers = newVerifiers()
 	err = hsFails[1].Initialize(params)
 	if nil != err {
 		t.Fatalf("hsFails[1]: Failed responder handshake initialization, got error %v", err)
@@ -483,12 +477,4 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 			t.Fatalf("hsFails[%d] : Failed ReadMessage did not error on ciphertext size, got error %v", readIdx, errRead)
 		}
 	}
-}
-
-// newVerifiers returns a VerifierProvider that accept all static keys
-func newVerifiers() *VerifierProvider {
-	rv := &VerifierProvider{}
-	cv := &AcceptOrRejectAnyKey{} // cv has nil Status hence it accept all keys...
-	rv.SetVerifier("s", cv)
-	return rv
 }

@@ -4,6 +4,12 @@ import (
 	"strings"
 )
 
+// RMQ:
+// Credentials extraction & verification was integrated to HandshakeState.ReadMessage
+// While this brings benefits (decrease number of protocol roundtrips and fail early in case of DOS attacks)
+// It adds a new dimension to noise protocols that requires peer reviews.
+// Hence it has been removed.
+
 // CredentialVerifier is used to track verification state of a certain credential
 // transmitted in an handshake message.
 type CredentialVerifier interface {

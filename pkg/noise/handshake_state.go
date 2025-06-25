@@ -28,7 +28,6 @@ type HandshakeState struct {
 // HandshakeParams holds HandshakeState.Initialize parameters.
 type HandshakeParams struct {
 	Cfg                Config
-	Verifiers          *VerifierProvider
 	Initiator          bool
 	Prologue           []byte
 	StaticKeypair      *Keypair
@@ -51,9 +50,6 @@ func (self *HandshakeState) Initialize(params HandshakeParams) error {
 	}
 
 	self.curve = cfg.CurveAlgo
-
-	self.verifiers = params.Verifiers
-	self.verifiers.Reset()
 
 	self.initiator = params.Initiator
 
@@ -125,16 +121,9 @@ func (self *HandshakeState) Initialize(params HandshakeParams) error {
 			// SetPsks set pskcursor to 0 after loading the psks...
 			self.pskcursor = spec.size
 
-			// psks maybe loaded later during the handshake by one of the CredentialVerifiers
-			if !self.verifiers.ShouldLoad("psks") {
-				err = self.SetPsks(params.Psks...)
-				if nil != err {
-					return wrapError(err, "failed loading psks")
-				}
-			}
-		case "verifiers":
-			if nil == self.verifiers {
-				return newError("configured HandshakePattern require non nil verifiers")
+			err = self.SetPsks(params.Psks...)
+			if nil != err {
+				return wrapError(err, "failed loading psks")
 			}
 		default:
 			continue
@@ -304,8 +293,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 
 	var err error
 	var ikm, ckm []byte
-	var rb, want, skip int
-	var staticKeyVerifier CredentialVerifier
+	var rb, want int
 	var keypair *Keypair
 	var pubkey *PublicKey
 	for tkn := range self.msgPtrns[cursor].Tokens() {
@@ -329,11 +317,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 				}
 			}
 		case "s":
-			staticKeyVerifier = self.verifiers.Get("s")
-			if nil == staticKeyVerifier {
-				return completed, newError("can not load static key verifier")
-			}
-			want = staticKeyVerifier.ReadSize(self)
+			want = pubkeysize
 			if self.HasKey() {
 				want += cipherTagSize
 			}
@@ -345,12 +329,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 			if nil != err {
 				return completed, wrapError(err, "failed decrypting s PublicKey credential")
 			}
-			// static key verification step 1
-			skip, err = staticKeyVerifier.Verify(self, ikm)
-			if nil != err {
-				return completed, wrapError(err, "failed step 1 of s PublicKey credential verification")
-			}
-			pubkey, err = self.curve.NewPublicKey(ikm[skip:])
+			pubkey, err = self.curve.NewPublicKey(ikm)
 			if nil != err {
 				return completed, wrapError(err, "received s PublicKey appears invalid")
 			}
@@ -406,17 +385,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 	if nil != err {
 		return completed, wrapError(err, "failed message decryption")
 	}
-	skip = 0
-	if nil != staticKeyVerifier {
-		// perform static key verification step 2
-		// the idea is that the payload of the message may contain additional verification information eg a certificate
-		// TODO: see if multiple step validation is really useful ?
-		skip, err = staticKeyVerifier.Verify(self, ikm)
-		if nil != err {
-			return completed, wrapError(err, "failed step 2 of s PublicKey credential verification")
-		}
-	}
-	_, err = payload.Write(ikm[skip:])
+	_, err = payload.Write(ikm)
 	if nil != err {
 		return completed, wrapError(err, "failed transferring data to the payload buffer")
 	}
