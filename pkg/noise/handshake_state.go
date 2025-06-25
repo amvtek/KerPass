@@ -1,7 +1,10 @@
 package noise
 
 import (
+	"crypto/rand"
 	"io"
+
+	"code.kerpass.org/golang/internal/algos"
 )
 
 // HandshakeState holds noise protocol handshake execution state.
@@ -13,7 +16,7 @@ type HandshakeState struct {
 	initiator bool
 	msgPtrns  []msgPtrn
 	msgcursor int
-	dh        DH
+	curve     algos.Curve
 	s         *Keypair
 	e         *Keypair
 	rs        *PublicKey
@@ -47,7 +50,7 @@ func (self *HandshakeState) Initialize(params HandshakeParams) error {
 		return wrapError(err, "failed SymetricState initialization")
 	}
 
-	self.dh = cfg.DhAlgo
+	self.curve = cfg.CurveAlgo
 
 	self.verifiers = params.Verifiers
 	self.verifiers.Reset()
@@ -176,7 +179,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 		switch tkn {
 		case "e":
 			if nil == self.e {
-				keypair, err = self.dh.GenerateKeypair()
+				keypair, err = self.curve.GenerateKey(rand.Reader)
 				if nil != err {
 					return completed, wrapError(err, "failed generating e Keypair")
 				}
@@ -278,7 +281,7 @@ func (self *HandshakeState) WriteMessage(payload []byte, message io.Writer) (boo
 func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool, error) {
 	initiator := self.initiator
 	cursor := self.msgcursor
-	dhlen := self.dh.DHLen()
+	pubkeysize := self.curve.PublicKeyLen()
 	msgsize := len(message)
 
 	var parity int
@@ -308,15 +311,15 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 	for tkn := range self.msgPtrns[cursor].Tokens() {
 		switch tkn {
 		case "e":
-			if (msgsize - rb) < dhlen {
+			if (msgsize - rb) < pubkeysize {
 				return completed, newError("message too small for e PublicKey")
 			}
-			ikm = message[rb : rb+dhlen]
-			pubkey, err = self.dh.NewPublicKey(ikm)
+			ikm = message[rb : rb+pubkeysize]
+			pubkey, err = self.curve.NewPublicKey(ikm)
 			if nil != err {
 				return completed, wrapError(err, "received invalid e PublicKey")
 			}
-			rb += dhlen
+			rb += pubkeysize
 			self.re = pubkey
 			self.MixHash(ikm)
 			if len(self.psks) > 0 {
@@ -347,7 +350,7 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 			if nil != err {
 				return completed, wrapError(err, "failed step 1 of s PublicKey credential verification")
 			}
-			pubkey, err = self.dh.NewPublicKey(ikm[skip:])
+			pubkey, err = self.curve.NewPublicKey(ikm[skip:])
 			if nil != err {
 				return completed, wrapError(err, "received s PublicKey appears invalid")
 			}
@@ -421,9 +424,13 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 
 }
 
-// DHLen returns inner DH PublicKey byte size.
+// DHLen returns ECDH PublicKey byte size.
+//
+// This method is provided to comply with noise specs section 4.1 that mentions the DHLEN constant.
+// noise specs are a bit ambiguous as it states that DHLEN is both the PublicKey size and ECDH shared
+// secret size. This equality holds only for X25519 and X448.
 func (self *HandshakeState) DHLen() int {
-	return self.dh.DHLen()
+	return self.curve.PublicKeyLen()
 }
 
 // RemoteStaticKey returns the remote static PublicKey.
@@ -494,9 +501,9 @@ func (self *HandshakeState) Split(dst *TransportCipherPair) error {
 // dhmix executes Diffie-Hellmann key exchange in between keypair and pubkey.
 // It mixes the resulting shared secret into the HandshakeState.
 func (self *HandshakeState) dhmix(keypair *Keypair, pubkey *PublicKey) error {
-	ikm, err := self.dh.DH(keypair, pubkey)
+	ikm, err := keypair.ECDH(pubkey)
 	if nil != err {
-		return err
+		return wrapError(err, "failed ECDH")
 	}
 	return self.MixKey(ikm)
 }

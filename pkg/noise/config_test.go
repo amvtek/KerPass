@@ -20,7 +20,7 @@ func TestParseProtocol(t *testing.T) {
 			expect: NoiseProto{
 				Name:             "Noise_IK1_X25519_AES256_SHA512/256",
 				HandshakePattern: "IK1",
-				DhAlgo:           "X25519",
+				CurveAlgo:        "X25519",
 				CipherAlgo:       "AES256",
 				HashAlgo:         "SHA512/256",
 			},
@@ -31,7 +31,7 @@ func TestParseProtocol(t *testing.T) {
 				Name:                      "Noise_IK1fallback+psk0_X25519_AES256_SHA512/256",
 				HandshakePattern:          "IK1",
 				HandshakePatternModifiers: []string{"fallback", "psk0"},
-				DhAlgo:                    "X25519",
+				CurveAlgo:                 "X25519",
 				CipherAlgo:                "AES256",
 				HashAlgo:                  "SHA512/256",
 			},
