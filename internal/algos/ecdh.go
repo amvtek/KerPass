@@ -9,6 +9,7 @@ import (
 
 const (
 	CURVE_X25519 = "X25519"
+	CURVE_25519  = "25519" // alias used in noise protocol names
 	CURVE_P256   = "P256"
 	CURVE_P384   = "P384"
 	CURVE_P521   = "P521"
@@ -119,6 +120,7 @@ func ListCurves() []string {
 func init() {
 	curveRegistry = utils.NewRegistry[Curve]()
 	MustRegisterCurve(CURVE_X25519, ecdh.X25519())
+	MustRegisterCurve(CURVE_25519, ecdh.X25519())
 	MustRegisterCurve(CURVE_P256, ecdh.P256())
 	MustRegisterCurve(CURVE_P384, ecdh.P384())
 	MustRegisterCurve(CURVE_P521, ecdh.P521())

@@ -3,6 +3,8 @@ package noise
 import (
 	"regexp"
 	"strings"
+
+	"code.kerpass.org/golang/internal/algos"
 )
 
 var (
@@ -26,8 +28,8 @@ type Config struct {
 	// handshake Hash algorithm.
 	HashAlgo Hash
 
-	// handshake key exchange algorithm.
-	DhAlgo DH
+	// handshake ECDH curve
+	CurveAlgo algos.Curve
 }
 
 // Load parse protoname and loads the algorithms it references into the Config.
@@ -68,16 +70,16 @@ func (self *Config) Load(protoname string) error {
 		return wrapError(err, "failed retrieving Hash algorithm")
 	}
 
-	dhAlgo, err := GetDH(proto.DhAlgo)
+	curveAlgo, err := algos.GetCurve(proto.CurveAlgo)
 	if nil != err {
-		return wrapError(err, "failed retrieving DH algorithm")
+		return wrapError(err, "failed retrieving ECDH curve")
 	}
 
 	self.ProtoName = proto.Name
 	self.HandshakePattern = handshakePattern
 	self.CipherFactory = cipherFactory
 	self.HashAlgo = hashAlgo
-	self.DhAlgo = dhAlgo
+	self.CurveAlgo = curveAlgo
 
 	return nil
 }
@@ -88,7 +90,7 @@ type NoiseProto struct {
 	Name                      string
 	HandshakePattern          string
 	HandshakePatternModifiers []string
-	DhAlgo                    string
+	CurveAlgo                 string
 	CipherAlgo                string
 	HashAlgo                  string
 }
@@ -111,7 +113,7 @@ func ParseProtocol(protoname string, proto *NoiseProto) error {
 		proto.HandshakePatternModifiers = strings.Split(parts[2], "+")
 	}
 	proto.Name = parts[0]
-	proto.DhAlgo = parts[3]
+	proto.CurveAlgo = parts[3]
 	proto.CipherAlgo = parts[4]
 	proto.HashAlgo = parts[5]
 

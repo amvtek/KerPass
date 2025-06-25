@@ -12,6 +12,7 @@ func TestECDHRegistry(t *testing.T) {
 		dhsec   int
 	}{
 		{name: "X25519", privkey: 32, pubkey: 32, dhsec: 32},
+		{name: "25519", privkey: 32, pubkey: 32, dhsec: 32},
 		{name: "P256", privkey: 32, pubkey: 65, dhsec: 32},
 		{name: "P384", privkey: 48, pubkey: 97, dhsec: 48},
 		{name: "P521", privkey: 66, pubkey: 133, dhsec: 66},

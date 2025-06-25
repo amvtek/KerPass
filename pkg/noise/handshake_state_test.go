@@ -86,7 +86,7 @@ func testVector(t *testing.T, vec TestVector) {
 		prologue = nil
 	}
 	if len(vec.InitiatorEphemeralKey) > 0 {
-		e, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.InitiatorEphemeralKey))
+		e, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.InitiatorEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator ephemeral Keypair, got error %v", err)
 		}
@@ -94,7 +94,7 @@ func testVector(t *testing.T, vec TestVector) {
 		e = nil
 	}
 	if len(vec.InitiatorStaticKey) > 0 {
-		s, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.InitiatorStaticKey))
+		s, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.InitiatorStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator static Keypair, got error %v", err)
 		}
@@ -102,7 +102,7 @@ func testVector(t *testing.T, vec TestVector) {
 		s = nil
 	}
 	if len(vec.InitiatorRemoteEphemeralKey) > 0 {
-		re, err = cfg.DhAlgo.NewPublicKey([]byte(vec.InitiatorRemoteEphemeralKey))
+		re, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.InitiatorRemoteEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator remote ephemeral public key, got error %v", err)
 		}
@@ -110,7 +110,7 @@ func testVector(t *testing.T, vec TestVector) {
 		re = nil
 	}
 	if len(vec.InitiatorRemoteStaticKey) > 0 {
-		rs, err = cfg.DhAlgo.NewPublicKey([]byte(vec.InitiatorRemoteStaticKey))
+		rs, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.InitiatorRemoteStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator remote static public key, got error %v", err)
 		}
@@ -147,7 +147,7 @@ func testVector(t *testing.T, vec TestVector) {
 		prologue = nil
 	}
 	if len(vec.ResponderEphemeralKey) > 0 {
-		e, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.ResponderEphemeralKey))
+		e, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.ResponderEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load responder ephemeral Keypair, got error %v", err)
 		}
@@ -155,7 +155,7 @@ func testVector(t *testing.T, vec TestVector) {
 		e = nil
 	}
 	if len(vec.ResponderStaticKey) > 0 {
-		s, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.ResponderStaticKey))
+		s, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.ResponderStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load responder static Keypair, got error %v", err)
 		}
@@ -163,7 +163,7 @@ func testVector(t *testing.T, vec TestVector) {
 		s = nil
 	}
 	if len(vec.ResponderRemoteEphemeralKey) > 0 {
-		re, err = cfg.DhAlgo.NewPublicKey([]byte(vec.ResponderRemoteEphemeralKey))
+		re, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.ResponderRemoteEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load responder remote ephemeral public key, got error %v", err)
 		}
@@ -171,7 +171,7 @@ func testVector(t *testing.T, vec TestVector) {
 		re = nil
 	}
 	if len(vec.ResponderRemoteStaticKey) > 0 {
-		rs, err = cfg.DhAlgo.NewPublicKey([]byte(vec.ResponderRemoteStaticKey))
+		rs, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.ResponderRemoteStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load responder remote static public key, got error %v", err)
 		}
@@ -316,7 +316,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		prologue = nil
 	}
 	if len(vec.InitiatorEphemeralKey) > 0 {
-		e, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.InitiatorEphemeralKey))
+		e, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.InitiatorEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator ephemeral Keypair, got error %v", err)
 		}
@@ -324,7 +324,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		e = nil
 	}
 	if len(vec.InitiatorStaticKey) > 0 {
-		s, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.InitiatorStaticKey))
+		s, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.InitiatorStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator static Keypair, got error %v", err)
 		}
@@ -332,7 +332,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		s = nil
 	}
 	if len(vec.InitiatorRemoteEphemeralKey) > 0 {
-		re, err = cfg.DhAlgo.NewPublicKey([]byte(vec.InitiatorRemoteEphemeralKey))
+		re, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.InitiatorRemoteEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator remote ephemeral public key, got error %v", err)
 		}
@@ -340,7 +340,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		re = nil
 	}
 	if len(vec.InitiatorRemoteStaticKey) > 0 {
-		rs, err = cfg.DhAlgo.NewPublicKey([]byte(vec.InitiatorRemoteStaticKey))
+		rs, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.InitiatorRemoteStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load initiator remote static public key, got error %v", err)
 		}
@@ -383,7 +383,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		prologue = nil
 	}
 	if len(vec.ResponderEphemeralKey) > 0 {
-		e, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.ResponderEphemeralKey))
+		e, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.ResponderEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load responder ephemeral Keypair, got error %v", err)
 		}
@@ -391,7 +391,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		e = nil
 	}
 	if len(vec.ResponderStaticKey) > 0 {
-		s, err = cfg.DhAlgo.NewPrivateKey([]byte(vec.ResponderStaticKey))
+		s, err = cfg.CurveAlgo.NewPrivateKey([]byte(vec.ResponderStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load responder static Keypair, got error %v", err)
 		}
@@ -399,7 +399,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		s = nil
 	}
 	if len(vec.ResponderRemoteEphemeralKey) > 0 {
-		re, err = cfg.DhAlgo.NewPublicKey([]byte(vec.ResponderRemoteEphemeralKey))
+		re, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.ResponderRemoteEphemeralKey))
 		if nil != err {
 			t.Fatalf("Can not load responder remote ephemeral public key, got error %v", err)
 		}
@@ -407,7 +407,7 @@ func testSizeLimit(t *testing.T, vec TestVector) {
 		re = nil
 	}
 	if len(vec.ResponderRemoteStaticKey) > 0 {
-		rs, err = cfg.DhAlgo.NewPublicKey([]byte(vec.ResponderRemoteStaticKey))
+		rs, err = cfg.CurveAlgo.NewPublicKey([]byte(vec.ResponderRemoteStaticKey))
 		if nil != err {
 			t.Fatalf("Can not load responder remote static public key, got error %v", err)
 		}
