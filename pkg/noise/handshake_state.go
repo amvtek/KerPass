@@ -22,17 +22,25 @@ type HandshakeState struct {
 	pskcursor int
 }
 
+// HandshakeParams holds HandshakeState.Initialize parameters.
+type HandshakeParams struct {
+	Cfg                Config
+	Verifiers          *VerifierProvider
+	Initiator          bool
+	Prologue           []byte
+	StaticKeypair      *Keypair
+	EphemeralKeypair   *Keypair
+	RemoteStaticKey    *PublicKey
+	RemoteEphemeralKey *PublicKey
+	Psks               [][]byte
+}
+
 // Initialize set handshake initial state. It errors if provided parameters are not compatible with provided cfg.
 //
 // Initialize appears in section 5.3 of the noise protocol specs.
-func (self *HandshakeState) Initialize(
-	cfg Config,
-	verifiers *VerifierProvider,
-	initiator bool,
-	prologue []byte,
-	s *Keypair, e *Keypair, rs *PublicKey, re *PublicKey,
-	psks [][]byte,
-) error {
+func (self *HandshakeState) Initialize(params HandshakeParams) error {
+
+	cfg := params.Cfg
 
 	err := self.SymetricState.Init(cfg.ProtoName, cfg.CipherFactory, cfg.HashAlgo)
 	if nil != err {
@@ -41,10 +49,10 @@ func (self *HandshakeState) Initialize(
 
 	self.dh = cfg.DhAlgo
 
-	self.verifiers = verifiers
-	verifiers.Reset()
+	self.verifiers = params.Verifiers
+	self.verifiers.Reset()
 
-	self.initiator = initiator
+	self.initiator = params.Initiator
 
 	// reuse msgPtrns allocated memory if not empty
 	mps := self.msgPtrns
@@ -54,31 +62,31 @@ func (self *HandshakeState) Initialize(
 	self.msgPtrns = cfg.HandshakePattern.msgPtrns(mps)
 	self.msgcursor = 0
 
-	self.s = s
-	self.e = e
-	self.rs = rs
-	self.re = re
+	self.s = params.StaticKeypair
+	self.e = params.EphemeralKeypair
+	self.rs = params.RemoteStaticKey
+	self.re = params.RemoteEphemeralKey
 
-	self.MixHash(prologue)
+	self.MixHash(params.Prologue)
 
 	var failIfUnusedPsks, usePsks bool
-	for spec := range cfg.HandshakePattern.listInitSpecs(initiator) {
+	for spec := range cfg.HandshakePattern.listInitSpecs(self.initiator) {
 		switch spec.token {
 		case "s":
 			if nil == self.s {
 				return newError("nil s not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
-				self.MixHash(s.PublicKey().Bytes())
+				self.MixHash(self.s.PublicKey().Bytes())
 			}
 		case "e":
 			if nil == self.e {
 				return newError("nil e not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
-				self.MixHash(e.PublicKey().Bytes())
-				if len(psks) > 0 {
-					err = self.MixKey(e.PublicKey().Bytes())
+				self.MixHash(self.e.PublicKey().Bytes())
+				if len(params.Psks) > 0 {
+					err = self.MixKey(self.e.PublicKey().Bytes())
 					if nil != err {
 						return wrapError(err, "failed mixing e PublicKey")
 					}
@@ -91,16 +99,16 @@ func (self *HandshakeState) Initialize(
 				return newError("nil rs not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
-				self.MixHash(rs.Bytes())
+				self.MixHash(self.rs.Bytes())
 			}
 		case "re":
 			if nil == self.re {
 				return newError("nil re not allowed with configured HandshakePattern")
 			}
 			if spec.hash {
-				self.MixHash(re.Bytes())
-				if len(psks) > 0 {
-					err = self.MixKey(re.Bytes())
+				self.MixHash(self.re.Bytes())
+				if len(params.Psks) > 0 {
+					err = self.MixKey(self.re.Bytes())
 					if nil != err {
 						return wrapError(err, "failed mixing re")
 					}
@@ -115,14 +123,14 @@ func (self *HandshakeState) Initialize(
 			self.pskcursor = spec.size
 
 			// psks maybe loaded later during the handshake by one of the CredentialVerifiers
-			if !verifiers.ShouldLoad("psks") {
-				err = self.SetPsks(psks...)
+			if !self.verifiers.ShouldLoad("psks") {
+				err = self.SetPsks(params.Psks...)
 				if nil != err {
 					return wrapError(err, "failed loading psks")
 				}
 			}
 		case "verifiers":
-			if nil == verifiers {
+			if nil == self.verifiers {
 				return newError("configured HandshakePattern require non nil verifiers")
 			}
 		default:
@@ -416,6 +424,11 @@ func (self *HandshakeState) ReadMessage(message []byte, payload io.Writer) (bool
 // DHLen returns inner DH PublicKey byte size.
 func (self *HandshakeState) DHLen() int {
 	return self.dh.DHLen()
+}
+
+// RemoteStaticKey returns the remote static PublicKey.
+func (self *HandshakeState) RemoteStaticKey() *PublicKey {
+	return self.rs
 }
 
 func (self *HandshakeState) SetPsks(psks ...[]byte) error {
