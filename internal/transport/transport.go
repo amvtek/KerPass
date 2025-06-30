@@ -7,21 +7,25 @@ import (
 	"code.kerpass.org/golang/pkg/noise"
 )
 
-// Transport read/write messages after converting them to bytes
-type Transport struct {
-	R io.Reader                  // source from which messages are read.
-	W io.Writer                  // destination to which messages are written.
-	S Serializer                 // Convert messages to bytes and bytes to messages.
-	C *noise.TransportCipherPair // Encrypt/Decrypt messages bytes.
+type Transport interface {
+	ReadBytes() ([]byte, error)
+	WriteBytes(data []byte) error
 }
 
 // T aliases Transport
 type T = Transport
 
-// WriteMessage converts msg to bytes and writes msg bytes to inner io.Writer.
+// MessageTransport read/write messages to inner Transport after converting them to bytes
+type MessageTransport struct {
+	Transport
+	S Serializer                 // Convert messages to bytes and bytes to messages.
+	C *noise.TransportCipherPair // Encrypt/Decrypt messages bytes.
+}
+
+// WriteMessage converts msg to bytes and writes msg bytes to inner Transport.
 //
-// If the Transport has an inner Cipher, msg bytes are encrypted prior to be written.
-func (self Transport) WriteMessage(msg any) error {
+// If the MessageTransport has an inner Cipher, msg bytes are encrypted prior to be written.
+func (self MessageTransport) WriteMessage(msg any) error {
 	var srzmsg []byte
 	var err error
 
@@ -44,35 +48,17 @@ func (self Transport) WriteMessage(msg any) error {
 		}
 	}
 
-	if len(srzmsg) > 0xFFFF {
-		return newError("serialized message larger than %d", 0xFFFF)
-	}
-
-	// prefix msg with uint16 length
-	pmsg := make([]byte, 2+len(srzmsg))
-	binary.BigEndian.PutUint16(pmsg, uint16(len(srzmsg)))
-	copy(pmsg[2:], srzmsg)
-
-	_, err = self.W.Write(pmsg)
+	err = self.WriteBytes(srzmsg)
 
 	return wrapError(err, "failed writing msg") // nil if err is nil ...
 }
 
-// ReadMessage reads msg bytes from inner io.Reader and deserializes them to msg.
+// ReadMessage reads msg bytes from inner Transport and deserializes them to msg.
 //
-// If the Transport has an inner Cipher, msg bytes are decrypted prior to be deserialized.
-func (self Transport) ReadMessage(msg any) error {
-	// read size
-	psb := make([]byte, 2)
-	_, err := io.ReadFull(self.R, psb)
-	if nil != err {
-		return wrapError(err, "failed reading message size")
-	}
-	psz := binary.BigEndian.Uint16(psb)
+// If the MessageTransport has an inner Cipher, msg bytes are decrypted prior to be deserialized.
+func (self MessageTransport) ReadMessage(msg any) error {
 
-	// read srzmsg
-	srzmsg := make([]byte, int(psz))
-	_, err = io.ReadFull(self.R, srzmsg)
+	srzmsg, err := self.ReadBytes()
 	if nil != err {
 		return wrapError(err, "failed reading message bytes")
 	}
@@ -105,4 +91,43 @@ type RawMsg []byte
 type Serializer interface {
 	Marshal(v any) ([]byte, error)
 	Unmarshal(data []byte, v any) error
+}
+
+type RWTransport struct {
+	R io.Reader // source from which messages are read.
+	W io.Writer // destination to which messages are written.
+}
+
+func (self RWTransport) ReadBytes() ([]byte, error) {
+	// read size
+	psb := make([]byte, 2)
+	_, err := io.ReadFull(self.R, psb)
+	if nil != err {
+		return nil, wrapError(err, "failed reading data size")
+	}
+	psz := binary.BigEndian.Uint16(psb)
+
+	// read data
+	data := make([]byte, int(psz))
+	_, err = io.ReadFull(self.R, data)
+	if nil != err {
+		return nil, wrapError(err, "failed reading data")
+	}
+
+	return data, nil
+}
+
+func (self RWTransport) WriteBytes(data []byte) error {
+	if len(data) > 0xFFFF {
+		return newError("data larger than %d", 0xFFFF)
+	}
+
+	// prefix data with uint16 length
+	pdata := make([]byte, 2+len(data))
+	binary.BigEndian.PutUint16(pdata, uint16(len(data)))
+	copy(pdata[2:], data)
+
+	_, err := self.W.Write(pdata)
+
+	return wrapError(err, "failed writing data") // nil if err is nil
 }

@@ -25,20 +25,20 @@ func TestTransportLoopbackJSON(t *testing.T) {
 			var err error
 			msgfmt := "%s -> %s"
 			buf := new(bytes.Buffer)
-			transport := Transport{R: buf, W: buf, S: JSONSerializer{}}
+			mt := MessageTransport{Transport: RWTransport{R: buf, W: buf}, S: JSONSerializer{}}
 			if "null" != cipher {
-				err = setCipher(&transport, cipher)
+				err = setCipher(&mt, cipher)
 				if nil != err {
 					t.Fatalf("failed setting cipher, got error %v", err)
 				}
-				if nil == transport.C {
-					t.Fatal("missing transport.C")
+				if nil == mt.C {
+					t.Fatal("missing mt.C")
 				}
 				msgfmt = "%s -> % X"
 			}
 
 			msg1 := Dummy{X: 10, Y: 20, Name: "Hope", Payload: []byte{1, 2, 3, 4}}
-			err = transport.WriteMessage(msg1)
+			err = mt.WriteMessage(msg1)
 			if nil != err {
 				t.Fatalf("failed writing msg1, got error %v", err)
 			}
@@ -48,7 +48,7 @@ func TestTransportLoopbackJSON(t *testing.T) {
 			t.Logf("len(msg1) -> %d", len(srzmsg))
 
 			msg2 := Dummy{}
-			err = transport.ReadMessage(&msg2)
+			err = mt.ReadMessage(&msg2)
 			if nil != err {
 				t.Fatalf("failed reading msg2, got error %v", err)
 			}
@@ -58,7 +58,7 @@ func TestTransportLoopbackJSON(t *testing.T) {
 			}
 
 			msg3 := RawMsg([]byte{1, 2, 3, 4, 5})
-			err = transport.WriteMessage(msg3)
+			err = mt.WriteMessage(msg3)
 			if nil != err {
 				t.Fatalf("failed writing msg3, got error %v", err)
 			}
@@ -68,7 +68,7 @@ func TestTransportLoopbackJSON(t *testing.T) {
 			t.Logf("len(msg3) -> %d", len(srzmsg))
 
 			msg4 := RawMsg{}
-			err = transport.ReadMessage(&msg4)
+			err = mt.ReadMessage(&msg4)
 			if nil != err {
 				t.Fatalf("failed reading msg4, got error %v", err)
 			}
@@ -86,19 +86,19 @@ func TestTransportLoopbackCBOR(t *testing.T) {
 		t.Run(fmt.Sprintf("cbor-%s", cipher), func(t *testing.T) {
 			var err error
 			buf := new(bytes.Buffer)
-			transport := Transport{R: buf, W: buf, S: CBORSerializer{}}
+			mt := MessageTransport{Transport: RWTransport{R: buf, W: buf}, S: CBORSerializer{}}
 			if "null" != cipher {
-				err = setCipher(&transport, cipher)
+				err = setCipher(&mt, cipher)
 				if nil != err {
 					t.Fatalf("failed setting cipher, got error %v", err)
 				}
-				if nil == transport.C {
-					t.Fatal("missing transport.C")
+				if nil == mt.C {
+					t.Fatal("missing mt.C")
 				}
 			}
 
 			msg1 := Dummy{X: 10, Y: 20, Name: "Hope", Payload: []byte{1, 2, 3, 4}}
-			err = transport.WriteMessage(msg1)
+			err = mt.WriteMessage(msg1)
 			if nil != err {
 				t.Fatalf("failed writing msg1, got error %v", err)
 			}
@@ -108,7 +108,7 @@ func TestTransportLoopbackCBOR(t *testing.T) {
 			t.Logf("len(msg1) -> %d", len(srzmsg))
 
 			msg2 := Dummy{}
-			err = transport.ReadMessage(&msg2)
+			err = mt.ReadMessage(&msg2)
 			if nil != err {
 				t.Fatalf("failed reading msg2, got error %v", err)
 			}
@@ -118,7 +118,7 @@ func TestTransportLoopbackCBOR(t *testing.T) {
 			}
 
 			msg3 := RawMsg([]byte{1, 2, 3, 4, 5})
-			err = transport.WriteMessage(msg3)
+			err = mt.WriteMessage(msg3)
 			if nil != err {
 				t.Fatalf("failed writing msg3, got error %v", err)
 			}
@@ -128,7 +128,7 @@ func TestTransportLoopbackCBOR(t *testing.T) {
 			t.Logf("len(msg3) -> %d", len(srzmsg))
 
 			msg4 := RawMsg{}
-			err = transport.ReadMessage(&msg4)
+			err = mt.ReadMessage(&msg4)
 			if nil != err {
 				t.Fatalf("failed reading msg4, got error %v", err)
 			}
@@ -141,7 +141,7 @@ func TestTransportLoopbackCBOR(t *testing.T) {
 	}
 }
 
-func setCipher(transport *Transport, ciphername string) error {
+func setCipher(mt *MessageTransport, ciphername string) error {
 	aeadfactory, err := noise.GetAEADFactory(ciphername)
 	if nil != err {
 		return wrapError(err, "failed loading AEAD factory")
@@ -168,7 +168,7 @@ func setCipher(transport *Transport, ciphername string) error {
 		}
 	}
 
-	transport.C = cipherpair
+	mt.C = cipherpair
 
 	return nil
 }
