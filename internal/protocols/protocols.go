@@ -7,4 +7,3 @@ import (
 type Runner interface {
 	Run(mt transport.MessageTransport) error
 }
-
