@@ -1,5 +1,9 @@
 package credentials
 
+import (
+	"sync"
+)
+
 type ClientCredStore interface {
 
 	// SaveCard saves card in the ClientCredStore
@@ -9,6 +13,9 @@ type ClientCredStore interface {
 	// RemoveCard removes the Card with cardId identifier from the ClientCredStore.
 	// It returns true if the Card was effectively removed.
 	RemoveCard(cardId []byte) bool
+
+	// Size returns the number of Card in the ClientCredStore.
+	Size() int
 }
 
 // Card holds keys necessary for validating/generating EPHEMSEC OTP/OTK.
@@ -26,8 +33,8 @@ func (self Card) Check() error {
 	if len(self.RealmId) < 32 {
 		return newError("Invalid RealmId, length < 32")
 	}
-	if len(self.CardId) < 32 {
-		return newError("Invalid CardId, length < 32")
+	if len(self.CardId) != 32 {
+		return newError("Invalid CardId, length != 32")
 	}
 	if nil == self.Kh.PrivateKey {
 		return newError("nil PrivateKey")
@@ -41,3 +48,61 @@ func (self Card) Check() error {
 
 	return nil
 }
+
+// MemClientCredStore provides "in memory" implementation of ClientCredStore.
+type MemClientCredStore struct {
+	mut  sync.Mutex
+	data map[[32]byte]Card
+}
+
+func NewMemClientCredStore() *MemClientCredStore {
+
+	return &MemClientCredStore{data: make(map[[32]byte]Card)}
+}
+
+// SaveCard saves card in the MemClientCredStore
+// It errors if the card could not be saved.
+func (self *MemClientCredStore) SaveCard(card Card) error {
+	err := card.Check()
+	if nil != err {
+		return wrapError(err, "Invalid card")
+	}
+
+	var cardkey [32]byte
+	copy(cardkey[:], card.CardId)
+	self.mut.Lock()
+	defer self.mut.Unlock()
+	self.data[cardkey] = card
+
+	return nil
+}
+
+// RemoveCard removes the Card with cardId identifier from the MemClientCredStore.
+// It returns true if the Card was effectively removed.
+func (self *MemClientCredStore) RemoveCard(cardId []byte) bool {
+	if len(cardId) != 32 {
+		return false
+	}
+	var cardkey [32]byte
+	copy(cardkey[:], cardId)
+
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	_, found := self.data[cardkey]
+	if found {
+		delete(self.data, cardkey)
+	}
+
+	return found
+}
+
+// Size returns the number of Card in the MemClientCredStore.
+func (self *MemClientCredStore) Size() int {
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	return len(self.data)
+}
+
+var _ ClientCredStore = &MemClientCredStore{}
