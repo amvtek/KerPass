@@ -9,8 +9,11 @@ type errorFlag string
 
 const (
 	// All package errors are wrapping Error
-	Error   = errorFlag("conn: error")
-	noError = errorFlag("")
+	Error              = errorFlag("transport: error")
+	SerializationError = errorFlag("transport: serialization error")
+	ValidationError    = errorFlag("transport: validation error")
+	EncryptionError    = errorFlag("transport: encryption error")
+	noError            = errorFlag("")
 )
 
 // Error implements the error interface.

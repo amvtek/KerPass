@@ -29,13 +29,21 @@ func (self MessageTransport) WriteMessage(msg any) error {
 	var srzmsg []byte
 	var err error
 
+	// optionally validate the msg
+	if c, validate := msg.(checker); validate {
+		err = c.Check()
+		if nil != err {
+			return wrapError(ValidationError, "msg is invalid, Check returned %v", err)
+		}
+	}
+
 	switch v := msg.(type) {
 	case RawMsg:
 		srzmsg = []byte(v)
 	default:
 		srzmsg, err = self.S.Marshal(msg)
 		if nil != err {
-			return wrapError(err, "failed marshalling msg")
+			return wrapError(SerializationError, "failed marshalling msg, got error %v", err)
 		}
 	}
 
@@ -44,7 +52,7 @@ func (self MessageTransport) WriteMessage(msg any) error {
 		enc := self.C.Encryptor()
 		srzmsg, err = enc.EncryptWithAd(nil, srzmsg)
 		if nil != err {
-			return wrapError(err, "failed encrypting msg")
+			return wrapError(EncryptionError, "failed encrypting msg, got error %v", err)
 		}
 	}
 
@@ -68,7 +76,7 @@ func (self MessageTransport) ReadMessage(msg any) error {
 		dec := self.C.Decryptor()
 		srzmsg, err = dec.DecryptWithAd(nil, srzmsg)
 		if nil != err {
-			return wrapError(err, "failed decrypting message")
+			return wrapError(EncryptionError, "failed decrypting message, got error %v", err)
 		}
 	}
 
@@ -78,10 +86,20 @@ func (self MessageTransport) ReadMessage(msg any) error {
 		*v = RawMsg(srzmsg)
 	default:
 		err = self.S.Unmarshal(srzmsg, msg)
+		if nil != err {
+			return wrapError(SerializationError, "failed unmarshaling message, got error %v", err)
+		}
 	}
 
-	return wrapError(err, "failed unmarshaling message") // nil if err is nil
+	// optionally validate the received msg
+	if c, validate := msg.(checker); validate {
+		err = c.Check()
+		if nil != err {
+			return wrapError(ValidationError, "received msg is invalid, Check returned %v", err)
+		}
+	}
 
+	return nil
 }
 
 // RawMsg is a "marker" type used to disable serialization
@@ -130,4 +148,8 @@ func (self RWTransport) WriteBytes(data []byte) error {
 	_, err := self.W.Write(pdata)
 
 	return wrapError(err, "failed writing data") // nil if err is nil
+}
+
+type checker interface {
+	Check() error
 }
