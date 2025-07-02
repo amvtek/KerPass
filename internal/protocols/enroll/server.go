@@ -76,9 +76,9 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// check Client authorization
 	authorizationId := buf.Bytes()
-	metas := credentials.EnrollMeta{}
+	metas := credentials.EnrollAuthorization{}
 	var isValidAuthorization bool
-	if self.repos.GetEnrollAuthorization(authorizationId, &metas) {
+	if self.repos.PopEnrollAuthorization(authorizationId, &metas) {
 		if slices.Equal(req.RealmId, metas.RealmId) {
 			isValidAuthorization = true
 		}
