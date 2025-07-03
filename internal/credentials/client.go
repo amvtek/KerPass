@@ -14,8 +14,8 @@ type ClientCredStore interface {
 	// It returns true if the Card was effectively removed.
 	RemoveCard(cardId []byte) bool
 
-	// Size returns the number of Card in the ClientCredStore.
-	Size() int
+	// CardCount returns the number of Card in the ClientCredStore.
+	CardCount() int
 }
 
 // Card holds keys necessary for validating/generating EPHEMSEC OTP/OTK.
@@ -98,7 +98,7 @@ func (self *MemClientCredStore) RemoveCard(cardId []byte) bool {
 }
 
 // Size returns the number of Card in the MemClientCredStore.
-func (self *MemClientCredStore) Size() int {
+func (self *MemClientCredStore) CardCount() int {
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
