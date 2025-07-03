@@ -10,6 +10,7 @@ import (
 type Transport interface {
 	ReadBytes() ([]byte, error)
 	WriteBytes(data []byte) error
+	Close() error
 }
 
 // T aliases Transport
@@ -114,6 +115,7 @@ type Serializer interface {
 type RWTransport struct {
 	R io.Reader // source from which messages are read.
 	W io.Writer // destination to which messages are written.
+	C io.Closer // ignored if nil
 }
 
 func (self RWTransport) ReadBytes() ([]byte, error) {
@@ -148,6 +150,14 @@ func (self RWTransport) WriteBytes(data []byte) error {
 	_, err := self.W.Write(pdata)
 
 	return wrapError(err, "failed writing data") // nil if err is nil
+}
+
+func (self RWTransport) Close() error {
+	if nil != self.C {
+		return self.C.Close()
+	}
+
+	return nil
 }
 
 type checker interface {
