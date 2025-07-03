@@ -12,9 +12,9 @@ import (
 )
 
 type ClientEnrollProtocol struct {
-	realmId         []byte
-	authorizationId []byte
-	repos           credentials.ClientCredStore
+	RealmId         []byte
+	AuthorizationId []byte
+	Repo            credentials.ClientCredStore
 }
 
 func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
@@ -40,7 +40,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 	if nil != err {
 		return wrapError(err, "failed hs.WriteMessage")
 	}
-	req := EnrollReq{RealmId: self.realmId, NoiseMsg: buf.Bytes()}
+	req := EnrollReq{RealmId: self.RealmId, NoiseMsg: buf.Bytes()}
 	err = mt.WriteMessage(req)
 	if nil != err {
 		return wrapError(err, "failed mt.WriteMessage")
@@ -68,7 +68,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// send Client: -> s, se, {authorizationId}
 	buf.Reset()
-	completed, err := hs.WriteMessage(self.authorizationId, &buf)
+	completed, err := hs.WriteMessage(self.AuthorizationId, &buf)
 	if nil != err {
 		return wrapError(err, "failed hs.WriteMessage")
 	}
@@ -99,12 +99,12 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// create new Card
 	card := credentials.Card{
-		RealmId: self.realmId,
+		RealmId: self.RealmId,
 		CardId:  resp.CardId,
 		AppName: resp.AppName,
 		AppLogo: resp.AppLogo,
 	}
-	psk, err := derivePSK(self.realmId, resp.CardId, hs.GetHandshakeHash())
+	psk, err := derivePSK(self.RealmId, resp.CardId, hs.GetHandshakeHash())
 	if nil != err {
 		return wrapError(err, "failed deriving psk")
 	}
@@ -113,14 +113,14 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// save new Card
 	var success bool
-	err = self.repos.SaveCard(card)
+	err = self.Repo.SaveCard(card)
 	if nil != err {
 		return wrapError(err, "failed saving card")
 	}
 	defer func(success *bool) {
 		// rollback if success is false
 		if !(*success) {
-			self.repos.RemoveCard(resp.CardId)
+			self.Repo.RemoveCard(resp.CardId)
 		}
 	}(&success)
 
