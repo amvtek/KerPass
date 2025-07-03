@@ -75,12 +75,13 @@ func TestEnrollFailAuthorization(t *testing.T) {
 	c, s := net.Pipe()
 	c.SetDeadline(deadline)
 	s.SetDeadline(deadline)
-	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: c, W: c}}
-	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: s, W: s}}
+	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: c, W: c, C: c}}
+	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: s, W: s, C: s}}
 
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
+		defer ct.Close()
 		err := cliProto.Run(ct)
 		result <- err
 	}(rc)
@@ -88,6 +89,7 @@ func TestEnrollFailAuthorization(t *testing.T) {
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
+		defer st.Close()
 		err := srvProto.Run(st)
 		result <- err
 	}(rs)
