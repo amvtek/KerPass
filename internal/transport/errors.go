@@ -13,6 +13,8 @@ const (
 	SerializationError = errorFlag("transport: serialization error")
 	ValidationError    = errorFlag("transport: validation error")
 	EncryptionError    = errorFlag("transport: encryption error")
+	ReadLimitError     = errorFlag("transport: set read limit exceeded")
+	WriteLimitError    = errorFlag("transport: set write limit exceeded")
 	noError            = errorFlag("")
 )
 
