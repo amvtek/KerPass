@@ -138,7 +138,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 // pkiCheck returns an error if cert is invalid or pubkey does not correspond to cert...
 //
-// TODO: current implementation of pkiCheck is insufficient
+// TODO: current implementation of pkiCheck is a proof of concept 
 func pkiCheck(pubkey *ecdh.PublicKey, cert []byte) error {
 	if nil == pubkey {
 		return newError("Invalid PublicKey")
