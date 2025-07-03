@@ -48,6 +48,9 @@ type ServerCredStore interface {
 	// It errors if the authorization could not be saved.
 	SaveEnrollAuthorization(authorization EnrollAuthorization) error
 
+	// AuthorizationCount returns the number of EnrollAuthorization in the ServerCredStore.
+	AuthorizationCount() int
+
 	// SaveCard saves card in the ServerCredStore.
 	// It errors if the card could not be saved.
 	SaveCard(card ServerCard) error
@@ -55,6 +58,9 @@ type ServerCredStore interface {
 	// RemoveCard removes the ServerCard with cardId identifier from the ServerCredStore.
 	// It returns true if the ServerCard was effectively removed.
 	RemoveCard(cardId []byte) bool
+
+	// CountCard returns the number of ServerCard in the ServerCredStore.
+	CardCount() int
 }
 
 // EnrollAuthorization contains Card creation information.
@@ -212,6 +218,14 @@ func (self *MemServerCredStore) SaveEnrollAuthorization(authorization EnrollAuth
 	return nil
 }
 
+// AuthorizationCount returns the number of EnrollAuthorization in the MemServerCredStore.
+func (self *MemServerCredStore) AuthorizationCount() int {
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	return len(self.authorizations)
+}
+
 // SaveCard saves card in the MemServerCredStore.
 // It errors if the card could not be saved.
 func (self *MemServerCredStore) SaveCard(card ServerCard) error {
@@ -231,7 +245,7 @@ func (self *MemServerCredStore) SaveCard(card ServerCard) error {
 	return nil
 }
 
-// RemoveCard removes the ServerCard with cardId identifier from the ServerCredStore.
+// RemoveCard removes the ServerCard with cardId identifier from the MemServerCredStore.
 // It returns true if the ServerCard was effectively removed.
 func (self *MemServerCredStore) RemoveCard(cardId []byte) bool {
 	if len(cardId) != 32 {
@@ -250,6 +264,14 @@ func (self *MemServerCredStore) RemoveCard(cardId []byte) bool {
 	}
 
 	return found
+}
+
+// CardCount returns the number of ServerCard in the MemServerCredStore.
+func (self *MemServerCredStore) CardCount() int {
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	return len(self.cards)
 }
 
 var _ ServerCredStore = &MemServerCredStore{}
