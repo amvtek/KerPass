@@ -123,6 +123,7 @@ func TestServerCardJSON(t *testing.T) {
 		t.Fatalf("failed json.Unmarshal, got error %v", err)
 	}
 
+	sc.CardId = nil // CardId was not marshaled, hence it shall not be set in dsc
 	if !reflect.DeepEqual(dsc, sc) {
 		t.Fatalf("failed unmarshal control\n%+v\n!=\n%+v", dsc, sc)
 	}
@@ -168,6 +169,7 @@ func TestServerCardCBOR(t *testing.T) {
 		t.Fatalf("failed json.Unmarshal, got error %v", err)
 	}
 
+	sc.CardId = nil // CardId was not marshaled, hence it shall not be set in dsc
 	if !reflect.DeepEqual(dsc, sc) {
 		t.Fatalf("failed unmarshal control\n%+v\n!=\n%+v", dsc, sc)
 	}
