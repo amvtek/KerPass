@@ -12,8 +12,8 @@ import (
 )
 
 type ServerEnrollProtocol struct {
-	keystore credentials.KeyStore
-	repos    credentials.ServerCredStore
+	KeyStore credentials.KeyStore
+	Repo     credentials.ServerCredStore
 }
 
 func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
@@ -28,7 +28,7 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// retrieve Realm ServerKey
 	sk := credentials.ServerKey{}
-	found := self.keystore.GetServerKey(req.RealmId, &sk)
+	found := self.KeyStore.GetServerKey(req.RealmId, &sk)
 	if !found {
 		return newError("failed loading ServerKey for realm % X", req.RealmId)
 	}
@@ -76,16 +76,26 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// check Client authorization
 	authorizationId := buf.Bytes()
-	metas := credentials.EnrollAuthorization{}
+	authorization := credentials.EnrollAuthorization{}
 	var isValidAuthorization bool
-	if self.repos.PopEnrollAuthorization(authorizationId, &metas) {
-		if slices.Equal(req.RealmId, metas.RealmId) {
+	if self.Repo.PopEnrollAuthorization(authorizationId, &authorization) {
+		if slices.Equal(req.RealmId, authorization.RealmId) {
 			isValidAuthorization = true
 		}
 	}
 	if !isValidAuthorization {
 		return newError("client forwarded an invalid authorization")
 	}
+
+	// Schedule exit authorization restoration, if protocol failed...
+	var success bool
+	authorization.AuthorizationId = authorizationId
+	defer func(success *bool) {
+		if !(*success) {
+			// TODO: log error if restoration failed
+			self.Repo.SaveEnrollAuthorization(authorization)
+		}
+	}(&success)
 
 	// noise Handshake completed, set transport ciphers
 	ciphers := &noise.TransportCipherPair{}
@@ -96,14 +106,14 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 	mt.C = ciphers
 
 	// create new ServerCard
-	sc := credentials.ServerCard{RealmId: metas.RealmId}
+	sc := credentials.ServerCard{RealmId: authorization.RealmId}
 	cardId := make([]byte, 32)
 	_, err = rand.Read(cardId)
 	if nil != err {
 		return wrapError(err, "failed generating cardId")
 	}
 	sc.CardId = cardId
-	psk, err := derivePSK(metas.RealmId, cardId, hs.GetHandshakeHash())
+	psk, err := derivePSK(authorization.RealmId, cardId, hs.GetHandshakeHash())
 	if nil != err {
 		return wrapError(err, "failed deriving psk")
 	}
@@ -111,24 +121,23 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 	sc.Kh.PublicKey = hs.RemoteStaticKey()
 
 	// save new ServerCard
-	var success bool
-	err = self.repos.SaveCard(sc)
+	err = self.Repo.SaveCard(sc)
 	if nil != err {
 		return wrapError(err, "failed saving card")
 	}
 	defer func(success *bool) {
 		// rollback if success is false
 		if !(*success) {
-			self.repos.RemoveCard(cardId)
+			self.Repo.RemoveCard(cardId)
 		}
 	}(&success)
 
 	// send EnrollCardCreateResp
 	resp := EnrollCardCreateResp{
-		RealmId: metas.RealmId,
+		RealmId: authorization.RealmId,
 		CardId:  cardId,
-		AppName: metas.AppName,
-		AppLogo: metas.AppLogo,
+		AppName: authorization.AppName,
+		AppLogo: authorization.AppLogo,
 	}
 	err = mt.WriteMessage(resp)
 	if nil != err {
