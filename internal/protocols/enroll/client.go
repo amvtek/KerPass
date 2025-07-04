@@ -41,7 +41,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 		return wrapError(err, "failed hs.WriteMessage")
 	}
 	req := EnrollReq{RealmId: self.RealmId, NoiseMsg: buf.Bytes()}
-	err = mt.WriteMessage(req)
+	err = mt.WriteMessage(req) // 1st WriteMessage
 	if nil != err {
 		return wrapError(err, "failed mt.WriteMessage")
 	}
@@ -77,7 +77,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 		panic("Invalid noise.Config, XX handshake not completed after 2nd hs.WriteMessage")
 	}
 	rawmsg = transport.RawMsg(buf.Bytes())
-	err = mt.WriteMessage(rawmsg)
+	err = mt.WriteMessage(rawmsg) // 2nd WriteMessage
 	if nil != err {
 		return wrapError(err, "failed mt.WriteMessage")
 	}
@@ -126,7 +126,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// send Client: -> resp.CardId as confirmation
 	rawmsg = transport.RawMsg(resp.CardId)
-	err = mt.WriteMessage(rawmsg)
+	err = mt.WriteMessage(rawmsg) // 3rd WriteMessage
 	if nil != err {
 		return wrapError(err, "failed mt.WriteMessage")
 	}
@@ -138,7 +138,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 // pkiCheck returns an error if cert is invalid or pubkey does not correspond to cert...
 //
-// TODO: current implementation of pkiCheck is a proof of concept 
+// TODO: current implementation of pkiCheck is a proof of concept
 func pkiCheck(pubkey *ecdh.PublicKey, cert []byte) error {
 	if nil == pubkey {
 		return newError("Invalid PublicKey")

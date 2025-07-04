@@ -21,7 +21,7 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// receive EnrollReq from CardAgent client
 	req := EnrollReq{}
-	err := mt.ReadMessage(&req)
+	err := mt.ReadMessage(&req) // 1st ReadMessage
 	if nil != err {
 		return wrapError(err, "failed reading initial EnrollReq message")
 	}
@@ -60,7 +60,7 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// receive Client: -> s, se, {authorizationId}
 	rawmsg := transport.RawMsg{}
-	err = mt.ReadMessage(&rawmsg)
+	err = mt.ReadMessage(&rawmsg) // 2nd ReadMessage
 	if nil != err {
 		return wrapError(err, "failed mt.ReadMessage")
 	}
@@ -146,7 +146,7 @@ func (self ServerEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// to confirm Client shall echo new cardId
 	echoCardId := transport.RawMsg{}
-	err = mt.ReadMessage(&echoCardId)
+	err = mt.ReadMessage(&echoCardId) // 3rd ReadMessage
 	if nil != err {
 		return wrapError(err, "failed mt.ReadMessage")
 	}

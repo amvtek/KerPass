@@ -122,6 +122,137 @@ func TestEnrollFailAuthorization(t *testing.T) {
 
 }
 
+func TestEnrollFailReadClientConfirmation(t *testing.T) {
+	cliProto, srvProto := makeProtocols(t)
+
+	// create transports
+	deadline := time.Now().Add(500 * time.Millisecond)
+	c, s := net.Pipe()
+	c.SetDeadline(deadline)
+	s.SetDeadline(deadline)
+
+	// Client MessageTransport
+	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: c, W: c, C: c}}
+
+	// Server MessageTransport
+	lt := transport.NewLimitTransport(transport.RWTransport{R: s, W: s, C: s})
+	lt.SetReadLimit(3) // server will not be able to read final Client confirmation
+	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: lt}
+
+	// run client protocol
+	rc := make(chan error, 1)
+	go func(result chan<- error) {
+		defer ct.Close()
+		err := cliProto.Run(ct)
+		result <- err
+	}(rc)
+
+	// run server protocol
+	rs := make(chan error, 1)
+	go func(result chan<- error) {
+		defer st.Close()
+		err := srvProto.Run(st)
+		result <- err
+	}(rs)
+
+	// Unsure Client will reliably detect Server failure as it expects no confirmation.
+	// However when using in memory pipe it appears that client fails as the final message
+	// is not read by the Server.
+	ce := <-rc
+	if nil != ce {
+		t.Logf("client protocol completed with error status:\n%v", ce)
+	} else {
+		t.Logf("client protocol detected no error")
+	}
+
+	se := <-rs
+	if nil == se {
+		t.Errorf("server protocol run without error, in spite of expected failure")
+	} else {
+		t.Logf("server protocol completed with EXPECTED error:\n%v", se)
+	}
+
+	// check that no server Card was saved
+	count := srvProto.Repo.CardCount()
+	if 0 != count {
+		t.Errorf("failed server CardCount control, %d != 0", count)
+	}
+
+	// check that authorization was restored
+	count = srvProto.Repo.AuthorizationCount()
+	if 1 != count {
+		t.Errorf("failed server AuthorizationCount control, %d != 1", count)
+	}
+
+}
+
+func TestEnrollFailWriteClientConfirmation(t *testing.T) {
+	cliProto, srvProto := makeProtocols(t)
+
+	// create transports
+	deadline := time.Now().Add(500 * time.Millisecond)
+	c, s := net.Pipe()
+	c.SetDeadline(deadline)
+	s.SetDeadline(deadline)
+
+	// Client MessageTransport
+	lt := transport.NewLimitTransport(transport.RWTransport{R: c, W: c, C: c})
+	lt.SetWriteLimit(3) // Client will not be able to write final confirmation
+	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: lt}
+
+	// Server MessageTransport
+	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: s, W: s, C: s}}
+
+	// run client protocol
+	rc := make(chan error, 1)
+	go func(result chan<- error) {
+		defer ct.Close()
+		err := cliProto.Run(ct)
+		result <- err
+	}(rc)
+
+	// run server protocol
+	rs := make(chan error, 1)
+	go func(result chan<- error) {
+		defer st.Close()
+		err := srvProto.Run(st)
+		result <- err
+	}(rs)
+
+	ce := <-rc
+	if nil == ce {
+		t.Errorf("client protocol run without error, in spite of expected failure")
+	} else {
+		t.Logf("client protocol completed with EXPECTED error:\n%v", ce)
+	}
+
+	se := <-rs
+	if nil == se {
+		t.Errorf("server protocol run without error, in spite of expected failure")
+	} else {
+		t.Logf("server protocol completed with EXPECTED error:\n%v", se)
+	}
+
+	// check that no client Card was saved
+	count := cliProto.Repo.CardCount()
+	if 0 != count {
+		t.Errorf("failed client CardCount control, %d != 0", count)
+	}
+
+	// check that no server Card was saved
+	count = srvProto.Repo.CardCount()
+	if 0 != count {
+		t.Errorf("failed server CardCount control, %d != 0", count)
+	}
+
+	// check that authorization was restored
+	count = srvProto.Repo.AuthorizationCount()
+	if 1 != count {
+		t.Errorf("failed server AuthorizationCount control, %d != 1", count)
+	}
+
+}
+
 func makeProtocols(t *testing.T) (ClientEnrollProtocol, ServerEnrollProtocol) {
 	// generate realmId
 	realmId := make([]byte, 32)
