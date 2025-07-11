@@ -100,7 +100,7 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 	// create new Card
 	card := credentials.Card{
 		RealmId: self.RealmId,
-		CardId:  resp.CardId,
+		IdToken: resp.CardId,
 		AppName: resp.AppName,
 		AppLogo: resp.AppLogo,
 	}
@@ -113,14 +113,15 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 
 	// save new Card
 	var success bool
-	err = self.Repo.SaveCard(card)
+	cardId, err := self.Repo.SaveCard(card)
 	if nil != err {
 		return wrapError(err, "failed saving card")
 	}
+	card.ID = cardId
 	defer func(success *bool) {
 		// rollback if success is false
 		if !(*success) {
-			self.Repo.RemoveCard(resp.CardId)
+			self.Repo.RemoveCard(cardId)
 		}
 	}(&success)
 

@@ -9,8 +9,9 @@ type errorFlag string
 
 const (
 	// All package errors are wrapping Error
-	Error   = errorFlag("conn: error")
-	noError = errorFlag("")
+	Error             = errorFlag("credentials: error")
+	ErrorCardMutation = errorFlag("credentials: Card RealmId & IdToken can not change")
+	noError           = errorFlag("")
 )
 
 // Error implements the error interface.
