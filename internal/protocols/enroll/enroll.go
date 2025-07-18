@@ -24,10 +24,30 @@ import (
 )
 
 var noiseCfg noise.Config
+var dummyPsks [][]byte
 
 func init() {
-	err := noiseCfg.Load("Noise_XX_25519_AESGCM_SHA512")
+	// register custom pattern XXPSK45
+	// technically this is XXpsk4+psk5 (add 2 psk messages at the end of XX)
+	// but it is not currently possible to apply modifiers on non existing messages
+	// hence the use of custom DSL
+	noise.MustRegisterPatternSpec(
+		`
+		XXPSK45:
+		  -> e
+		  <- e, ee, s, es
+		  -> s, se
+		  <- psk
+		  -> psk
+		`,
+	)
+	err := noiseCfg.Load("Noise_XXPSK45_25519_AESGCM_SHA512")
 	if nil != err {
 		panic(err)
 	}
+
+	// dummyPsks are used to provide the psks for XXPSK45
+	// those psks are here to allow exchanging more data during the handshake.
+	psk := make([]byte, 32)
+	dummyPsks = [][]byte{psk, psk}
 }
