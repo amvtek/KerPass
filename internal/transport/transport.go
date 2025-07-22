@@ -3,10 +3,10 @@ package transport
 import (
 	"encoding/binary"
 	"io"
-
-	"code.kerpass.org/golang/pkg/noise"
 )
 
+// Transport is an interface that represented a "framed" transport.
+// It defines methods to read/write messages that are byte slices.
 type Transport interface {
 	ReadBytes() ([]byte, error)
 	WriteBytes(data []byte) error
@@ -16,108 +16,16 @@ type Transport interface {
 // T aliases Transport
 type T = Transport
 
-// MessageTransport read/write messages to inner Transport after converting them to bytes
-type MessageTransport struct {
-	Transport
-	S Serializer                 // Convert messages to bytes and bytes to messages.
-	C *noise.TransportCipherPair // Encrypt/Decrypt messages bytes.
-}
-
-// WriteMessage converts msg to bytes and writes msg bytes to inner Transport.
-//
-// If the MessageTransport has an inner Cipher, msg bytes are encrypted prior to be written.
-func (self MessageTransport) WriteMessage(msg any) error {
-	var srzmsg []byte
-	var err error
-
-	// optionally validate the msg
-	if c, validate := msg.(checker); validate {
-		err = c.Check()
-		if nil != err {
-			return wrapError(ValidationError, "msg is invalid, Check returned %v", err)
-		}
-	}
-
-	switch v := msg.(type) {
-	case RawMsg:
-		srzmsg = []byte(v)
-	default:
-		srzmsg, err = self.S.Marshal(msg)
-		if nil != err {
-			return wrapError(SerializationError, "failed marshalling msg, got error %v", err)
-		}
-	}
-
-	if nil != self.C {
-		// we need to apply encryption
-		enc := self.C.Encryptor()
-		srzmsg, err = enc.EncryptWithAd(nil, srzmsg)
-		if nil != err {
-			return wrapError(EncryptionError, "failed encrypting msg, got error %v", err)
-		}
-	}
-
-	err = self.WriteBytes(srzmsg)
-
-	return wrapError(err, "failed writing msg") // nil if err is nil ...
-}
-
-// ReadMessage reads msg bytes from inner Transport and deserializes them to msg.
-//
-// If the MessageTransport has an inner Cipher, msg bytes are decrypted prior to be deserialized.
-func (self MessageTransport) ReadMessage(msg any) error {
-
-	srzmsg, err := self.ReadBytes()
-	if nil != err {
-		return wrapError(err, "failed reading message bytes")
-	}
-
-	// optionally decrypt srzmsg
-	if nil != self.C {
-		dec := self.C.Decryptor()
-		srzmsg, err = dec.DecryptWithAd(nil, srzmsg)
-		if nil != err {
-			return wrapError(EncryptionError, "failed decrypting message, got error %v", err)
-		}
-	}
-
-	// unmarshal srzmsg
-	switch v := msg.(type) {
-	case *RawMsg:
-		*v = RawMsg(srzmsg)
-	default:
-		err = self.S.Unmarshal(srzmsg, msg)
-		if nil != err {
-			return wrapError(SerializationError, "failed unmarshaling message, got error %v", err)
-		}
-	}
-
-	// optionally validate the received msg
-	if c, validate := msg.(checker); validate {
-		err = c.Check()
-		if nil != err {
-			return wrapError(ValidationError, "received msg is invalid, Check returned %v", err)
-		}
-	}
-
-	return nil
-}
-
-// RawMsg is a "marker" type used to disable serialization
-type RawMsg []byte
-
-// Serializer provides methods to Marshal/Unmarshal messages.
-type Serializer interface {
-	Marshal(v any) ([]byte, error)
-	Unmarshal(data []byte, v any) error
-}
-
+// RWTransport is a Transport that reads from io.Reader and writes to io.Writer.
+// It uses a 2 bytes length prefix to properly delimitate messages.
 type RWTransport struct {
 	R io.Reader // source from which messages are read.
 	W io.Writer // destination to which messages are written.
 	C io.Closer // ignored if nil
 }
 
+// ReadBytes first reads message size (2 bytes prefix) and then reads and returns
+// next size bytes as message.
 func (self RWTransport) ReadBytes() ([]byte, error) {
 	// read size
 	psb := make([]byte, 2)
@@ -137,6 +45,7 @@ func (self RWTransport) ReadBytes() ([]byte, error) {
 	return data, nil
 }
 
+// WriteBytes first write data size (2 bytes prefix) and then write data.
 func (self RWTransport) WriteBytes(data []byte) error {
 	if len(data) > 0xFFFF {
 		return newError("data larger than %d", 0xFFFF)
@@ -158,8 +67,4 @@ func (self RWTransport) Close() error {
 	}
 
 	return nil
-}
-
-type checker interface {
-	Check() error
 }
