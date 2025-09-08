@@ -1,10 +1,12 @@
 package protocols
 
 const (
-	EvtInit    = "Init"
-	EvtMsg     = "ReadMessage"
-	EvtAbort   = "Abort"
-	EvtTimeout = "Timeout"
+	EvtInit         = "Init"
+	EvtMsg          = "ReadMessage"
+	EvtMsgDelivered = "MsgDelivered"
+	EvtMsgFailed    = "MsgNotDelivered"
+	EvtAbort        = "Abort"
+	EvtTimeout      = "Timeout"
 )
 
 // Event contains "incoming" data processed by a ProtocolFSM.
