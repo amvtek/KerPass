@@ -22,7 +22,7 @@ cmdloop:
 			return nil, wrapError(err, "failed protocol Update")
 		}
 		switch cmd.Tag {
-		case CmdMessage:
+		case CmdMsg:
 			wmsg = cmd.Msg
 		case CmdNoop:
 			wmsg = nil

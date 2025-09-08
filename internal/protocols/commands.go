@@ -1,10 +1,10 @@
 package protocols
 
 const (
-	CmdMessage = "WriteMessage" // used to write a Message to transport.
-	CmdReturn  = "Return"       // used to return Protocol Result.
-	CmdNoop    = "Noop"         // used to pause a Protocol.
-	CmdWait    = CmdNoop        // used to pause a protocol for waiting next transport Message.
+	CmdMsg    = "WriteMessage" // used to write a Message to transport.
+	CmdReturn = "Return"       // used to return Protocol Result.
+	CmdNoop   = "Noop"         // used to pause a Protocol.
+	CmdWait   = CmdNoop        // used to pause a protocol for waiting next transport Message.
 )
 
 // Command describes an IO operation or a long running computation awaited by a running Protocol.
