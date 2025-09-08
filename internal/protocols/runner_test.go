@@ -78,7 +78,7 @@ type EchoProtocol struct {
 
 func (self *EchoProtocol) Update(evt Event) (cmd Command, err error) {
 	log.Printf(`[%d] Update called with event "%s"`, self.state, evt.Tag)
-	cmd.Tag = CmdMessage
+	cmd.Tag = CmdMsg
 
 	switch {
 	case 0 == self.state:
@@ -153,7 +153,7 @@ type SimpleClient struct {
 
 func (self *SimpleClient) Update(evt Event) (Command, error) {
 	msg := evt.Msg
-	cmd := Command{Tag: CmdMessage}
+	cmd := Command{Tag: CmdMsg}
 	var err error
 
 	log.Printf("Client[%d]: Update called with event %s", self.state, evt.Tag)
@@ -206,7 +206,7 @@ type SimpleServer struct {
 
 func (self *SimpleServer) Update(evt Event) (Command, error) {
 	msg := evt.Msg
-	cmd := Command{Tag: CmdMessage}
+	cmd := Command{Tag: CmdMsg}
 	var err error
 	smsg := string(msg)
 
