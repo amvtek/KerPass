@@ -9,19 +9,16 @@ import (
 )
 
 const (
-	markRealm    = byte('R')
-	markPerso    = byte('P')
-	markCliShare = byte('C')
-	markSrvShare = byte('S')
-
-	persoPsk = "card-psk"
+	markRealm = byte('R')
+	markPerso = byte('P')
+	persoPsk  = "card-psk"
 )
 
-func derivePSK(realmId, cardId, cliShare, srvShare []byte) ([]byte, error) {
+func derivePSK(realmId, cardId, stateHash []byte) ([]byte, error) {
 
 	// make sure that "marked" data have length below 255
-	if len(realmId) > 255 || len(persoPsk) > 255 || len(cliShare) > 255 || len(srvShare) > 255 {
-		return nil, newError("Invalid realmId or persoPsk or cliShare or srvShare, length exceeds 255")
+	if len(realmId) > 255 || len(persoPsk) > 255 {
+		return nil, newError("Invalid realmId or persoPsk, length exceeds 255")
 	}
 
 	var buf bytes.Buffer
@@ -36,17 +33,16 @@ func derivePSK(realmId, cardId, cliShare, srvShare []byte) ([]byte, error) {
 	buf.WriteString(persoPsk)
 	salt := buf.Bytes()
 
-	// derive ikm
-	buf.Reset()
-	buf.Grow(2 + 2 + len(cliShare) + len(srvShare))
-	buf.WriteByte(markCliShare)
-	buf.WriteByte(byte(len(cliShare)))
-	buf.Write(cliShare)
-	buf.WriteByte(markSrvShare)
-	buf.WriteByte(byte(len(srvShare)))
-	buf.Write(srvShare)
-	ikm := buf.Bytes()
+	// ikm
+	if len(stateHash) < 32 {
+		return nil, newError("Invalid stateHash, length < 32")
+	}
+	ikm := stateHash
 
+	// info
+	if len(cardId) < 32 {
+		return nil, newError("Invalid cardId, length < 32")
+	}
 	info := cardId
 
 	psk := make([]byte, 32)
