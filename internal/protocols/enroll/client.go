@@ -1,6 +1,7 @@
 package enroll
 
 import (
+	"bytes"
 	"crypto/ecdh"
 	"crypto/rand"
 
@@ -13,17 +14,11 @@ import (
 type ClientEnrollProtocol struct {
 	RealmId         []byte
 	AuthorizationId []byte
+	Serializer      transport.Serializer
 	Repo            credentials.ClientCredStore
 }
 
-func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
-	// send Client: -> [EnrollReq]
-	// It can not be send as noise payload because the server needs to know the RealmId to load its static key...
-	req := EnrollReq{RealmId: self.RealmId}
-	err := mt.WriteMessage(req)
-	if nil != err {
-		return wrapError(err, "failed sending initial EnrollReq message")
-	}
+func (self ClientEnrollProtocol) Run(tr transport.Transport) error {
 
 	// create a Static Keypair
 	curve := noiseCfg.CurveAlgo
@@ -32,73 +27,99 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 		return wrapError(err, "failed generating Card Keypair")
 	}
 
-	// initialize Handshake
-	hst := transport.NewHandshakeTransport(mt.Transport)
+	// initialize noise Handshake
 	params := noise.HandshakeParams{
 		Cfg:           noiseCfg,
-		Prologue:      req.RealmId,
+		Prologue:      self.RealmId,
 		StaticKeypair: keypair,
 		Psks:          dummyPsks,
 		Initiator:     true,
 	}
-	err = hst.Initialize(params)
+	hs := noise.HandshakeState{}
+	err = hs.Initialize(params)
 	if nil != err {
-		return wrapError(err, "failed hst.Initialize")
+		return wrapError(err, "failed hs.Initialize")
 	}
-	mt.Transport = hst
 
-	// send Client: -> e
-	err = mt.WriteMessage(transport.RawMsg(nil)) // 1st WriteMessage
+	// generate initial noise msg
+	// Client: -> e
+	var buf bytes.Buffer
+	_, err = hs.WriteMessage(nil, &buf)
+
+	// send Client: -> [EnrollReq]
+	// It can not be send as noise payload because the server needs to know the RealmId to load its static key...
+	req := EnrollReq{RealmId: self.RealmId, Msg: buf.Bytes()}
+	srzmsg, err := self.Serializer.Marshal(req)
 	if nil != err {
-		return wrapError(err, "failed mt.WriteMessage")
+		return wrapError(err, "failed serializing the initial EnrollReq message")
+	}
+	err = tr.WriteBytes(srzmsg)
+	if nil != err {
+		return wrapError(err, "failed sending initial EnrollReq message")
 	}
 
 	// receive Server: <- e, ee, s, es, {Certificate}
-	srvcert := transport.RawMsg{}
-	err = mt.ReadMessage(&srvcert)
+	srzmsg, err = tr.ReadBytes()
 	if nil != err {
-		return wrapError(err, "failed mt.ReadMessage")
+		return wrapError(err, "failed receiving server keys")
 	}
+	buf.Reset()
+	_, err = hs.ReadMessage(srzmsg, &buf)
+	if nil != err {
+		return wrapError(err, "failed noise handshake ReadMessage")
+	}
+	srvcert := buf.Bytes()
 
 	// control RemoteStaticKey()
-	srvkey := hst.RemoteStaticKey()
-	err = pkiCheck(srvkey, []byte(srvcert))
+	srvkey := hs.RemoteStaticKey()
+	err = pkiCheck(srvkey, srvcert)
 	if nil != err {
 		return wrapError(err, "failed server Static Key control")
 	}
 
 	// send Client: -> s, se, {EnrollAuthorization}
-	cli := EnrollAuthorization{AuthorizationId: self.AuthorizationId}
-	pskShare := make([]byte, 32)
-	_, err = rand.Read(pskShare)
+	srzmsg, err = self.Serializer.Marshal(EnrollAuthorization{AuthorizationId: self.AuthorizationId})
 	if nil != err {
-		return wrapError(err, "failed generating pskShare")
+		return wrapError(err, "failed serializing the EnrollAuthorization message")
 	}
-	cli.PSKShare = pskShare
-	err = mt.WriteMessage(cli) // 2nd WriteMessage
+	buf.Reset()
+	_, err = hs.WriteMessage(srzmsg, &buf)
 	if nil != err {
-		return wrapError(err, "failed mt.WriteMessage")
+		return wrapError(err, "failed noise handshake WriteMessage")
+	}
+	err = tr.WriteBytes(buf.Bytes())
+	if nil != err {
+		return wrapError(err, "failed transport WriteBytes")
 	}
 
 	// receive Server: <- psk, {EnrollCardCreateResp}
-	srv := EnrollCardCreateResp{}
-	err = mt.ReadMessage(&srv)
+	srzmsg, err = tr.ReadBytes()
 	if nil != err {
-		return wrapError(err, "failed mt.ReadMessage")
+		return wrapError(err, "failed transport ReadBytes")
+	}
+	buf.Reset()
+	_, err = hs.ReadMessage(srzmsg, &buf)
+	if nil != err {
+		return wrapError(err, "failed noise handshake ReadMessage")
+	}
+	srv := EnrollCardCreateResp{}
+	err = self.Serializer.Unmarshal(buf.Bytes(), &srv)
+	if nil != err {
+		return wrapError(err, "failed unmarshaling EnrollCardCreateResp")
 	}
 
 	// create new Card
+	psk, err := derivePSK(self.RealmId, srv.CardId, hs.GetHandshakeHash())
+	if nil != err {
+		return wrapError(err, "failed deriving psk")
+	}
 	card := credentials.Card{
 		RealmId: self.RealmId,
 		IdToken: srv.CardId,
 		AppName: srv.AppName,
 		AppLogo: srv.AppLogo,
+		Psk:     psk,
 	}
-	psk, err := derivePSK(self.RealmId, srv.CardId, cli.PSKShare, srv.PSKShare)
-	if nil != err {
-		return wrapError(err, "failed deriving psk")
-	}
-	card.Psk = psk
 	card.Kh.PrivateKey = keypair
 
 	// save new Card
@@ -116,9 +137,14 @@ func (self ClientEnrollProtocol) Run(mt transport.MessageTransport) error {
 	}(&success)
 
 	// send Client: -> psk, {}
-	err = mt.WriteMessage(transport.RawMsg(nil)) // 3rd WriteMessage
+	buf.Reset()
+	_, err = hs.WriteMessage(nil, &buf)
 	if nil != err {
-		return wrapError(err, "failed mt.WriteMessage")
+		return wrapError(err, "failed noise handshake WriteMessage")
+	}
+	err = tr.WriteBytes(buf.Bytes())
+	if nil != err {
+		return wrapError(err, "failed transport WriteBytes")
 	}
 
 	success = true
