@@ -4,12 +4,17 @@ package enroll
 // It is a plaintext that starts the EnrollProtocol.
 type EnrollReq struct {
 	RealmId []byte `json:"realm_id" cbor:"1,keyasint"` // Determine the Static Key used by the Server
+	Msg     []byte `json:"noise_msg" cbor:"2,keyasint"`
 }
 
 func (self EnrollReq) Check() error {
 	rsz := len(self.RealmId)
 	if rsz < 32 || rsz > 64 {
 		return newError("invalid RealmId size, %d not in 32..64 range", rsz)
+	}
+	msz := len(self.Msg)
+	if msz < 32 {
+		return newError("invalid Noise Msg size, %d < 32", msz)
 	}
 
 	return nil
