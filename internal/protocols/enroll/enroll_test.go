@@ -11,15 +11,15 @@ import (
 )
 
 func TestEnrollSuccess(t *testing.T) {
-	cliProto, srvProto := makeProtocols(t)
+	cliProto, srvProto := makeProtocols(t, transport.CBORSerializer{})
 
 	// create transports
 	deadline := time.Now().Add(500 * time.Millisecond)
 	c, s := net.Pipe()
 	c.SetDeadline(deadline)
 	s.SetDeadline(deadline)
-	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: c, W: c}}
-	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: s, W: s}}
+	ct := transport.RWTransport{R: c, W: c}
+	st := transport.RWTransport{R: s, W: s}
 
 	// run client protocol
 	rc := make(chan error, 1)
@@ -65,7 +65,7 @@ func TestEnrollSuccess(t *testing.T) {
 }
 
 func TestEnrollFailAuthorization(t *testing.T) {
-	cliProto, srvProto := makeProtocols(t)
+	cliProto, srvProto := makeProtocols(t, transport.CBORSerializer{})
 
 	// change client authorization
 	rand.Read(cliProto.AuthorizationId)
@@ -75,8 +75,8 @@ func TestEnrollFailAuthorization(t *testing.T) {
 	c, s := net.Pipe()
 	c.SetDeadline(deadline)
 	s.SetDeadline(deadline)
-	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: c, W: c, C: c}}
-	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: s, W: s, C: s}}
+	ct := transport.RWTransport{R: c, W: c, C: c}
+	st := transport.RWTransport{R: s, W: s, C: s}
 
 	// run client protocol
 	rc := make(chan error, 1)
@@ -123,7 +123,7 @@ func TestEnrollFailAuthorization(t *testing.T) {
 }
 
 func TestEnrollFailReadClientConfirmation(t *testing.T) {
-	cliProto, srvProto := makeProtocols(t)
+	cliProto, srvProto := makeProtocols(t, transport.CBORSerializer{})
 
 	// create transports
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -131,13 +131,12 @@ func TestEnrollFailReadClientConfirmation(t *testing.T) {
 	c.SetDeadline(deadline)
 	s.SetDeadline(deadline)
 
-	// Client MessageTransport
-	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: c, W: c, C: c}}
+	// Client transport
+	ct := transport.RWTransport{R: c, W: c, C: c}
 
-	// Server MessageTransport
-	lt := transport.NewLimitTransport(transport.RWTransport{R: s, W: s, C: s})
-	lt.SetReadLimit(3) // server will not be able to read final Client confirmation
-	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: lt}
+	// Server transport
+	st := transport.NewLimitTransport(transport.RWTransport{R: s, W: s, C: s})
+	st.SetReadLimit(3) // server will not be able to read final Client confirmation
 
 	// run client protocol
 	rc := make(chan error, 1)
@@ -187,7 +186,7 @@ func TestEnrollFailReadClientConfirmation(t *testing.T) {
 }
 
 func TestEnrollFailWriteClientConfirmation(t *testing.T) {
-	cliProto, srvProto := makeProtocols(t)
+	cliProto, srvProto := makeProtocols(t, transport.CBORSerializer{})
 
 	// create transports
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -196,12 +195,11 @@ func TestEnrollFailWriteClientConfirmation(t *testing.T) {
 	s.SetDeadline(deadline)
 
 	// Client MessageTransport
-	lt := transport.NewLimitTransport(transport.RWTransport{R: c, W: c, C: c})
-	lt.SetWriteLimit(3) // Client will not be able to write final confirmation
-	ct := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: lt}
+	ct := transport.NewLimitTransport(transport.RWTransport{R: c, W: c, C: c})
+	ct.SetWriteLimit(3) // Client will not be able to write final confirmation
 
 	// Server MessageTransport
-	st := transport.MessageTransport{S: transport.CBORSerializer{}, Transport: transport.RWTransport{R: s, W: s, C: s}}
+	st := transport.RWTransport{R: s, W: s, C: s}
 
 	// run client protocol
 	rc := make(chan error, 1)
@@ -253,7 +251,7 @@ func TestEnrollFailWriteClientConfirmation(t *testing.T) {
 
 }
 
-func makeProtocols(t *testing.T) (ClientEnrollProtocol, ServerEnrollProtocol) {
+func makeProtocols(t *testing.T, srz transport.Serializer) (ClientEnrollProtocol, ServerEnrollProtocol) {
 	// generate realmId
 	realmId := make([]byte, 32)
 	rand.Read(realmId)
@@ -298,10 +296,12 @@ func makeProtocols(t *testing.T) (ClientEnrollProtocol, ServerEnrollProtocol) {
 		RealmId:         realmId,
 		AuthorizationId: authorizationId,
 		Repo:            clientCredStore,
+		Serializer:      srz,
 	}
 	srvProto := ServerEnrollProtocol{
-		KeyStore: keyStore,
-		Repo:     serverCredStore,
+		KeyStore:   keyStore,
+		Repo:       serverCredStore,
+		Serializer: srz,
 	}
 
 	return cliProto, srvProto
