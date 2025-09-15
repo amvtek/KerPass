@@ -407,6 +407,11 @@ func (self *HandshakeState) RemoteStaticKey() *PublicKey {
 	return self.rs
 }
 
+// StaticKeypair returns the local static Keypair.
+func (self *HandshakeState) StaticKeypair() *Keypair {
+	return self.s
+}
+
 func (self *HandshakeState) SetPsks(psks ...[]byte) error {
 	for _, psk := range psks {
 		if len(psk) != pskKeySize {
