@@ -11,27 +11,53 @@ import (
 	"code.kerpass.org/golang/pkg/noise"
 )
 
-type ServerEnrollProtocol struct {
+type ServerStateFunc = protocols.StateFunc[*ServerState]
+
+type ServerState struct {
 	KeyStore   credentials.KeyStore
 	Repo       credentials.ServerCredStore
 	Serializer transport.Serializer
+	realmId    []byte
+	card       credentials.ServerCard
+	hs         noise.HandshakeState
+	next       ServerStateFunc
 }
 
-func (self ServerEnrollProtocol) Run(tr transport.Transport) error {
+// protocols.Fsm implementation
+
+func (self *ServerState) State() (*ServerState, ServerStateFunc) {
+	return self, self.next
+}
+
+func (self *ServerState) SetState(sf ServerStateFunc) {
+	self.next = sf
+}
+
+func (self *ServerState) Initiator() bool {
+	return false
+}
+
+var _ protocols.Fsm[*ServerState] = &ServerState{}
+
+// State functions
+
+func ServerInit(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
+	sf = ServerInit
+
 	// receive Client: <- [EnrollReq]
-	srzreq, err := tr.ReadBytes()
 	req := EnrollReq{}
-	err = self.Serializer.Unmarshal(srzreq, &req)
+	err = self.Serializer.Unmarshal(msg, &req)
 	if nil != err {
-		return wrapError(err, "failed unmarshaling EnrollReq")
+		return sf, rmsg, wrapError(err, "failed unmarshaling EnrollReq")
 	}
 
 	// retrieve Realm ServerKey
 	sk := credentials.ServerKey{}
 	found := self.KeyStore.GetServerKey(req.RealmId, &sk)
 	if !found {
-		return newError("failed loading ServerKey for realm % X", req.RealmId)
+		return sf, rmsg, newError("failed loading ServerKey for realm % X", req.RealmId)
 	}
+	self.realmId = req.RealmId
 
 	// initialize Handshake
 	params := noise.HandshakeParams{
@@ -41,73 +67,87 @@ func (self ServerEnrollProtocol) Run(tr transport.Transport) error {
 		Psks:          dummyPsks,
 		Initiator:     false,
 	}
-	hs := noise.HandshakeState{}
-	err = hs.Initialize(params)
+
+	// schedule recovering inner noise HandshakeState in case of error...
+	hsbkup := self.hs
+	defer func() {
+		if nil != err {
+			self.hs = hsbkup
+		}
+	}()
+
+	err = self.hs.Initialize(params)
 	if nil != err {
-		return wrapError(err, "failed hs.Initialize")
+		return sf, rmsg, wrapError(err, "failed hs.Initialize")
 	}
 
 	// receive Client: <- e, []
 	var buf bytes.Buffer
-	_, err = hs.ReadMessage(req.Msg, &buf)
+	_, err = self.hs.ReadMessage(req.Msg, &buf)
 	if nil != err {
-		return wrapError(err, "failed noise handshake ReadMessage")
+		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
 	}
 
-	// send Server: -> e, ee, s, es {Certificate}
+	// prepare Server: -> e, ee, s, es {Certificate}
 	buf.Reset()
-	_, err = hs.WriteMessage(sk.Certificate, &buf)
+	_, err = self.hs.WriteMessage(sk.Certificate, &buf)
 	if nil != err {
-		return wrapError(err, "failed noise handshake WriteMessage")
+		return sf, rmsg, wrapError(err, "failed noise handshake WriteMessage")
 	}
-	err = tr.WriteBytes(buf.Bytes())
-	if nil != err {
-		return wrapError(err, "failed transport WriteBytes")
-	}
+
+	return ServerCheckEnrollAuthorization, buf.Bytes(), err
+}
+
+func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
+	sf = ServerCheckEnrollAuthorization
+
+	// schedule recovering inner noise HandshakeState in case of error...
+	hsbkup := self.hs
+	defer func() {
+		if nil != err {
+			self.hs = hsbkup
+		}
+	}()
 
 	// receive Client: <- s, se, {EnrollAuthorizatiom}
-	srzmsg, err := tr.ReadBytes()
+	var buf bytes.Buffer
+	_, err = self.hs.ReadMessage(msg, &buf)
 	if nil != err {
-		return wrapError(err, "failed transport ReadBytes")
-	}
-	buf.Reset()
-	_, err = hs.ReadMessage(srzmsg, &buf)
-	if nil != err {
-		return wrapError(err, "failed noise handshake ReadMessage")
+		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
 	}
 	cli := EnrollAuthorization{}
 	err = self.Serializer.Unmarshal(buf.Bytes(), &cli)
 	if nil != err {
-		return wrapError(err, "failed unmarshaling EnrollAuthorization")
+		return sf, rmsg, wrapError(err, "failed unmarshaling EnrollAuthorization")
 	}
 
 	// check EnrollAuthorization
 	authorization := credentials.EnrollAuthorization{}
 	var isValidAuthorization bool
 	if self.Repo.PopEnrollAuthorization(cli.AuthorizationId, &authorization) {
-		if slices.Equal(req.RealmId, authorization.RealmId) {
+		if slices.Equal(self.realmId, authorization.RealmId) {
 			isValidAuthorization = true
 		}
 	}
 	if !isValidAuthorization {
-		return newError("client forwarded an invalid authorization")
+		err = newError("client forwarded an invalid authorization")
+		return sf, rmsg, err
 	}
 
 	// Schedule exit authorization restoration, if protocol failed...
-	var success bool
 	authorization.AuthorizationId = cli.AuthorizationId
-	defer func(success *bool) {
-		if !(*success) {
+	defer func() {
+		if nil != err {
 			// TODO: log error if restoration failed
 			self.Repo.SaveEnrollAuthorization(authorization)
 		}
-	}(&success)
+	}()
 
 	// create EnrollCardCreateResp
 	cardId := make([]byte, 32)
 	_, err = rand.Read(cardId)
 	if nil != err {
-		return wrapError(err, "failed generating cardId")
+		return sf, rmsg, wrapError(err, "failed generating cardId")
 	}
 	cardresp := EnrollCardCreateResp{
 		CardId:  cardId,
@@ -116,53 +156,51 @@ func (self ServerEnrollProtocol) Run(tr transport.Transport) error {
 	}
 	srzcardresp, err := self.Serializer.Marshal(cardresp)
 	if nil != err {
-		return wrapError(err, "failed serializing the EnrollCardCreateResp message")
+		return sf, rmsg, wrapError(err, "failed serializing the EnrollCardCreateResp message")
 	}
 
-	// send Server: -> psk, {EnrollCardCreateResp}
+	// prepare Server: -> psk, {EnrollCardCreateResp}
 	buf.Reset()
-	_, err = hs.WriteMessage(srzcardresp, &buf)
+	_, err = self.hs.WriteMessage(srzcardresp, &buf)
 	if nil != err {
-		return wrapError(err, "failed noise handshake WriteMessage")
-	}
-	err = tr.WriteBytes(buf.Bytes())
-	if nil != err {
-		return wrapError(err, "failed transport WriteBytes")
+		return sf, rmsg, wrapError(err, "failed noise handshake WriteMessage")
 	}
 
 	// create new ServerCard
-	psk, err := derivePSK(authorization.RealmId, cardId, hs.GetHandshakeHash())
+	psk, err := derivePSK(authorization.RealmId, cardId, self.hs.GetHandshakeHash())
 	if nil != err {
-		return wrapError(err, "failed deriving psk")
+		return sf, rmsg, wrapError(err, "failed deriving psk")
 	}
 	sc := credentials.ServerCard{RealmId: authorization.RealmId, CardId: cardId, Psk: psk}
-	sc.Kh.PublicKey = hs.RemoteStaticKey()
+	sc.Kh.PublicKey = self.hs.RemoteStaticKey()
+	self.card = sc
 
-	// save new ServerCard
-	err = self.Repo.SaveCard(sc)
-	if nil != err {
-		return wrapError(err, "failed saving card")
-	}
-	defer func(success *bool) {
-		// rollback if success is false
-		if !(*success) {
-			self.Repo.RemoveCard(cardId)
-		}
-	}(&success)
-
-	// receive Client: <- psk, {}
-	srzmsg, err = tr.ReadBytes()
-	if nil != err {
-		return wrapError(err, "failed transport ReadBytes")
-	}
-	buf.Reset()
-	_, err = hs.ReadMessage(srzmsg, &buf)
-	if nil != err {
-		return wrapError(err, "failed noise handshake ReadMessage")
-	}
-
-	success = true
-	return nil
+	return ServerCardSave, buf.Bytes(), err
 }
 
-var _ protocols.Runner = ServerEnrollProtocol{}
+func ServerCardSave(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
+	sf = ServerCardSave
+
+	// schedule recovering inner noise HandshakeState in case of error...
+	hsbkup := self.hs
+	defer func() {
+		if nil != err {
+			self.hs = hsbkup
+		}
+	}()
+
+	// receive Client: <- psk, {}
+	var buf bytes.Buffer
+	_, err = self.hs.ReadMessage(msg, &buf)
+	if nil != err {
+		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
+	}
+
+	// save new ServerCard
+	err = self.Repo.SaveCard(self.card)
+	if nil != err {
+		return sf, rmsg, wrapError(err, "failed saving card")
+	}
+
+	return nil, nil, nil
+}
