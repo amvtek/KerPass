@@ -82,12 +82,19 @@ func (self *dummyFsm) State() (dummy, StateFunc[dummy]) {
 	return dummy{}, self.sf
 }
 
-func (self *dummyFsm) Initiator() bool {
-	return self.initiator
-}
-
 func (self *dummyFsm) SetState(sf StateFunc[dummy]) {
 	self.sf = sf
+}
+
+func (self *dummyFsm) ExitHandler() ExitFunc[dummy] {
+	return nil
+}
+
+func (self *dummyFsm) SetExitHandler(_ ExitFunc[dummy]) {
+}
+
+func (self *dummyFsm) Initiator() bool {
+	return self.initiator
 }
 
 var _ Fsm[dummy] = &dummyFsm{}
