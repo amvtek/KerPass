@@ -3,6 +3,7 @@ package enroll
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"slices"
 
 	"code.kerpass.org/golang/internal/credentials"
@@ -13,14 +14,25 @@ import (
 
 type ServerStateFunc = protocols.StateFunc[*ServerState]
 
+type ServerExitFunc = protocols.ExitFunc[*ServerState]
+
+type srvExitAction int
+
+const (
+	srvRestoreAuthorization srvExitAction = 1 << iota
+	srvRemoveCard
+)
+
 type ServerState struct {
-	KeyStore   credentials.KeyStore
-	Repo       credentials.ServerCredStore
-	Serializer transport.Serializer
-	realmId    []byte
-	card       credentials.ServerCard
-	hs         noise.HandshakeState
-	next       ServerStateFunc
+	KeyStore      credentials.KeyStore
+	Repo          credentials.ServerCredStore
+	Serializer    transport.Serializer
+	realmId       []byte
+	exitActions   srvExitAction
+	authorization credentials.EnrollAuthorization
+	card          credentials.ServerCard
+	hs            noise.HandshakeState
+	next          ServerStateFunc
 }
 
 // protocols.Fsm implementation
@@ -31,6 +43,13 @@ func (self *ServerState) State() (*ServerState, ServerStateFunc) {
 
 func (self *ServerState) SetState(sf ServerStateFunc) {
 	self.next = sf
+}
+
+func (self *ServerState) ExitHandler() ServerExitFunc {
+	return ServerExit
+}
+
+func (self *ServerState) SetExitHandler(_ ServerExitFunc) {
 }
 
 func (self *ServerState) Initiator() bool {
@@ -136,12 +155,8 @@ func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerSta
 
 	// Schedule exit authorization restoration, if protocol failed...
 	authorization.AuthorizationId = cli.AuthorizationId
-	defer func() {
-		if nil != err {
-			// TODO: log error if restoration failed
-			self.Repo.SaveEnrollAuthorization(authorization)
-		}
-	}()
+	self.authorization = authorization
+	self.exitActions |= srvRestoreAuthorization
 
 	// create EnrollCardCreateResp
 	cardId := make([]byte, 32)
@@ -201,6 +216,30 @@ func ServerCardSave(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []b
 	if nil != err {
 		return sf, rmsg, wrapError(err, "failed saving card")
 	}
+	self.exitActions |= srvRemoveCard
 
-	return nil, nil, nil
+	return nil, nil, protocols.OK
+}
+
+func ServerExit(self *ServerState, rs error) error {
+	defer func() {
+		self.exitActions = 0
+	}()
+
+	if nil == rs {
+		return nil
+	}
+
+	var err1, err2 error
+	if srvRestoreAuthorization == (self.exitActions & srvRestoreAuthorization) {
+		err1 = self.Repo.SaveEnrollAuthorization(self.authorization)
+	}
+	if srvRemoveCard == (self.exitActions & srvRemoveCard) {
+		removed := self.Repo.RemoveCard(self.card.CardId)
+		if !removed {
+			err2 = newError("Failed removing ServerCard")
+		}
+	}
+
+	return errors.Join(err1, err2)
 }

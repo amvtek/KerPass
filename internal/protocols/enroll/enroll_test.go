@@ -175,11 +175,9 @@ func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
 	}
 
 	// check that authorization was restored
-	// TODO: this invariant can not be enforced when error occurs at transport level
 	count = srv.Repo.AuthorizationCount()
 	if 1 != count {
-		// t.Errorf("failed server AuthorizationCount control, %d != 1", count)
-		t.Logf("TODO: Authorization needs to be restored if enroll fails...")
+		t.Errorf("failed server AuthorizationCount control, %d != 1", count)
 	}
 
 }
@@ -231,8 +229,7 @@ func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
 	// check that no client Card was saved
 	count := cli.Repo.CardCount()
 	if 0 != count {
-		// t.Errorf("failed client CardCount control, %d != 0", count)
-		t.Logf("TODO: client Card needs to be deleted if enroll fails")
+		t.Errorf("failed client CardCount control, %d != 0", count)
 	}
 
 	// check that no server Card was saved
@@ -244,8 +241,7 @@ func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
 	// check that authorization was restored
 	count = srv.Repo.AuthorizationCount()
 	if 1 != count {
-		// t.Errorf("failed server AuthorizationCount control, %d != 1", count)
-		t.Logf("TODO: Authorization needs to be restored if enroll fails...")
+		t.Errorf("failed server AuthorizationCount control, %d != 1", count)
 	}
 
 }

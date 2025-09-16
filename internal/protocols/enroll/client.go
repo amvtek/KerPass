@@ -13,12 +13,15 @@ import (
 
 type ClientStateFunc = protocols.StateFunc[*ClientState]
 
+type ClientExitFunc = protocols.ExitFunc[*ClientState]
+
 type ClientState struct {
 	RealmId         []byte
 	AuthorizationId []byte
 	Serializer      transport.Serializer
 	Repo            credentials.ClientCredStore
 	hs              noise.HandshakeState
+	cardId          int
 	next            ClientStateFunc
 }
 
@@ -30,6 +33,13 @@ func (self *ClientState) State() (*ClientState, ClientStateFunc) {
 
 func (self *ClientState) SetState(sf ClientStateFunc) {
 	self.next = sf
+}
+
+func (self *ClientState) ExitHandler() ClientExitFunc {
+	return ClientExit
+}
+
+func (self *ClientState) SetExitHandler(_ ClientExitFunc) {
 }
 
 func (self *ClientState) Initiator() bool {
@@ -162,12 +172,7 @@ func ClientCardCreate(self *ClientState, msg []byte) (sf ClientStateFunc, rmsg [
 		return sf, rmsg, wrapError(err, "failed saving card")
 	}
 	card.ID = cardId
-	defer func() {
-		// rollback if error
-		if nil != err {
-			self.Repo.RemoveCard(cardId)
-		}
-	}()
+	self.cardId = cardId
 
 	// prepare Client: -> psk, {}
 	buf.Reset()
@@ -176,7 +181,16 @@ func ClientCardCreate(self *ClientState, msg []byte) (sf ClientStateFunc, rmsg [
 		return sf, rmsg, wrapError(err, "failed noise handshake WriteMessage")
 	}
 
-	return nil, buf.Bytes(), nil
+	return nil, buf.Bytes(), protocols.OK
+}
+
+func ClientExit(self *ClientState, rs error) error {
+	var err error
+	if nil != rs {
+		_, err = self.Repo.RemoveCard(self.cardId)
+	}
+
+	return err
 }
 
 // pkiCheck returns an error if cert is invalid or pubkey does not correspond to cert...
