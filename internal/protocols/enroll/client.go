@@ -14,6 +14,26 @@ type ClientStateFunc = protocols.StateFunc[*ClientState]
 
 type ClientExitFunc = protocols.ExitFunc[*ClientState]
 
+type ClientCfg struct {
+	RealmId         []byte
+	AuthorizationId []byte
+	Repo            credentials.ClientCredStore
+}
+
+func (self ClientCfg) Check() error {
+	if nil == self.Repo {
+		return newError("nil Repo")
+	}
+	if len(self.RealmId) < 32 {
+		return newError("Invalid RealmId, length %d < 32", len(self.RealmId))
+	}
+	if len(self.AuthorizationId) < 16 {
+		return newError("Invalid AuthorizationId, length %d < 16", len(self.AuthorizationId))
+	}
+
+	return nil
+}
+
 type ClientState struct {
 	RealmId         []byte
 	AuthorizationId []byte
@@ -21,6 +41,22 @@ type ClientState struct {
 	hs              noise.HandshakeState
 	cardId          int
 	next            ClientStateFunc
+}
+
+func NewClientState(cfg ClientCfg) (*ClientState, error) {
+	err := cfg.Check()
+	if nil != err {
+		return nil, wrapError(err, "Invalid ClientCfg")
+	}
+
+	rv := &ClientState{
+		RealmId:         cfg.RealmId,
+		AuthorizationId: cfg.AuthorizationId,
+		Repo:            cfg.Repo,
+		next:            ClientInit,
+	}
+
+	return rv, nil
 }
 
 // protocols.Fsm implementation
