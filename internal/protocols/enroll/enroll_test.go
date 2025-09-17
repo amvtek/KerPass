@@ -12,7 +12,7 @@ import (
 )
 
 func TestFsmEnrollSuccess(t *testing.T) {
-	cli, srv := makePeerState(t, transport.CBORSerializer{})
+	cli, srv := makePeerState(t)
 
 	// create transports
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -25,14 +25,14 @@ func TestFsmEnrollSuccess(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&cli, ct)
+		err := protocols.Run(cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&srv, st)
+		err := protocols.Run(srv, st)
 		result <- err
 	}(rs)
 
@@ -66,7 +66,7 @@ func TestFsmEnrollSuccess(t *testing.T) {
 }
 
 func TestFsmEnrollFailAuthorization(t *testing.T) {
-	cli, srv := makePeerState(t, transport.CBORSerializer{})
+	cli, srv := makePeerState(t)
 
 	// change client authorization
 	rand.Read(cli.AuthorizationId)
@@ -82,14 +82,14 @@ func TestFsmEnrollFailAuthorization(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&cli, ct)
+		err := protocols.Run(cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&srv, st)
+		err := protocols.Run(srv, st)
 		result <- err
 	}(rs)
 
@@ -122,7 +122,7 @@ func TestFsmEnrollFailAuthorization(t *testing.T) {
 }
 
 func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
-	cli, srv := makePeerState(t, transport.CBORSerializer{})
+	cli, srv := makePeerState(t)
 
 	// create transports
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -140,14 +140,14 @@ func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&cli, ct)
+		err := protocols.Run(cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&srv, st)
+		err := protocols.Run(srv, st)
 		result <- err
 	}(rs)
 
@@ -183,7 +183,7 @@ func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
 }
 
 func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
-	cli, srv := makePeerState(t, transport.CBORSerializer{})
+	cli, srv := makePeerState(t)
 
 	// create transports
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -201,14 +201,14 @@ func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&cli, ct)
+		err := protocols.Run(cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(&srv, st)
+		err := protocols.Run(srv, st)
 		result <- err
 	}(rs)
 
@@ -246,9 +246,7 @@ func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
 
 }
 
-func makePeerState(t *testing.T, srz transport.Serializer) (ClientState, ServerState) {
-
-	safesrz := transport.WrapInSafeSerializer(srz)
+func makePeerState(t *testing.T) (*ClientState, *ServerState) {
 
 	// generate realmId
 	realmId := make([]byte, 32)
@@ -290,18 +288,24 @@ func makePeerState(t *testing.T, srz transport.Serializer) (ClientState, ServerS
 	clientCredStore := credentials.NewMemClientCredStore()
 
 	// create client, server states.
-	cli := ClientState{
-		RealmId:         realmId,
-		AuthorizationId: authorizationId,
-		Repo:            clientCredStore,
-		Serializer:      safesrz,
-		next:            ClientInit,
+	cli, err := NewClientState(
+		ClientCfg{
+			RealmId:         realmId,
+			AuthorizationId: authorizationId,
+			Repo:            clientCredStore,
+		},
+	)
+	if nil != err {
+		t.Fatalf("failed creating ClientState, got error %v", err)
 	}
-	srv := ServerState{
-		KeyStore:   keyStore,
-		Repo:       serverCredStore,
-		Serializer: safesrz,
-		next:       ServerInit,
+	srv, err := NewServerState(
+		ServerCfg{
+			KeyStore: keyStore,
+			Repo:     serverCredStore,
+		},
+	)
+	if nil != err {
+		t.Fatalf("failed creating ServerState, got error %v", err)
 	}
 
 	return cli, srv
