@@ -22,6 +22,22 @@ const (
 	srvRemoveCard
 )
 
+type ServerCfg struct {
+	KeyStore credentials.KeyStore
+	Repo     credentials.ServerCredStore
+}
+
+func (self ServerCfg) Check() error {
+	if nil == self.KeyStore {
+		return newError("nil KeyStore")
+	}
+	if nil == self.Repo {
+		return newError("nil Repo")
+	}
+
+	return nil
+}
+
 type ServerState struct {
 	KeyStore      credentials.KeyStore
 	Repo          credentials.ServerCredStore
@@ -31,6 +47,21 @@ type ServerState struct {
 	card          credentials.ServerCard
 	hs            noise.HandshakeState
 	next          ServerStateFunc
+}
+
+func NewServerState(cfg ServerCfg) (*ServerState, error) {
+	err := cfg.Check()
+	if nil != err {
+		return nil, wrapError(err, "Invalid ServerCfg")
+	}
+
+	rv := &ServerState{
+		KeyStore: cfg.KeyStore,
+		Repo:     cfg.Repo,
+		next:     ServerInit,
+	}
+
+	return rv, nil
 }
 
 // protocols.Fsm implementation
