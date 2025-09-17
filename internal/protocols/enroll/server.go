@@ -8,7 +8,6 @@ import (
 
 	"code.kerpass.org/golang/internal/credentials"
 	"code.kerpass.org/golang/internal/protocols"
-	"code.kerpass.org/golang/internal/transport"
 	"code.kerpass.org/golang/pkg/noise"
 )
 
@@ -26,7 +25,6 @@ const (
 type ServerState struct {
 	KeyStore      credentials.KeyStore
 	Repo          credentials.ServerCredStore
-	Serializer    transport.Serializer
 	realmId       []byte
 	exitActions   srvExitAction
 	authorization credentials.EnrollAuthorization
@@ -65,7 +63,7 @@ func ServerInit(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte,
 
 	// receive Client: <- [EnrollReq]
 	req := EnrollReq{}
-	err = self.Serializer.Unmarshal(msg, &req)
+	err = cborSrz.Unmarshal(msg, &req)
 	if nil != err {
 		return sf, rmsg, wrapError(err, "failed unmarshaling EnrollReq")
 	}
@@ -135,7 +133,7 @@ func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerSta
 		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
 	}
 	cli := EnrollAuthorization{}
-	err = self.Serializer.Unmarshal(buf.Bytes(), &cli)
+	err = cborSrz.Unmarshal(buf.Bytes(), &cli)
 	if nil != err {
 		return sf, rmsg, wrapError(err, "failed unmarshaling EnrollAuthorization")
 	}
@@ -169,7 +167,7 @@ func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerSta
 		AppName: authorization.AppName,
 		AppLogo: authorization.AppLogo,
 	}
-	srzcardresp, err := self.Serializer.Marshal(cardresp)
+	srzcardresp, err := cborSrz.Marshal(cardresp)
 	if nil != err {
 		return sf, rmsg, wrapError(err, "failed serializing the EnrollCardCreateResp message")
 	}

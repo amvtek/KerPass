@@ -7,7 +7,6 @@ import (
 
 	"code.kerpass.org/golang/internal/credentials"
 	"code.kerpass.org/golang/internal/protocols"
-	"code.kerpass.org/golang/internal/transport"
 	"code.kerpass.org/golang/pkg/noise"
 )
 
@@ -18,7 +17,6 @@ type ClientExitFunc = protocols.ExitFunc[*ClientState]
 type ClientState struct {
 	RealmId         []byte
 	AuthorizationId []byte
-	Serializer      transport.Serializer
 	Repo            credentials.ClientCredStore
 	hs              noise.HandshakeState
 	cardId          int
@@ -81,7 +79,7 @@ func ClientInit(self *ClientState, _ []byte) (sf ClientStateFunc, rmsg []byte, e
 	// prepare Client: -> [EnrollReq]
 	// It can not be send as noise payload because the server needs to know the RealmId to load its static key...
 	req := EnrollReq{RealmId: self.RealmId, Msg: buf.Bytes()}
-	rmsg, err = self.Serializer.Marshal(req)
+	rmsg, err = cborSrz.Marshal(req)
 	if nil != err {
 		return sf, nil, wrapError(err, "failed serializing the initial EnrollReq message")
 	}
@@ -116,7 +114,7 @@ func ClientReceiveServerKey(self *ClientState, msg []byte) (sf ClientStateFunc, 
 	}
 
 	// prepare Client: -> s, se, {EnrollAuthorization}
-	srzmsg, err := self.Serializer.Marshal(EnrollAuthorization{AuthorizationId: self.AuthorizationId})
+	srzmsg, err := cborSrz.Marshal(EnrollAuthorization{AuthorizationId: self.AuthorizationId})
 	if nil != err {
 		return sf, rmsg, wrapError(err, "failed serializing the EnrollAuthorization message")
 	}
@@ -147,7 +145,7 @@ func ClientCardCreate(self *ClientState, msg []byte) (sf ClientStateFunc, rmsg [
 		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
 	}
 	srv := EnrollCardCreateResp{}
-	err = self.Serializer.Unmarshal(buf.Bytes(), &srv)
+	err = cborSrz.Unmarshal(buf.Bytes(), &srv)
 	if nil != err {
 		return sf, rmsg, wrapError(err, "failed unmarshaling EnrollCardCreateResp")
 	}
