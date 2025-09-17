@@ -20,11 +20,13 @@
 package enroll
 
 import (
+	"code.kerpass.org/golang/internal/transport"
 	"code.kerpass.org/golang/pkg/noise"
 )
 
 var noiseCfg noise.Config
 var dummyPsks [][]byte
+var cborSrz transport.SafeSerializer
 
 func init() {
 	// register custom pattern XXPSK45
@@ -50,4 +52,6 @@ func init() {
 	// those psks are here to allow exchanging more data during the handshake.
 	psk := make([]byte, 32)
 	dummyPsks = [][]byte{psk, psk}
+
+	cborSrz = transport.WrapInSafeSerializer(transport.CBORSerializer{})
 }
