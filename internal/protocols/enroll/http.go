@@ -15,16 +15,20 @@ import (
 	"code.kerpass.org/golang/internal/session"
 )
 
+// HttpSession allows synchronized access to enroll ServerState.
 type HttpSession struct {
 	mut   *sync.Mutex
 	state *ServerState
 }
 
+// HttpHandler holds configuration & state necessary for executing the enroll server protocol.
 type HttpHandler struct {
 	Cfg          ServerCfg
 	SessionStore *session.MemStore[session.Sid, HttpSession]
 }
 
+// ServeHTTP update enroll ServerState using message in incoming request.
+// ServeHTTP restore session ServerState in case of error.
 func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Print("=== ServeHTTP called ===\n")
 	// read incoming httpMsg
@@ -134,21 +138,25 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// writeError writes an error HTTP response to w.
 func writeError(w http.ResponseWriter, status int, msg string) {
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(status)
 	io.WriteString(w, msg)
 }
 
+// httpClient is a private interface that simplify mocking http.Client.
 type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// httpMsg is used to transport request/response of Enroll client & server.
 type httpMsg struct {
 	SessionId []byte `cbor:"1,keyasint"`
 	Msg       []byte `cbor:"2,keyasint"`
 }
 
+// EnrollOverHTTP runs the enroll client protocol over HTTP transport.
 func EnrollOverHTTP(ctx context.Context, cli httpClient, serverUrl string, cfg ClientCfg) error {
 
 	// validate serverUrl
