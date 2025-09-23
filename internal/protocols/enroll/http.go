@@ -9,11 +9,136 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sync"
 
 	"code.kerpass.org/golang/internal/protocols"
 	"code.kerpass.org/golang/internal/session"
 )
 
+type HttpSession struct {
+	mut   *sync.Mutex
+	state *ServerState
+}
+
+type HttpHandler struct {
+	Cfg          ServerCfg
+	SessionStore *session.MemStore[session.Sid, HttpSession]
+}
+
+func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fmt.Print("=== ServeHTTP called ===\n")
+	// read incoming httpMsg
+	srzmsg, err := io.ReadAll(r.Body)
+	if nil != err {
+		writeError(w, http.StatusBadRequest, "failed reading request body")
+		return
+	}
+	hm := httpMsg{}
+	err = cborSrz.Unmarshal(srzmsg, &hm)
+	if nil != err {
+		writeError(w, http.StatusBadRequest, "failed deserializing CBOR")
+		return
+	}
+
+	// success is true only if the handler runs until completion without error.
+	// success is read by deferred functions.
+	var success bool
+	defer func() {
+		if success {
+			fmt.Print("=== ServeHTTP SUCCESS ===\n")
+		} else {
+			fmt.Print("=== ServeHTTP ERROR ===\n")
+		}
+	}()
+
+	// read session
+	var sessionId session.Sid
+	var s HttpSession
+	var found bool
+	if 0 == len(hm.SessionId) {
+		// starts new session
+		state, err := NewServerState(self.Cfg)
+		if nil != err {
+			writeError(w, http.StatusInternalServerError, "invalid configuration")
+			return
+		}
+		s.mut = new(sync.Mutex)
+		s.state = state
+	} else {
+		// retrieve existing session
+		copy(sessionId[:], hm.SessionId)
+		s, found = self.SessionStore.Get(sessionId)
+		if !found {
+			writeError(w, http.StatusBadRequest, "invalid session")
+			return
+		}
+	}
+
+	// lock the session if it exists
+	if found {
+		s.mut.Lock()
+		defer s.mut.Unlock()
+	}
+
+	var bkupState ServerState
+	state, sf := s.state.State()
+	bkupState = *state
+	sf, rmsg, err := sf(state, hm.Msg)
+	defer func() {
+		if success {
+			s.state.SetState(sf)
+		} else {
+			s.state = &bkupState
+		}
+	}()
+	if (nil != err) && !errors.Is(err, protocols.OK) {
+		writeError(w, http.StatusBadRequest, "bad request")
+		return
+	}
+	status := http.StatusOK
+	if errors.Is(err, protocols.OK) {
+		status = http.StatusCreated
+		defer func() {
+			if success {
+				self.SessionStore.Pop(sessionId)
+			}
+		}()
+	}
+
+	if !found {
+		sessionId, err = self.SessionStore.Save(s)
+		if nil != err {
+			writeError(w, http.StatusInternalServerError, "error saving session")
+			return
+		}
+		hm.SessionId = sessionId[:]
+		defer func() {
+			if !success {
+				self.SessionStore.Pop(sessionId)
+			}
+		}()
+	}
+
+	hm.Msg = rmsg
+	srzmsg, err = cborSrz.Marshal(hm)
+	if nil != err {
+		writeError(w, http.StatusInternalServerError, "failed CBOR serialization")
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/cbor")
+	w.WriteHeader(status)
+	_, err = w.Write(srzmsg)
+	if nil == err {
+		success = true
+	}
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Add("Content-Type", "text/plain")
+	w.WriteHeader(status)
+	io.WriteString(w, msg)
+}
 
 type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
