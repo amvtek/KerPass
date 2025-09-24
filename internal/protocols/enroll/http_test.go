@@ -5,20 +5,24 @@ import (
 	"context"
 	"crypto/rand"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"code.kerpass.org/golang/internal/credentials"
+	"code.kerpass.org/golang/internal/observability"
 	"code.kerpass.org/golang/internal/session"
 )
 
 func TestHttpEnrollSuccess(t *testing.T) {
+	setDebugLogging(t)
+
 	clicfg, srvhdlr := makePeerConfig(t)
 
 	// starts test server
-	srv := httptest.NewServer(srvhdlr)
+	srv := httptest.NewServer(observability.Middleware{}.Wrap(srvhdlr))
 	defer srv.Close()
 
 	// run enrollment
@@ -49,10 +53,12 @@ func TestHttpEnrollSuccess(t *testing.T) {
 }
 
 func TestHttpEnrollReplaySuccess(t *testing.T) {
+	// setDebugLogging(t)
+
 	clicfg, srvhdlr := makePeerConfig(t)
 
 	// starts test server
-	srv := httptest.NewServer(srvhdlr)
+	srv := httptest.NewServer(observability.Middleware{}.Wrap(srvhdlr))
 	defer srv.Close()
 
 	// run enrollment
@@ -186,4 +192,12 @@ func makePeerConfig(t *testing.T) (ClientCfg, HttpHandler) {
 	}
 
 	return cli, srv
+}
+
+func setDebugLogging(t *testing.T) {
+	oldLevel := slog.SetLogLoggerLevel(slog.LevelDebug)
+	t.Cleanup(func() {
+		t.Logf("Restoring slog level to %s", oldLevel)
+		slog.SetLogLoggerLevel(oldLevel)
+	})
 }
