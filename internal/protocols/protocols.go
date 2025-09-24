@@ -1,6 +1,7 @@
 package protocols
 
 import (
+	"context"
 	"errors"
 
 	"code.kerpass.org/golang/internal/transport"
@@ -9,7 +10,7 @@ import (
 // StateFunc changes state S using incoming []byte message.
 // It returns next StateFunc and a message to be forwarded to connected peer.
 // To report protocol completion StateFunc returns an error wrapping protocols.OK.
-type StateFunc[S any] func(S, []byte) (StateFunc[S], []byte, error)
+type StateFunc[S any] func(context.Context, S, []byte) (StateFunc[S], []byte, error)
 
 // ExitFunc is called at protocol completion using protocol run error status.
 type ExitFunc[S any] func(S, error) error
@@ -24,7 +25,7 @@ type Fsm[S any] interface {
 }
 
 // Run reads & writes messages from/to Transport and executes protocol until completion.
-func Run[S any](fsm Fsm[S], tr transport.Transport) error {
+func Run[S any](ctx context.Context, fsm Fsm[S], tr transport.Transport) error {
 	var err error
 	s, sf := fsm.State()
 	defer func() {
@@ -47,7 +48,7 @@ func Run[S any](fsm Fsm[S], tr transport.Transport) error {
 	}
 
 	for {
-		sf, msg, errProto = sf(s, msg)
+		sf, msg, errProto = sf(ctx, s, msg)
 		if nil != msg {
 			errIO = tr.WriteBytes(msg)
 			if nil != errIO {

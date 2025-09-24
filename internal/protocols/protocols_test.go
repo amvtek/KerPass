@@ -2,10 +2,11 @@ package protocols
 
 import (
 	"bytes"
+	"context"
 	"io"
-	"log"
 	"testing"
 
+	"code.kerpass.org/golang/internal/observability"
 	"code.kerpass.org/golang/internal/transport"
 )
 
@@ -13,7 +14,7 @@ func TestRunFsmInitiator(t *testing.T) {
 	fsm := &dummyFsm{sf: dummyInit, initiator: true}
 	tr := mockTransport{Msg: []byte("stuff...")}
 
-	err := Run(fsm, tr)
+	err := Run(context.Background(), fsm, tr)
 	if nil != err {
 		t.Fatalf("failed fsm Run, got error %v", err)
 	}
@@ -23,7 +24,7 @@ func TestRunFsmResponder(t *testing.T) {
 	fsm := &dummyFsm{sf: dummyInit, initiator: false}
 	tr := mockTransport{Msg: []byte("stuff...")}
 
-	err := Run(fsm, tr)
+	err := Run(context.Background(), fsm, tr)
 	if nil != err {
 		t.Fatalf("failed fsm Run, got error %v", err)
 	}
@@ -33,7 +34,7 @@ func TestRunFsmFailProto01(t *testing.T) {
 	fsm := &dummyFsm{sf: dummyInit, initiator: true}
 	tr := mockTransport{Msg: failmsg}
 
-	err := Run(fsm, tr)
+	err := Run(context.Background(), fsm, tr)
 	if nil == err {
 		t.Fatalf("failed fsm Run, no error reported")
 	}
@@ -43,7 +44,7 @@ func TestRunFsmFailProto02(t *testing.T) {
 	fsm := &dummyFsm{sf: dummyInit, initiator: false}
 	tr := mockTransport{Msg: failmsg}
 
-	err := Run(fsm, tr)
+	err := Run(context.Background(), fsm, tr)
 	if nil == err {
 		t.Fatalf("failed fsm Run, no error reported")
 	}
@@ -53,7 +54,7 @@ func TestRunFsmFailIO01(t *testing.T) {
 	fsm := &dummyFsm{sf: dummyInit, initiator: true}
 	tr := mockTransport{Msg: []byte("stuff"), Err: io.EOF}
 
-	err := Run(fsm, tr)
+	err := Run(context.Background(), fsm, tr)
 	if nil == err {
 		t.Fatalf("failed fsm Run, no error reported")
 	}
@@ -63,7 +64,7 @@ func TestRunFsmFailIO02(t *testing.T) {
 	fsm := &dummyFsm{sf: dummyInit, initiator: true}
 	tr := mockTransport{Msg: []byte("stuff"), Err: io.EOF}
 
-	err := Run(fsm, tr)
+	err := Run(context.Background(), fsm, tr)
 	if nil == err {
 		t.Fatalf("failed fsm Run, no error reported")
 	}
@@ -103,19 +104,20 @@ var _ Fsm[dummy] = &dummyFsm{}
 
 var failmsg = []byte("FAIL")
 
-func dummyInit(_ dummy, msg []byte) (sf StateFunc[dummy], rmsg []byte, err error) {
-	log.Print("[dummyInit] called")
+func dummyInit(ctx context.Context, _ dummy, msg []byte) (sf StateFunc[dummy], rmsg []byte, err error) {
+	log := observability.GetObservability(ctx).Log().With("state", "dummyInit")
+	log.Info("entering state")
 	sf = dummyInit
 	if bytes.Equal(msg, failmsg) {
 		sf = dummyFail
 		err = newError("received the FAIL msg")
-		log.Print("[dummyInit] returning FAIL msg error.")
+		log.Info("transitioning to dummyFail state")
 		return sf, rmsg, err
 	}
 	if len(msg) > 0 {
 		sf = dummyOk
 		err = wrapError(OK, "this is It")
-		log.Print("[dummyInit] returning protocol.OK")
+		log.Info("returning protocols.OK")
 	}
 	rmsg = []byte("NEXT")
 
@@ -123,16 +125,18 @@ func dummyInit(_ dummy, msg []byte) (sf StateFunc[dummy], rmsg []byte, err error
 
 }
 
-func dummyFail(_ dummy, _ []byte) (sf StateFunc[dummy], rmsg []byte, err error) {
-	log.Print("[dummyFail] dummyFail called")
+func dummyFail(ctx context.Context, _ dummy, _ []byte) (sf StateFunc[dummy], rmsg []byte, err error) {
+	log := observability.GetObservability(ctx).Log().With("state", "dummyFail")
+	log.Info("entering state")
 	sf = dummyFail
 	err = newError("failed previously...")
 
 	return sf, rmsg, err
 }
 
-func dummyOk(_ dummy, _ []byte) (sf StateFunc[dummy], rmsg []byte, err error) {
-	log.Print("[dummyOk] dummyOk called")
+func dummyOk(ctx context.Context, _ dummy, _ []byte) (sf StateFunc[dummy], rmsg []byte, err error) {
+	log := observability.GetObservability(ctx).Log().With("state", "dummyOk")
+	log.Info("entering state")
 	sf = dummyOk
 	// panic if called in Run...
 	panic("I don't expect to be called...")
