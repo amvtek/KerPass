@@ -3,14 +3,15 @@ package enroll
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"slices"
 	"sync"
 
+	"code.kerpass.org/golang/internal/observability"
 	"code.kerpass.org/golang/internal/protocols"
 	"code.kerpass.org/golang/internal/session"
 )
@@ -30,30 +31,29 @@ type HttpHandler struct {
 // ServeHTTP update enroll ServerState using message in incoming request.
 // ServeHTTP restore session ServerState in case of error.
 func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Print("=== ServeHTTP called ===\n")
+	var errmsg string
+	log := observability.GetObservability(r.Context()).Log().With("handler", "enroll")
+
 	// read incoming httpMsg
 	srzmsg, err := io.ReadAll(r.Body)
 	if nil != err {
-		writeError(w, http.StatusBadRequest, "failed reading request body")
+		errmsg = "failed reading request body"
+		log.Error(errmsg, "error", err)
+		writeError(w, http.StatusBadRequest, errmsg)
 		return
 	}
 	hm := httpMsg{}
 	err = cborSrz.Unmarshal(srzmsg, &hm)
 	if nil != err {
-		writeError(w, http.StatusBadRequest, "failed deserializing CBOR")
+		errmsg = "failed deserializing CBOR"
+		log.Error(errmsg, "error", err)
+		writeError(w, http.StatusBadRequest, errmsg)
 		return
 	}
 
 	// success is true only if the handler runs until completion without error.
 	// success is read by deferred functions.
 	var success bool
-	defer func() {
-		if success {
-			fmt.Print("=== ServeHTTP SUCCESS ===\n")
-		} else {
-			fmt.Print("=== ServeHTTP ERROR ===\n")
-		}
-	}()
 
 	// read session
 	var sessionId session.Sid
@@ -61,9 +61,12 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var found bool
 	if 0 == len(hm.SessionId) {
 		// starts new session
+		log.Debug("starting new HTTP session")
 		state, err := NewServerState(self.Cfg)
 		if nil != err {
-			writeError(w, http.StatusInternalServerError, "invalid configuration")
+			errmsg = "invalid configuration"
+			log.Error(errmsg, "error", err)
+			writeError(w, http.StatusInternalServerError, errmsg)
 			return
 		}
 		s.mut = new(sync.Mutex)
@@ -73,9 +76,12 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		copy(sessionId[:], hm.SessionId)
 		s, found = self.SessionStore.Get(sessionId)
 		if !found {
-			writeError(w, http.StatusBadRequest, "invalid session")
+			errmsg = "invalid session"
+			log.Error(errmsg, "sId", hex.EncodeToString(hm.SessionId))
+			writeError(w, http.StatusBadRequest, errmsg)
 			return
 		}
+		log.Debug("reloaded HTTP session", "sId", hex.EncodeToString(hm.SessionId))
 	}
 
 	// lock the session if it exists
@@ -96,6 +102,8 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	if (nil != err) && !errors.Is(err, protocols.OK) {
+		errmsg = "protocol error"
+		log.Error(errmsg, "error", err)
 		writeError(w, http.StatusBadRequest, "bad request")
 		return
 	}
@@ -104,20 +112,26 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusCreated
 		defer func() {
 			if success {
+				log.Debug("clearing HTTP session", "sId", hex.EncodeToString(sessionId[:]))
 				self.SessionStore.Pop(sessionId)
 			}
 		}()
 	}
 
 	if !found {
+		log.Debug("saving new HTTP session")
 		sessionId, err = self.SessionStore.Save(s)
 		if nil != err {
-			writeError(w, http.StatusInternalServerError, "error saving session")
+			errmsg = "error saving session"
+			log.Error(errmsg, "error", err)
+			writeError(w, http.StatusInternalServerError, errmsg)
 			return
 		}
 		hm.SessionId = sessionId[:]
 		defer func() {
 			if !success {
+				// if we fail the newly created session is useless
+				// as the new sessionId was never forwarded to the client...
 				self.SessionStore.Pop(sessionId)
 			}
 		}()
@@ -126,7 +140,9 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hm.Msg = rmsg
 	srzmsg, err = cborSrz.Marshal(hm)
 	if nil != err {
-		writeError(w, http.StatusInternalServerError, "failed CBOR serialization")
+		errmsg = "failed CBOR serialization"
+		log.Error(errmsg, "error", err)
+		writeError(w, http.StatusInternalServerError, errmsg)
 		return
 	}
 
@@ -135,6 +151,8 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(srzmsg)
 	if nil == err {
 		success = true
+	} else {
+		log.Error("failed meanwhile delivering the HTTP response", "error", err)
 	}
 }
 
