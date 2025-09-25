@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,7 +16,7 @@ import (
 )
 
 func TestHttpEnrollSuccess(t *testing.T) {
-	setDebugLogging(t)
+	observability.SetTestDebugLogging(t)
 
 	clicfg, srvhdlr := makePeerConfig(t)
 
@@ -53,7 +52,7 @@ func TestHttpEnrollSuccess(t *testing.T) {
 }
 
 func TestHttpEnrollReplaySuccess(t *testing.T) {
-	// setDebugLogging(t)
+	observability.SetTestDebugLogging(t)
 
 	clicfg, srvhdlr := makePeerConfig(t)
 
@@ -192,12 +191,4 @@ func makePeerConfig(t *testing.T) (ClientCfg, HttpHandler) {
 	}
 
 	return cli, srv
-}
-
-func setDebugLogging(t *testing.T) {
-	oldLevel := slog.SetLogLoggerLevel(slog.LevelDebug)
-	t.Cleanup(func() {
-		t.Logf("Restoring slog level to %s", oldLevel)
-		slog.SetLogLoggerLevel(oldLevel)
-	})
 }

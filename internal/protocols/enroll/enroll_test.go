@@ -1,6 +1,7 @@
 package enroll
 
 import (
+	"context"
 	"crypto/rand"
 	"net"
 	"testing"
@@ -9,9 +10,11 @@ import (
 	"code.kerpass.org/golang/internal/credentials"
 	"code.kerpass.org/golang/internal/protocols"
 	"code.kerpass.org/golang/internal/transport"
+	"code.kerpass.org/golang/internal/observability"
 )
 
 func TestFsmEnrollSuccess(t *testing.T) {
+	observability.SetTestDebugLogging(t)
 	cli, srv := makePeerState(t)
 
 	// create transports
@@ -25,14 +28,14 @@ func TestFsmEnrollSuccess(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(cli, ct)
+		err := protocols.Run(context.Background(), cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(srv, st)
+		err := protocols.Run(context.Background(), srv, st)
 		result <- err
 	}(rs)
 
@@ -66,6 +69,7 @@ func TestFsmEnrollSuccess(t *testing.T) {
 }
 
 func TestFsmEnrollFailAuthorization(t *testing.T) {
+	observability.SetTestDebugLogging(t)
 	cli, srv := makePeerState(t)
 
 	// change client authorization
@@ -82,14 +86,14 @@ func TestFsmEnrollFailAuthorization(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(cli, ct)
+		err := protocols.Run(context.Background(), cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(srv, st)
+		err := protocols.Run(context.Background(), srv, st)
 		result <- err
 	}(rs)
 
@@ -122,6 +126,7 @@ func TestFsmEnrollFailAuthorization(t *testing.T) {
 }
 
 func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
+	observability.SetTestDebugLogging(t)
 	cli, srv := makePeerState(t)
 
 	// create transports
@@ -140,14 +145,14 @@ func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(cli, ct)
+		err := protocols.Run(context.Background(), cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(srv, st)
+		err := protocols.Run(context.Background(), srv, st)
 		result <- err
 	}(rs)
 
@@ -183,6 +188,7 @@ func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
 }
 
 func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
+	observability.SetTestDebugLogging(t)
 	cli, srv := makePeerState(t)
 
 	// create transports
@@ -201,14 +207,14 @@ func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
 	// run client protocol
 	rc := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(cli, ct)
+		err := protocols.Run(context.Background(), cli, ct)
 		result <- err
 	}(rc)
 
 	// run server protocol
 	rs := make(chan error, 1)
 	go func(result chan<- error) {
-		err := protocols.Run(srv, st)
+		err := protocols.Run(context.Background(), srv, st)
 		result <- err
 	}(rs)
 
