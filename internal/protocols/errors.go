@@ -1,8 +1,11 @@
 package protocols
 
 import (
+	"errors"
+
 	"code.kerpass.org/golang/internal/utils"
 )
+
 
 // errorFlag is a private error type that allows declaring error constants.
 type errorFlag string
@@ -25,6 +28,11 @@ func (self errorFlag) Unwrap() error {
 	} else {
 		return Error
 	}
+}
+
+// IsError test if err is not protocols.OK
+func IsError(err error) bool {
+	return (nil != err) && !errors.Is(err, OK)
 }
 
 // newError returns a utils.RaisedErr{} that contains file & line of where it was called.
