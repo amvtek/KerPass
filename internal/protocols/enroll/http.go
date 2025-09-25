@@ -93,7 +93,7 @@ func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var bkupState ServerState
 	state, sf := s.state.State()
 	bkupState = *state
-	sf, rmsg, err := sf(state, hm.Msg)
+	sf, rmsg, err := sf(r.Context(), state, hm.Msg)
 	defer func() {
 		if success {
 			s.state.SetState(sf)
@@ -199,7 +199,7 @@ func EnrollOverHTTP(ctx context.Context, cli httpClient, serverUrl string, cfg C
 	var resp *http.Response
 	var errProto, errIO error
 	for step := range 3 {
-		stateFunc, climsg, errProto = stateFunc(state, srvmsg)
+		stateFunc, climsg, errProto = stateFunc(ctx, state, srvmsg)
 		if nil == climsg {
 			break
 		}
