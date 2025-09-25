@@ -2,11 +2,13 @@ package enroll
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"slices"
 
 	"code.kerpass.org/golang/internal/credentials"
+	"code.kerpass.org/golang/internal/observability"
 	"code.kerpass.org/golang/internal/protocols"
 	"code.kerpass.org/golang/pkg/noise"
 )
@@ -89,25 +91,36 @@ var _ protocols.Fsm[*ServerState] = &ServerState{}
 
 // State functions
 
-func ServerInit(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
+func ServerInit(ctx context.Context, self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
 	sf = ServerInit
+	var errmsg string
+
+	// get logger
+	log := observability.GetObservability(ctx).Log().With("state", "ClientInit")
 
 	// receive Client: <- [EnrollReq]
+	log.Debug("unmarshalling client EnrollReq")
 	req := EnrollReq{}
 	err = cborSrz.Unmarshal(msg, &req)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed unmarshaling EnrollReq")
+		errmsg = "failed unmarshalling client EnrollReq"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
 	// retrieve Realm ServerKey
+	log.Debug("loading ServerKey for EnrollReq.RealmId")
 	sk := credentials.ServerKey{}
 	found := self.KeyStore.GetServerKey(req.RealmId, &sk)
 	if !found {
-		return sf, rmsg, newError("failed loading ServerKey for realm % X", req.RealmId)
+		errmsg = "failed loading ServerKey for EnrollReq.RealmId"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg+" %X", req.RealmId)
 	}
 	self.realmId = req.RealmId
 
 	// initialize Handshake
+	log.Debug("initializing noise handshake")
 	params := noise.HandshakeParams{
 		Cfg:           noiseCfg,
 		Prologue:      req.RealmId,
@@ -115,61 +128,73 @@ func ServerInit(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte,
 		Psks:          dummyPsks,
 		Initiator:     false,
 	}
-
-	// schedule recovering inner noise HandshakeState in case of error...
-	hsbkup := self.hs
-	defer func() {
-		if nil != err {
-			self.hs = hsbkup
-		}
-	}()
-
 	err = self.hs.Initialize(params)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed hs.Initialize")
+		errmsg = "failed initializing noise handshake"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
 	// receive Client: <- e, []
+	log.Debug("reading handshake message")
 	var buf bytes.Buffer
 	_, err = self.hs.ReadMessage(req.Msg, &buf)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
+		errmsg = "failed reading handshake message"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
 	// prepare Server: -> e, ee, s, es {Certificate}
+	log.Debug("generating handshake message with static key certificate payload")
 	buf.Reset()
 	_, err = self.hs.WriteMessage(sk.Certificate, &buf)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed noise handshake WriteMessage")
+		errmsg = "failed generating handshake message"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
+	log.Debug("OK, switching to ServerCheckEnrollAuthorization state")
 	return ServerCheckEnrollAuthorization, buf.Bytes(), err
 }
 
-func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
+func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
 	sf = ServerCheckEnrollAuthorization
+	var errmsg string
+
+	// get logger
+	log := observability.GetObservability(ctx).Log().With("state", "ServerCheckEnrollAuthorization")
 
 	// schedule recovering inner noise HandshakeState in case of error...
 	hsbkup := self.hs
 	defer func() {
 		if nil != err {
+			log.Debug("restoring initial handshake state following error")
 			self.hs = hsbkup
 		}
 	}()
 
 	// receive Client: <- s, se, {EnrollAuthorizatiom}
+	log.Debug("reading handshake message")
 	var buf bytes.Buffer
 	_, err = self.hs.ReadMessage(msg, &buf)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
+		errmsg = "failed reading handshake message"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
+	log.Debug("extracting client EnrollAuthorization from handshake message payload")
 	cli := EnrollAuthorization{}
 	err = cborSrz.Unmarshal(buf.Bytes(), &cli)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed unmarshaling EnrollAuthorization")
+		errmsg = "failed CBOR unmarshal of EnrollAuthorization"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
 	// check EnrollAuthorization
+	log.Debug("controlling client EnrollAuthorization")
 	authorization := credentials.EnrollAuthorization{}
 	var isValidAuthorization bool
 	if self.Repo.PopEnrollAuthorization(cli.AuthorizationId, &authorization) {
@@ -178,7 +203,9 @@ func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerSta
 		}
 	}
 	if !isValidAuthorization {
-		err = newError("client forwarded an invalid authorization")
+		errmsg = "client forwarded an invalid authorization"
+		err = wrapError(ErrInvalidAuthorization, errmsg)
+		log.Debug(errmsg, "error", err)
 		return sf, rmsg, err
 	}
 
@@ -188,10 +215,13 @@ func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerSta
 	self.exitActions |= srvRestoreAuthorization
 
 	// create EnrollCardCreateResp
+	log.Debug("preparing EnrollCardCreateResp")
 	cardId := make([]byte, 32)
 	_, err = rand.Read(cardId)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed generating cardId")
+		errmsg = "failed generating cardId"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 	cardresp := EnrollCardCreateResp{
 		CardId:  cardId,
@@ -200,53 +230,74 @@ func ServerCheckEnrollAuthorization(self *ServerState, msg []byte) (sf ServerSta
 	}
 	srzcardresp, err := cborSrz.Marshal(cardresp)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed serializing the EnrollCardCreateResp message")
+		errmsg = "failed CBOR marshal of EnrollCardCreateResp"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
 	// prepare Server: -> psk, {EnrollCardCreateResp}
+	log.Debug("generating handshake message with EnrollCardCreateResp payload")
 	buf.Reset()
 	_, err = self.hs.WriteMessage(srzcardresp, &buf)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed noise handshake WriteMessage")
+		errmsg = "failed generating handshake message"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
 	// create new ServerCard
+	log.Debug("creating Card")
 	psk, err := derivePSK(authorization.RealmId, cardId, self.hs.GetHandshakeHash())
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed deriving psk")
+		errmsg = "failed deriving Card psk"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 	sc := credentials.ServerCard{RealmId: authorization.RealmId, CardId: cardId, Psk: psk}
 	sc.Kh.PublicKey = self.hs.RemoteStaticKey()
 	self.card = sc
 
+	log.Debug("OK, switching to ServerCardSave state")
 	return ServerCardSave, buf.Bytes(), err
 }
 
-func ServerCardSave(self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
+func ServerCardSave(ctx context.Context, self *ServerState, msg []byte) (sf ServerStateFunc, rmsg []byte, err error) {
 	sf = ServerCardSave
+	var errmsg string
+
+	// get logger
+	log := observability.GetObservability(ctx).Log().With("state", "ServerCardSave")
 
 	// schedule recovering inner noise HandshakeState in case of error...
 	hsbkup := self.hs
 	defer func() {
-		if nil != err {
+		if protocols.IsError(err) {
+			log.Debug("restoring initial handshake state following error")
 			self.hs = hsbkup
 		}
 	}()
 
 	// receive Client: <- psk, {}
+	log.Debug("reading handshake message")
 	var buf bytes.Buffer
 	_, err = self.hs.ReadMessage(msg, &buf)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed noise handshake ReadMessage")
+		errmsg = "failed reading handshake message"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 
 	// save new ServerCard
+	log.Debug("saving Card")
 	err = self.Repo.SaveCard(self.card)
 	if nil != err {
-		return sf, rmsg, wrapError(err, "failed saving card")
+		errmsg = "failed saving card"
+		log.Debug(errmsg, "error", err)
+		return sf, rmsg, wrapError(err, errmsg)
 	}
 	self.exitActions |= srvRemoveCard
 
+	log.Debug("SUCCESS, completed enroll protocol")
 	return nil, nil, protocols.OK
 }
 
