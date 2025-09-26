@@ -6,7 +6,6 @@ import (
 	"code.kerpass.org/golang/internal/utils"
 )
 
-
 // errorFlag is a private error type that allows declaring error constants.
 type errorFlag string
 
