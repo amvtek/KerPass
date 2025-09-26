@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"code.kerpass.org/golang/internal/credentials"
+	"code.kerpass.org/golang/internal/observability"
 	"code.kerpass.org/golang/internal/protocols"
 	"code.kerpass.org/golang/internal/transport"
-	"code.kerpass.org/golang/internal/observability"
 )
 
 func TestFsmEnrollSuccess(t *testing.T) {
