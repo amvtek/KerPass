@@ -1,0 +1,19 @@
+# Ignore list for quick & clean rsync transfert
+# rsync -avz --exclude-from rsync_ignore.txt ./ user@server:/path/to/remote/project/folder
+.svn*
+.git*
+.ruff-cache*
+__pycache__*
+__MACOSX*
+workenv.sh
+.env
+*.swp
+*.pyc
+*.egg-info
+.gitignore
+*.egg-info
+.pytest_cache*
+ui/node_modules*
+rsync_ignore.txt
+README.md
+deploy
