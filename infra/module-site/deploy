@@ -1,0 +1,101 @@
+#! /usr/bin/env bash
+set -eou pipefail
+
+script_dir=$(dirname $0)
+
+# source .env file if present
+env_file="$script_dir/.env"
+if [[ -f "$env_file" ]]; then
+	echo "---"
+	echo "sourcing configuration .env file"
+	set -a
+	source "$env_file"
+	set +a
+	echo "OK"
+fi
+
+REMOTE_USER="${REMOTE_USER:-amvtek}"
+REMOTE_HOST="${REMOTE_HOST:-rudy02}"
+REMOTE_WEBROOT="${REMOTE_WEBROOT:-/usr/local/www}"
+REMOTE_SITE="${REMOTE_SITE:-code.kerpass.org}"
+
+remote_exec="ssh $REMOTE_USER@$REMOTE_HOST bash"
+transfer_dst="transfers/$REMOTE_SITE"
+deploy_dst="$REMOTE_WEBROOT/$REMOTE_SITE"
+
+new_nginx_config="$transfer_dst/etc/nginxhosts.conf"
+nginx_config="$deploy_dst/etc/nginxhosts.conf"
+nginx_config_bkup="nginxhosts.conf.bkup"
+
+echo "---"
+echo "ensure transfert destination folder exists on $REMOTE_HOST"
+$remote_exec <<EOF
+cd ~
+mkdir -p "$transfer_dst"
+EOF
+echo "OK"
+
+echo "---"
+echo "transferring $REMOTE_SITE to $REMOTE_HOST"
+rsync -avz --exclude-from "$script_dir/rsync_ignore.txt" "$script_dir/" "$REMOTE_USER@$REMOTE_HOST:~/$transfer_dst"
+echo "OK"
+
+echo "---"
+echo "deploying $REMOTE_SITE on $REMOTE_HOST"
+$remote_exec <<EOF
+set -eou pipefail
+
+cd ~
+
+# determine if we are deploying a new nginx config
+set +e
+diff "$new_nginx_config" "$nginx_config" >> /dev/null
+config_change=\$?
+set -e
+if [[ \$config_change -ne 0 ]]; then
+	echo "---"
+	echo "detected nginx config changes"
+	rm -f "$nginx_config_bkup"
+	if [[ -f "$nginx_config" ]]; then
+		echo "backing up existing nginx configuration"
+		cp "$nginx_config" "$nginx_config_bkup"
+		echo "OK"
+	fi
+fi
+
+# deploy new site version
+echo "---"
+echo "deploying new site version"
+sudo cp -r "$transfer_dst/"* "$deploy_dst/"
+if [[ \$config_change -eq 0 ]]; then
+	echo "SUCCESS, deploying $REMOTE_SITE"
+	exit 0
+fi
+
+# test nginx configuration
+echo "---"
+echo "testing nginx configuration"
+set +e
+sudo service nginx configtest
+config_status=\$?
+set -e
+if [[ \$config_status -ne 0 ]]; then
+	echo "transferred nginx configuration appears invalid"
+	if [[ -f "$nginx_config_bkup" ]]; then
+		# restore old nginx configuration
+		sudo cp "$nginx_config_bkup" "$nginx_config"
+		echo "restored previous nginx configuration"
+	fi
+	echo "FAILED, deploying $REMOTE_SITE"
+	exit 1
+fi
+
+# restarting nginx
+echo "---"
+echo "restarting nginx"
+sudo service nginx restart
+echo "OK"
+
+echo "SUCCESS, deploying $REMOTE_SITE"
+EOF
+echo "OK"
