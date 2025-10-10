@@ -10,7 +10,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"code.kerpass.org/golang/internal/credentials"
+	"code.kerpass.org/golang/pkg/credentials"
 )
 
 func TestNew(t *testing.T) {

@@ -6,10 +6,10 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 
-	"code.kerpass.org/golang/internal/credentials"
 	"code.kerpass.org/golang/internal/observability"
-	"code.kerpass.org/golang/internal/protocols"
+	"code.kerpass.org/golang/pkg/credentials"
 	"code.kerpass.org/golang/pkg/noise"
+	"code.kerpass.org/golang/pkg/protocols"
 )
 
 type ClientStateFunc = protocols.StateFunc[*ClientState]
