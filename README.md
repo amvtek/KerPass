@@ -28,7 +28,11 @@ PKI for establishing trust.
 We believe they are, hopefully this modernization effort will demonstrate that we have
 been underestimating them. 
 
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file
+for details.
+
 [1]: https://en.wikipedia.org/wiki/Password-authenticated_key_agreement
 [2]: https://developer.mozilla.org/en-US/docs/Web/API/Web_Authentication_API
-
 
