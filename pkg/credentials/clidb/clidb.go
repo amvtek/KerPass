@@ -12,7 +12,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 	_ "golang.org/x/crypto/blake2s"
 
-	"code.kerpass.org/golang/internal/credentials"
+	"code.kerpass.org/golang/pkg/credentials"
 )
 
 const (

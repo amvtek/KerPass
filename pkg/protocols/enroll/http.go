@@ -12,8 +12,8 @@ import (
 	"sync"
 
 	"code.kerpass.org/golang/internal/observability"
-	"code.kerpass.org/golang/internal/protocols"
 	"code.kerpass.org/golang/internal/session"
+	"code.kerpass.org/golang/pkg/protocols"
 )
 
 // HttpSession allows synchronized access to enroll ServerState.

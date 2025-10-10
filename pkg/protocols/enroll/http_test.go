@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"code.kerpass.org/golang/internal/credentials"
 	"code.kerpass.org/golang/internal/observability"
 	"code.kerpass.org/golang/internal/session"
+	"code.kerpass.org/golang/pkg/credentials"
 )
 
 func TestHttpEnrollSuccess(t *testing.T) {
