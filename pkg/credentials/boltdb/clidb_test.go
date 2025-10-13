@@ -1,4 +1,4 @@
-package clidb
+package boltdb
 
 import (
 	"crypto/ecdh"

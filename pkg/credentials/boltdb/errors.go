@@ -1,4 +1,4 @@
-package clidb
+package boltdb
 
 import (
 	"code.kerpass.org/golang/internal/utils"
@@ -9,7 +9,7 @@ type errorFlag string
 
 const (
 	// All package errors are wrapping Error
-	Error   = errorFlag("clidb: error")
+	Error   = errorFlag("boltdb: error")
 	noError = errorFlag("")
 )
 
