@@ -1,5 +1,5 @@
-// Package clidb provides a persistent credentials.ClientCredStore that keeps data in a file.
-package clidb
+// Package boltdb provides a persistent credentials.ClientCredStore that keeps data in a file.
+package boltdb
 
 import (
 	"bytes"
