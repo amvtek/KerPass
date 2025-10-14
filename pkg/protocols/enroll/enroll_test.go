@@ -56,13 +56,13 @@ func TestFsmEnrollSuccess(t *testing.T) {
 	}
 
 	// check that server Card was saved
-	count = srv.Repo.CardCount()
+	count = srv.Repo.CardCount(context.Background())
 	if 1 != count {
 		t.Errorf("failed server CardCount control, %d != 1", count)
 	}
 
 	// check that server Authorization was removed
-	count = srv.Repo.AuthorizationCount()
+	count = srv.Repo.AuthorizationCount(context.Background())
 	if 0 != count {
 		t.Errorf("failed server AuthorizationCount control, %d != 0", count)
 	}
@@ -118,7 +118,7 @@ func TestFsmEnrollFailAuthorization(t *testing.T) {
 	}
 
 	// check that no server Card was saved
-	count = srv.Repo.CardCount()
+	count = srv.Repo.CardCount(context.Background())
 	if 0 != count {
 		t.Errorf("failed server CardCount control, %d != 0", count)
 	}
@@ -174,13 +174,13 @@ func TestFsmEnrollFailReadClientConfirmation(t *testing.T) {
 	}
 
 	// check that no server Card was saved
-	count := srv.Repo.CardCount()
+	count := srv.Repo.CardCount(context.Background())
 	if 0 != count {
 		t.Errorf("failed server CardCount control, %d != 0", count)
 	}
 
 	// check that authorization was restored
-	count = srv.Repo.AuthorizationCount()
+	count = srv.Repo.AuthorizationCount(context.Background())
 	if 1 != count {
 		t.Errorf("failed server AuthorizationCount control, %d != 1", count)
 	}
@@ -239,13 +239,13 @@ func TestFsmEnrollFailWriteClientConfirmation(t *testing.T) {
 	}
 
 	// check that no server Card was saved
-	count = srv.Repo.CardCount()
+	count = srv.Repo.CardCount(context.Background())
 	if 0 != count {
 		t.Errorf("failed server CardCount control, %d != 0", count)
 	}
 
 	// check that authorization was restored
-	count = srv.Repo.AuthorizationCount()
+	count = srv.Repo.AuthorizationCount(context.Background())
 	if 1 != count {
 		t.Errorf("failed server AuthorizationCount control, %d != 1", count)
 	}
@@ -269,7 +269,7 @@ func makePeerState(t *testing.T) (*ClientState, *ServerState) {
 
 	// prepare server KeyStore
 	keyStore := credentials.NewMemKeyStore()
-	err = keyStore.SaveServerKey(srvKey)
+	err = keyStore.SaveServerKey(context.Background(), srvKey)
 	if nil != err {
 		t.Fatalf("failed initializing keyStore, got error %v", err)
 	}
@@ -285,7 +285,7 @@ func makePeerState(t *testing.T) (*ClientState, *ServerState) {
 
 	// prepare server CredStore
 	serverCredStore := credentials.NewMemServerCredStore()
-	err = serverCredStore.SaveEnrollAuthorization(authorization)
+	err = serverCredStore.SaveEnrollAuthorization(context.Background(), authorization)
 	if nil != err {
 		t.Fatalf("failed initializing serverCredStore, got error %v", err)
 	}

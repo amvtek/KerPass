@@ -111,7 +111,7 @@ func ServerInit(ctx context.Context, self *ServerState, msg []byte) (sf ServerSt
 	// retrieve Realm ServerKey
 	log.Debug("loading ServerKey for EnrollReq.RealmId")
 	sk := credentials.ServerKey{}
-	found := self.KeyStore.GetServerKey(req.RealmId, &sk)
+	found := self.KeyStore.GetServerKey(ctx, req.RealmId, &sk)
 	if !found {
 		errmsg = "failed loading ServerKey for EnrollReq.RealmId"
 		log.Debug(errmsg, "error", err)
@@ -197,7 +197,7 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 	log.Debug("controlling client EnrollAuthorization")
 	authorization := credentials.EnrollAuthorization{}
 	var isValidAuthorization bool
-	if self.Repo.PopEnrollAuthorization(cli.AuthorizationId, &authorization) {
+	if self.Repo.PopEnrollAuthorization(ctx, cli.AuthorizationId, &authorization) {
 		if slices.Equal(self.realmId, authorization.RealmId) {
 			isValidAuthorization = true
 		}
@@ -289,7 +289,7 @@ func ServerCardSave(ctx context.Context, self *ServerState, msg []byte) (sf Serv
 
 	// save new ServerCard
 	log.Debug("saving Card")
-	err = self.Repo.SaveCard(self.card)
+	err = self.Repo.SaveCard(ctx, self.card)
 	if nil != err {
 		errmsg = "failed saving card"
 		log.Debug(errmsg, "error", err)
@@ -312,10 +312,10 @@ func ServerExit(self *ServerState, rs error) error {
 
 	var err1, err2 error
 	if srvRestoreAuthorization == (self.exitActions & srvRestoreAuthorization) {
-		err1 = self.Repo.SaveEnrollAuthorization(self.authorization)
+		err1 = self.Repo.SaveEnrollAuthorization(context.Background(), self.authorization)
 	}
 	if srvRemoveCard == (self.exitActions & srvRemoveCard) {
-		removed := self.Repo.RemoveCard(self.card.CardId)
+		removed := self.Repo.RemoveCard(context.Background(), self.card.CardId)
 		if !removed {
 			err2 = newError("Failed removing ServerCard")
 		}
