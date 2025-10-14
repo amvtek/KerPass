@@ -39,13 +39,13 @@ func TestHttpEnrollSuccess(t *testing.T) {
 	}
 
 	// check that server Card was saved
-	count = srvhdlr.Cfg.Repo.CardCount()
+	count = srvhdlr.Cfg.Repo.CardCount(ctx)
 	if 1 != count {
 		t.Errorf("failed server CardCount control, %d != 1", count)
 	}
 
 	// check that server Authorization was removed
-	count = srvhdlr.Cfg.Repo.AuthorizationCount()
+	count = srvhdlr.Cfg.Repo.AuthorizationCount(ctx)
 	if 0 != count {
 		t.Errorf("failed server AuthorizationCount control, %d != 0", count)
 	}
@@ -76,13 +76,13 @@ func TestHttpEnrollReplaySuccess(t *testing.T) {
 	}
 
 	// check that server Card was saved
-	count = srvhdlr.Cfg.Repo.CardCount()
+	count = srvhdlr.Cfg.Repo.CardCount(ctx)
 	if 1 != count {
 		t.Errorf("failed server CardCount control, %d != 1", count)
 	}
 
 	// check that server Authorization was removed
-	count = srvhdlr.Cfg.Repo.AuthorizationCount()
+	count = srvhdlr.Cfg.Repo.AuthorizationCount(ctx)
 	if 0 != count {
 		t.Errorf("failed server AuthorizationCount control, %d != 0", count)
 	}
@@ -143,7 +143,7 @@ func makePeerConfig(t *testing.T) (ClientCfg, HttpHandler) {
 
 	// prepare server KeyStore
 	keyStore := credentials.NewMemKeyStore()
-	err = keyStore.SaveServerKey(srvKey)
+	err = keyStore.SaveServerKey(context.Background(), srvKey)
 	if nil != err {
 		t.Fatalf("failed initializing keyStore, got error %v", err)
 	}
@@ -159,7 +159,7 @@ func makePeerConfig(t *testing.T) (ClientCfg, HttpHandler) {
 
 	// prepare server CredStore
 	serverCredStore := credentials.NewMemServerCredStore()
-	err = serverCredStore.SaveEnrollAuthorization(authorization)
+	err = serverCredStore.SaveEnrollAuthorization(context.Background(), authorization)
 	if nil != err {
 		t.Fatalf("failed initializing serverCredStore, got error %v", err)
 	}

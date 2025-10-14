@@ -1,6 +1,7 @@
 package credentials
 
 import (
+	"context"
 	"sync"
 )
 
@@ -9,11 +10,11 @@ import (
 type KeyStore interface {
 	// GetServerKey loads realm static Keypair in srvkey.
 	// It returns true if the Keypair was effectively loaded.
-	GetServerKey(realmId []byte, srvkey *ServerKey) bool
+	GetServerKey(ctx context.Context, realmId []byte, srvkey *ServerKey) bool
 
 	// SaveServer saves srvkey in the KeyStore.
 	// It errors if the srvkey could not be saved.
-	SaveServerKey(srvkey ServerKey) error
+	SaveServerKey(ctx context.Context, srvkey ServerKey) error
 }
 
 // ServerKey holds an ecdh.PrivateKey with Realm certificate.
@@ -42,25 +43,25 @@ func (self ServerKey) Check() error {
 type ServerCredStore interface {
 	// PopEnrollAuthorization loads authorization data and remove it from the ServerCredStore.
 	// It returns true if authorization data were successfully loaded.
-	PopEnrollAuthorization(authorizationId []byte, authorization *EnrollAuthorization) bool
+	PopEnrollAuthorization(ctx context.Context, authorizationId []byte, authorization *EnrollAuthorization) bool
 
 	// SaveEnrollAuthorization saves authorization in the ServerCredStore.
 	// It errors if the authorization could not be saved.
-	SaveEnrollAuthorization(authorization EnrollAuthorization) error
+	SaveEnrollAuthorization(ctx context.Context, authorization EnrollAuthorization) error
 
 	// AuthorizationCount returns the number of EnrollAuthorization in the ServerCredStore.
-	AuthorizationCount() int
+	AuthorizationCount(ctx context.Context) int
 
 	// SaveCard saves card in the ServerCredStore.
 	// It errors if the card could not be saved.
-	SaveCard(card ServerCard) error
+	SaveCard(ctx context.Context, card ServerCard) error
 
 	// RemoveCard removes the ServerCard with cardId identifier from the ServerCredStore.
 	// It returns true if the ServerCard was effectively removed.
-	RemoveCard(cardId []byte) bool
+	RemoveCard(ctx context.Context, cardId []byte) bool
 
 	// CountCard returns the number of ServerCard in the ServerCredStore.
-	CardCount() int
+	CardCount(ctx context.Context) int
 }
 
 // EnrollAuthorization contains Card creation information.
@@ -124,7 +125,7 @@ func NewMemKeyStore() *MemKeyStore {
 
 // GetServerKey loads realm static Keypair in srvkey.
 // It returns true if the Keypair was effectively loaded.
-func (self *MemKeyStore) GetServerKey(realmId []byte, srvkey *ServerKey) bool {
+func (self *MemKeyStore) GetServerKey(_ context.Context, realmId []byte, srvkey *ServerKey) bool {
 	if len(realmId) != 32 {
 		return false
 	}
@@ -144,7 +145,7 @@ func (self *MemKeyStore) GetServerKey(realmId []byte, srvkey *ServerKey) bool {
 
 // SaveServer saves srvkey in the KeyStore.
 // It errors if the srvkey could not be saved.
-func (self *MemKeyStore) SaveServerKey(srvkey ServerKey) error {
+func (self *MemKeyStore) SaveServerKey(_ context.Context, srvkey ServerKey) error {
 	err := srvkey.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid srvkey")
@@ -179,7 +180,7 @@ func NewMemServerCredStore() *MemServerCredStore {
 
 // PopEnrollAuthorization loads authorization data and remove it from the MemServerCredStore.
 // It returns true if authorization data were successfully loaded.
-func (self *MemServerCredStore) PopEnrollAuthorization(authorizationId []byte, authorization *EnrollAuthorization) bool {
+func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, authorizationId []byte, authorization *EnrollAuthorization) bool {
 	if len(authorizationId) != 32 {
 		return false
 	}
@@ -201,7 +202,7 @@ func (self *MemServerCredStore) PopEnrollAuthorization(authorizationId []byte, a
 
 // SaveEnrollAuthorization saves authorization in the MemServerCredStore.
 // It errors if the authorization could not be saved.
-func (self *MemServerCredStore) SaveEnrollAuthorization(authorization EnrollAuthorization) error {
+func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, authorization EnrollAuthorization) error {
 	err := authorization.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid authorization")
@@ -219,7 +220,7 @@ func (self *MemServerCredStore) SaveEnrollAuthorization(authorization EnrollAuth
 }
 
 // AuthorizationCount returns the number of EnrollAuthorization in the MemServerCredStore.
-func (self *MemServerCredStore) AuthorizationCount() int {
+func (self *MemServerCredStore) AuthorizationCount(_ context.Context) int {
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
@@ -228,7 +229,7 @@ func (self *MemServerCredStore) AuthorizationCount() int {
 
 // SaveCard saves card in the MemServerCredStore.
 // It errors if the card could not be saved.
-func (self *MemServerCredStore) SaveCard(card ServerCard) error {
+func (self *MemServerCredStore) SaveCard(_ context.Context, card ServerCard) error {
 	err := card.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid card")
@@ -247,7 +248,7 @@ func (self *MemServerCredStore) SaveCard(card ServerCard) error {
 
 // RemoveCard removes the ServerCard with cardId identifier from the MemServerCredStore.
 // It returns true if the ServerCard was effectively removed.
-func (self *MemServerCredStore) RemoveCard(cardId []byte) bool {
+func (self *MemServerCredStore) RemoveCard(_ context.Context, cardId []byte) bool {
 	if len(cardId) != 32 {
 		return false
 	}
@@ -267,7 +268,7 @@ func (self *MemServerCredStore) RemoveCard(cardId []byte) bool {
 }
 
 // CardCount returns the number of ServerCard in the MemServerCredStore.
-func (self *MemServerCredStore) CardCount() int {
+func (self *MemServerCredStore) CardCount(_ context.Context) int {
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
