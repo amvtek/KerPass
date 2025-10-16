@@ -200,7 +200,7 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 	if nil != err {
 		errmsg = "failed retrieving authorization"
 		log.Debug(errmsg, "error", err)
-		if errors.Is(err, credentials.ErrorUnknownId) {
+		if errors.Is(err, credentials.ErrNotFound) {
 			err = errors.Join(err, ErrInvalidAuthorization)
 		}
 		return sf, rmsg, wrapError(err, errmsg)

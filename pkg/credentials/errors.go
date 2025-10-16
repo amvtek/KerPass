@@ -9,10 +9,10 @@ type errorFlag string
 
 const (
 	// All package errors are wrapping Error
-	Error             = errorFlag("credentials: error")
-	ErrorCardMutation = errorFlag("credentials: Card RealmId & IdToken can not change")
-	ErrorUnknownId    = errorFlag("credentials: Unknown Id")
-	noError           = errorFlag("")
+	Error           = errorFlag("credentials: error")
+	ErrCardMutation = errorFlag("credentials: Card RealmId & IdToken can not change")
+	ErrNotFound     = errorFlag("credentials: Not found")
+	noError         = errorFlag("")
 )
 
 // Error implements the error interface.

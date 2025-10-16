@@ -100,7 +100,7 @@ func (self cliCredStore) SaveCard(card credentials.Card) (int, error) {
 			// check that RealmId & IdToken are the same
 			if (bytes.Compare(card.RealmId, curcard.RealmId) != 0) || (bytes.Compare(card.IdToken, curcard.IdToken) != 0) {
 				return wrapError(
-					credentials.ErrorCardMutation,
+					credentials.ErrCardMutation,
 					"forbidden operation, attend to change RealmId or IdToken of existing card",
 				)
 			}
@@ -113,7 +113,7 @@ func (self cliCredStore) SaveCard(card credentials.Card) (int, error) {
 			if found {
 				if bytes.Compare(card.RealmId, curcard.RealmId) != 0 {
 					return wrapError(
-						credentials.ErrorCardMutation,
+						credentials.ErrCardMutation,
 						"forbidden operation, attend to change RealmId of existing card",
 					)
 				}
