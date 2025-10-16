@@ -196,13 +196,16 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 	// check EnrollAuthorization
 	log.Debug("controlling client EnrollAuthorization")
 	authorization := credentials.EnrollAuthorization{}
-	var isValidAuthorization bool
-	if self.Repo.PopEnrollAuthorization(ctx, cli.AuthorizationId, &authorization) {
-		if slices.Equal(self.realmId, authorization.RealmId) {
-			isValidAuthorization = true
+	err = self.Repo.PopEnrollAuthorization(ctx, cli.AuthorizationId, &authorization)
+	if nil != err {
+		errmsg = "failed retrieving authorization"
+		log.Debug(errmsg, "error", err)
+		if errors.Is(err, credentials.ErrorUnknownId) {
+			err = errors.Join(err, ErrInvalidAuthorization)
 		}
+		return sf, rmsg, wrapError(err, errmsg)
 	}
-	if !isValidAuthorization {
+	if !slices.Equal(self.realmId, authorization.RealmId) {
 		errmsg = "client forwarded an invalid authorization"
 		err = wrapError(ErrInvalidAuthorization, errmsg)
 		log.Debug(errmsg, "error", err)

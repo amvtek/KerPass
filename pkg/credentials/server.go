@@ -42,8 +42,8 @@ func (self ServerKey) Check() error {
 // ServerCredStore gives access to KerPass server credential database.
 type ServerCredStore interface {
 	// PopEnrollAuthorization loads authorization data and remove it from the ServerCredStore.
-	// It returns true if authorization data were successfully loaded.
-	PopEnrollAuthorization(ctx context.Context, authorizationId []byte, authorization *EnrollAuthorization) bool
+	// It errors if authorization data were not successfully loaded.
+	PopEnrollAuthorization(ctx context.Context, authorizationId []byte, authorization *EnrollAuthorization) error
 
 	// SaveEnrollAuthorization saves authorization in the ServerCredStore.
 	// It errors if the authorization could not be saved.
@@ -183,10 +183,10 @@ func NewMemServerCredStore() *MemServerCredStore {
 }
 
 // PopEnrollAuthorization loads authorization data and remove it from the MemServerCredStore.
-// It returns true if authorization data were successfully loaded.
-func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, authorizationId []byte, authorization *EnrollAuthorization) bool {
+// It errors if authorization data were not successfully loaded.
+func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, authorizationId []byte, authorization *EnrollAuthorization) error {
 	if len(authorizationId) != 32 {
-		return false
+		return wrapError(ErrorUnknownId, "invalid authorizationId size")
 	}
 	var atk [32]byte
 	copy(atk[:], authorizationId)
@@ -195,13 +195,15 @@ func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, author
 	defer self.mut.Unlock()
 
 	atd, found := self.authorizations[atk]
-	if found {
-		*authorization = atd
-		authorization.AuthorizationId = authorizationId
-		delete(self.authorizations, atk)
+	if !found {
+		return wrapError(ErrorUnknownId, "unknown authorizationId")
 	}
 
-	return found
+	*authorization = atd
+	authorization.AuthorizationId = authorizationId
+	delete(self.authorizations, atk)
+
+	return nil
 }
 
 // SaveEnrollAuthorization saves authorization in the MemServerCredStore.
