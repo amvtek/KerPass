@@ -52,6 +52,10 @@ type ServerCredStore interface {
 	// AuthorizationCount returns the number of EnrollAuthorization in the ServerCredStore.
 	AuthorizationCount(ctx context.Context) int
 
+	// LoadCard loads stored card data in dst.
+	// It returns true if card data were successfully loaded.
+	LoadCard(ctx context.Context, cardId []byte, dst *ServerCard) bool
+
 	// SaveCard saves card in the ServerCredStore.
 	// It errors if the card could not be saved.
 	SaveCard(ctx context.Context, card ServerCard) error
@@ -225,6 +229,24 @@ func (self *MemServerCredStore) AuthorizationCount(_ context.Context) int {
 	defer self.mut.Unlock()
 
 	return len(self.authorizations)
+}
+
+// LoadCard loads stored card data in dst.
+// It returns true if card data were successfully loaded.
+func (self *MemServerCredStore) LoadCard(_ context.Context, cardId []byte, dst *ServerCard) bool {
+
+	var ck [32]byte
+	copy(ck[:], cardId)
+
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	card, found := self.cards[ck]
+	if found {
+		*dst = card
+	}
+
+	return found
 }
 
 // SaveCard saves card in the MemServerCredStore.
