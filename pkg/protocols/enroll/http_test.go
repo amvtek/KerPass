@@ -39,14 +39,18 @@ func TestHttpEnrollSuccess(t *testing.T) {
 	}
 
 	// check that server Card was saved
-	count = srvhdlr.Cfg.Repo.CardCount(ctx)
-	if 1 != count {
+	count, err = srvhdlr.Cfg.Repo.CardCount(ctx)
+	if nil != err {
+		t.Errorf("failed server CardCount, got error %v", err)
+	} else if 1 != count {
 		t.Errorf("failed server CardCount control, %d != 1", count)
 	}
 
 	// check that server Authorization was removed
-	count = srvhdlr.Cfg.Repo.AuthorizationCount(ctx)
-	if 0 != count {
+	count, err = srvhdlr.Cfg.Repo.AuthorizationCount(ctx)
+	if nil != err {
+		t.Errorf("failed server AuthorizationCount, got error %v", err)
+	} else if 0 != count {
 		t.Errorf("failed server AuthorizationCount control, %d != 0", count)
 	}
 }
@@ -76,14 +80,18 @@ func TestHttpEnrollReplaySuccess(t *testing.T) {
 	}
 
 	// check that server Card was saved
-	count = srvhdlr.Cfg.Repo.CardCount(ctx)
-	if 1 != count {
+	count, err = srvhdlr.Cfg.Repo.CardCount(ctx)
+	if nil != err {
+		t.Errorf("failed server CardCount, got error %v", err)
+	} else if 1 != count {
 		t.Errorf("failed server CardCount control, %d != 1", count)
 	}
 
 	// check that server Authorization was removed
-	count = srvhdlr.Cfg.Repo.AuthorizationCount(ctx)
-	if 0 != count {
+	count, err = srvhdlr.Cfg.Repo.AuthorizationCount(ctx)
+	if nil != err {
+		t.Errorf("failed server AuthorizationCount, got error %v", err)
+	} else if 0 != count {
 		t.Errorf("failed server AuthorizationCount control, %d != 0", count)
 	}
 }

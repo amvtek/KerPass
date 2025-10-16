@@ -50,7 +50,7 @@ type ServerCredStore interface {
 	SaveEnrollAuthorization(ctx context.Context, authorization EnrollAuthorization) error
 
 	// AuthorizationCount returns the number of EnrollAuthorization in the ServerCredStore.
-	AuthorizationCount(ctx context.Context) int
+	AuthorizationCount(ctx context.Context) (int, error)
 
 	// LoadCard loads stored card data in dst.
 	// It errors if card data were not successfully loaded.
@@ -65,7 +65,7 @@ type ServerCredStore interface {
 	RemoveCard(ctx context.Context, cardId []byte) bool
 
 	// CountCard returns the number of ServerCard in the ServerCredStore.
-	CardCount(ctx context.Context) int
+	CardCount(ctx context.Context) (int, error)
 }
 
 // EnrollAuthorization contains Card creation information.
@@ -226,11 +226,11 @@ func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, autho
 }
 
 // AuthorizationCount returns the number of EnrollAuthorization in the MemServerCredStore.
-func (self *MemServerCredStore) AuthorizationCount(_ context.Context) int {
+func (self *MemServerCredStore) AuthorizationCount(_ context.Context) (int, error) {
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	return len(self.authorizations)
+	return len(self.authorizations), nil
 }
 
 // LoadCard loads stored card data in dst.
@@ -295,11 +295,11 @@ func (self *MemServerCredStore) RemoveCard(_ context.Context, cardId []byte) boo
 }
 
 // CardCount returns the number of ServerCard in the MemServerCredStore.
-func (self *MemServerCredStore) CardCount(_ context.Context) int {
+func (self *MemServerCredStore) CardCount(_ context.Context) (int, error) {
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	return len(self.cards)
+	return len(self.cards), nil
 }
 
 var _ ServerCredStore = &MemServerCredStore{}
