@@ -53,8 +53,8 @@ type ServerCredStore interface {
 	AuthorizationCount(ctx context.Context) int
 
 	// LoadCard loads stored card data in dst.
-	// It returns true if card data were successfully loaded.
-	LoadCard(ctx context.Context, cardId []byte, dst *ServerCard) bool
+	// It errors if card data were not successfully loaded.
+	LoadCard(ctx context.Context, cardId []byte, dst *ServerCard) error
 
 	// SaveCard saves card in the ServerCredStore.
 	// It errors if the card could not be saved.
@@ -234,8 +234,8 @@ func (self *MemServerCredStore) AuthorizationCount(_ context.Context) int {
 }
 
 // LoadCard loads stored card data in dst.
-// It returns true if card data were successfully loaded.
-func (self *MemServerCredStore) LoadCard(_ context.Context, cardId []byte, dst *ServerCard) bool {
+// It errors if card data were not successfully loaded.
+func (self *MemServerCredStore) LoadCard(_ context.Context, cardId []byte, dst *ServerCard) error {
 
 	var ck [32]byte
 	copy(ck[:], cardId)
@@ -243,12 +243,15 @@ func (self *MemServerCredStore) LoadCard(_ context.Context, cardId []byte, dst *
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
+	var err error
 	card, found := self.cards[ck]
 	if found {
 		*dst = card
+	} else {
+		err = wrapError(ErrNotFound, "unknown cardId")
 	}
 
-	return found
+	return err
 }
 
 // SaveCard saves card in the MemServerCredStore.
