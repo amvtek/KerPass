@@ -241,7 +241,7 @@ func TestForbidMutation(t *testing.T) {
 	rand.Read(realmId)
 	card1.RealmId = realmId
 	_, err = store.SaveCard(card1)
-	if !errors.Is(err, credentials.ErrorCardMutation) {
+	if !errors.Is(err, credentials.ErrCardMutation) {
 		t.Error("store did not detect RealmId mutation")
 	}
 
@@ -251,7 +251,7 @@ func TestForbidMutation(t *testing.T) {
 	rand.Read(idToken)
 	card2.IdToken = idToken
 	_, err = store.SaveCard(card2)
-	if !errors.Is(err, credentials.ErrorCardMutation) {
+	if !errors.Is(err, credentials.ErrCardMutation) {
 		t.Error("store did not detect IdToken mutation")
 	}
 }

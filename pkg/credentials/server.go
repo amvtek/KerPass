@@ -186,7 +186,7 @@ func NewMemServerCredStore() *MemServerCredStore {
 // It errors if authorization data were not successfully loaded.
 func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, authorizationId []byte, authorization *EnrollAuthorization) error {
 	if len(authorizationId) != 32 {
-		return wrapError(ErrorUnknownId, "invalid authorizationId size")
+		return wrapError(ErrNotFound, "invalid authorizationId")
 	}
 	var atk [32]byte
 	copy(atk[:], authorizationId)
@@ -196,7 +196,7 @@ func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, author
 
 	atd, found := self.authorizations[atk]
 	if !found {
-		return wrapError(ErrorUnknownId, "unknown authorizationId")
+		return wrapError(ErrNotFound, "unknown authorizationId")
 	}
 
 	*authorization = atd

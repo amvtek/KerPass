@@ -119,7 +119,7 @@ func (self *MemClientCredStore) SaveCard(card Card) (int, error) {
 			return 0, newError("pre assigned ID is for non existing Card")
 		}
 		if (bytes.Compare(card.IdToken, curcard.IdToken) != 0) || (bytes.Compare(card.RealmId, curcard.RealmId) != 0) {
-			return 0, wrapError(ErrorCardMutation, "ID in use with a different Card")
+			return 0, wrapError(ErrCardMutation, "ID in use with a different Card")
 		}
 	} else {
 		// a card may exist with same IdToken
@@ -127,7 +127,7 @@ func (self *MemClientCredStore) SaveCard(card Card) (int, error) {
 		if found {
 			curcard = self.cardTbl[cId]
 			if bytes.Compare(card.RealmId, curcard.RealmId) != 0 {
-				return 0, wrapError(ErrorCardMutation, "A Card with same IdToken exists in a different Realm")
+				return 0, wrapError(ErrCardMutation, "A Card with same IdToken exists in a different Realm")
 			}
 			card.ID = cId
 		} else {
