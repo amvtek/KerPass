@@ -2,7 +2,10 @@ package pgdb
 
 import (
 	"context"
+	_ "embed"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -26,6 +29,23 @@ type ServerCredStore struct {
 	cardAdapter *credentials.SrvCardStorageAdapter
 }
 
+//go:embed srv_credstore_schema.sql
+var schemaScriptTpl string
+
+func ServerCredStoreMigrate(pgconn *pgx.Conn, dbschema string) error {
+
+	// render schema creation script
+	schemaName := pgx.Identifier{dbschema}.Sanitize()
+	schemaOwner := pgx.Identifier{fmt.Sprintf("%s_owner", dbschema)}.Sanitize()
+	schemaScript := strings.ReplaceAll(schemaScriptTpl, "${schema_name}", schemaName)
+	schemaScript = strings.ReplaceAll(schemaScript, "${schema_owner}", schemaOwner)
+
+	_, err := pgconn.Exec(context.Background(), schemaScript)
+
+	return wrapError(err, "Failed db schema initialization") // nil if err is nil...
+
+}
+
 func NewServerCredStore(ctx context.Context, dsn string) (*ServerCredStore, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if nil != err {
@@ -41,10 +61,9 @@ func NewServerCredStore(ctx context.Context, dsn string) (*ServerCredStore, erro
 func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authorizationId []byte, ea *credentials.EnrollAuthorization) error {
 	row := self.DB.QueryRow(
 		ctx,
-		`DELETE FROM "authorization" a
-         USING "realm" r
-         WHERE a.id = $1 AND a.realm_id = r.id
-         RETURNING a.id, a.realm_id, r.app_name, r.app_logo`,
+		`DELETE FROM enroll_authorization a
+		 USING "realm" r WHERE a.id = $1 AND a.realm_id = r.id
+		 RETURNING a.id, a.realm_id, r.app_name, r.app_logo`,
 		authorizationId,
 	)
 	err := row.Scan(&ea.AuthorizationId, &ea.RealmId, &ea.AppName, &ea.AppLogo)
@@ -62,7 +81,7 @@ func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authori
 func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, ea credentials.EnrollAuthorization) error {
 	_, err := self.DB.Exec(
 		ctx,
-		`INSERT INTO "authorization"(realm_id, id)
+		`INSERT INTO enroll_authorization(realm_id, id)
 		 VALUES ($1, $2)
 		 ON CONFLICT(id) DO NOTHING`,
 		ea.RealmId,
@@ -79,7 +98,7 @@ func (self *ServerCredStore) AuthorizationCount(ctx context.Context) (int, error
 	var rv int
 	row := self.DB.QueryRow(
 		ctx,
-		`SELECT COUNT(*) FROM "authorization"`,
+		`SELECT COUNT(*) FROM enroll_authorization`,
 	)
 	err := row.Scan(&rv)
 	if nil != err {
