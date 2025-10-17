@@ -1,10 +1,23 @@
+-- this script shall be run by postgres super user
+
 create extension if not exists moddatetime;
 
-set role kp_trust;
 
 begin;
 
-  create schema if not exists kerpass;
+  -- create ${schema_owner} role if it does not exists
+  do $$
+    begin
+      create role ${schema_owner};
+    exception
+      when duplicate_object then
+	-- IGNORE
+    end;
+  $$;
+
+  create schema if not exists ${schema_name} authorization ${schema_owner};
+  set local role to ${schema_owner};
+  set local search_path to ${schema_name}, public;
 
   create table if not exists timestamp_mixin (
     created_at timestamptz not null default current_timestamp,
@@ -12,7 +25,7 @@ begin;
     changed_at timestamptz not null default current_timestamp
   );
 
-  create table if not exists kerpass.realm (
+  create table if not exists realm (
     id bytea not null primary key
       check(octet_length(id) >= 32),
 
@@ -24,24 +37,24 @@ begin;
     like timestamp_mixin including all
   );
 
-  create table if not exists kerpass."authorization" (
+  create table if not exists enroll_authorization (
 
     id bytea not null primary key
       check(octet_length(id) >= 32),
 
-    realm_id bytea not null references kerpass.realm(id)
+    realm_id bytea not null references realm(id)
       on delete cascade,
 
     like timestamp_mixin including all
 
   );
 
-  create table if not exists kerpass.card (
+  create table if not exists card (
 
     id bytea not null primary key
       check(octet_length(id) >= 32),
 
-    realm_id bytea not null references kerpass.realm(id)
+    realm_id bytea not null references realm(id)
       on delete cascade,
 
     seal_type int not null default 0,
@@ -57,12 +70,12 @@ begin;
     declare
       tablename text;
     begin
-      foreach tablename in array array['realm', 'authorization', 'card']
+      foreach tablename in array array['realm', 'enroll_authorization', 'card']
       loop
 	begin
 	  execute format(
 	    $stmt$
-	    create trigger trg_modified_at before update on kerpass.%i
+	    create trigger trg_modified_at before update on %I
 	      for each row execute procedure moddatetime(changed_at);
 	    $stmt$,
 	    tablename
@@ -75,5 +88,7 @@ begin;
       end loop;
     end;
   $$;
+
+  drop table if exists timestamp_mixin;
 
 commit;
