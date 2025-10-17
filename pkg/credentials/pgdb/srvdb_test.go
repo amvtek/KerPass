@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const testDSN = "host=localhost port=5432 database=kerpass_db user=postgres password=notasecret sslmode=disable search_path=kerpass_test,public"
+
 var testRealmId = newID(0x1F)
 
 func TestPing(t *testing.T) {
@@ -211,7 +213,7 @@ func TestServerCredStore_AuthorizationCount(t *testing.T) {
 	authIDs := [][]byte{newID(0x3B), newID(0x4C), newID(0x5D)}
 	for _, authID := range authIDs {
 		_, err := store.DB.Exec(ctx,
-			`INSERT INTO "authorization"(id, realm_id) VALUES ($1, $2)`,
+			`INSERT INTO enroll_authorization(id, realm_id) VALUES ($1, $2)`,
 			authID, testRealmId)
 		if err != nil {
 			t.Fatalf("Failed to setup test data: %v", err)
@@ -465,15 +467,26 @@ func TestServerCredStore_CardCount(t *testing.T) {
 }
 
 func newConn(ctx context.Context, t *testing.T) *pgx.Conn {
-	pgconn, err := pgx.Connect(
-		ctx,
-		"host=localhost port=5432 database=kerpass_db user=postgres password=notasecret sslmode=disable search_path=kerpass,public",
-	)
+	if nil != dbInitError {
+		// dbInitError is set by init block below
+		t.Fatalf("Failed kerpass_test schema initialization, got error %v", dbInitError)
+	}
+	pgconn, err := pgx.Connect(ctx, testDSN)
 	if nil != err {
 		t.Fatalf("failed pgx.Connect, got error %v", err)
 	}
 
 	return pgconn
+}
+
+var dbInitError error
+
+func init() {
+	pgconn, err := pgx.Connect(context.Background(), testDSN)
+	if nil == err {
+		err = ServerCredStoreMigrate(pgconn, "kerpass_test")
+	}
+	dbInitError = err
 }
 
 func newServerCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
@@ -485,7 +498,7 @@ func newServerCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
 
 	batch := &pgx.Batch{}
 	batch.Queue("DELETE FROM realm")
-	batch.Queue(`DELETE FROM "authorization"`)
+	batch.Queue(`DELETE FROM enroll_authorization`)
 	batch.Queue("DELETE FROM card")
 	batch.Queue("INSERT INTO realm(id, app_name) VALUES ($1, $2)", testRealmId, "Test App 1F")
 
