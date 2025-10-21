@@ -2,6 +2,7 @@ package credentials
 
 import (
 	"context"
+	"strings"
 	"sync"
 )
 
@@ -41,6 +42,23 @@ func (self ServerKey) Check() error {
 
 // ServerCredStore gives access to KerPass server credential database.
 type ServerCredStore interface {
+
+	// ListRealm lists the Realm in the ServerCredStore.
+	// It errors if the ServerCredStore is not reachable.
+	ListRealm(ctx context.Context) ([]Realm, error)
+
+	// LoadRealm loads realm data for realmId into dst.
+	// It errors if realm data were not successfully loaded.
+	LoadRealm(ctx context.Context, realmId []byte, dst *Realm) error
+
+	// SaveRealm saves realm into the ServerCredStore.
+	// It errors if realm could not be saved.
+	SaveRealm(ctx context.Context, realm Realm) error
+
+	// RemoveRealm removes the Realm with realmId identifier from the ServerCredStore.
+	// It errors if the ServerCredStore is not reachable or if realmId does not exists.
+	RemoveRealm(ctx context.Context, realmId []byte) error
+
 	// PopEnrollAuthorization loads authorization data and remove it from the ServerCredStore.
 	// It errors if authorization data were not successfully loaded.
 	PopEnrollAuthorization(ctx context.Context, authorizationId []byte, authorization *EnrollAuthorization) error
@@ -68,6 +86,24 @@ type ServerCredStore interface {
 	CardCount(ctx context.Context) (int, error)
 }
 
+type Realm struct {
+	RealmId []byte `json:"id" cbor:"1,keyasint"`
+	AppName string `json:"app_name" cbor:"2,keyasint"`
+	AppLogo []byte `json:"app_logo" cbor:"3,keyasint"`
+}
+
+// Check returns an error if the Realm is invalid.
+func (self Realm) Check() error {
+	if len(self.RealmId) < 32 {
+		return newError("Invalid RealmId, length < 32")
+	}
+	if 0 == len(strings.TrimSpace(self.AppName)) {
+		return newError("Empty AppName")
+	}
+
+	return nil
+}
+
 // EnrollAuthorization contains Card creation information.
 type EnrollAuthorization struct {
 	AuthorizationId []byte `json:"-" cbor:"-"`
@@ -84,7 +120,7 @@ func (self EnrollAuthorization) Check() error {
 	if len(self.RealmId) < 32 {
 		return newError("Invalid RealmId, length < 32")
 	}
-	if 0 == len(self.AppName) {
+	if 0 == len(strings.TrimSpace(self.AppName)) {
 		return newError("Empty AppName")
 	}
 
