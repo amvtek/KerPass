@@ -31,6 +31,184 @@ func TestServerCredStore_newServerCredStore(t *testing.T) {
 	newServerCredStore(ctx, t)
 }
 
+func TestServerCredStore_SaveRealm_Success(t *testing.T) {
+	ctx := context.Background()
+	store := newEmptyCredStore(ctx, t)
+
+	// generates valid credentials.Realm
+	realm := credentials.Realm{
+		RealmId: newID(0x11),
+		AppName: "Test Realm",
+		AppLogo: []byte{0x01, 0x02, 0x03},
+	}
+
+	// saves it using SaveRealm
+	err := store.SaveRealm(ctx, realm)
+	if err != nil {
+		t.Fatalf("Failed to save realm: %v", err)
+	}
+
+	// make sure realm table has 1 row
+	realms, err := store.ListRealm(ctx)
+	if err != nil {
+		t.Fatalf("Failed to list realms after save: %v", err)
+	}
+	if len(realms) != 1 {
+		t.Errorf("Expected 1 realm after save, got %d", len(realms))
+	}
+}
+
+func TestServerCredStore_SaveRealm_Fail(t *testing.T) {
+	ctx := context.Background()
+	store := newServerCredStore(ctx, t)
+
+	// generates a non valid credentials.Realm
+	realm := credentials.Realm{
+		RealmId: []byte{0x01}, // Too short - invalid
+		AppName: "",           // Empty - invalid
+	}
+
+	// makes sure SaveRealm returns non nil error
+	err := store.SaveRealm(ctx, realm)
+	if err == nil {
+		t.Error("Expected SaveRealm to fail with invalid realm, but it succeeded")
+	}
+}
+
+func TestServerCredStore_LoadRealm_Success(t *testing.T) {
+	ctx := context.Background()
+	store := newEmptyCredStore(ctx, t)
+
+	// generates valid credentials.Realm
+	originalRealm := credentials.Realm{
+		RealmId: newID(0x12),
+		AppName: "Test Realm for Load",
+		AppLogo: []byte{0x04, 0x05, 0x06},
+	}
+
+	// saves it using SaveRealm
+	err := store.SaveRealm(ctx, originalRealm)
+	if err != nil {
+		t.Fatalf("Failed to save realm: %v", err)
+	}
+
+	// uses LoadRealm to reload saved Realm...
+	var loadedRealm credentials.Realm
+	err = store.LoadRealm(ctx, originalRealm.RealmId, &loadedRealm)
+	if err != nil {
+		t.Fatalf("Failed to load realm: %v", err)
+	}
+
+	// make sure reloaded Realm is same as saved one...
+	if !bytes.Equal(loadedRealm.RealmId, originalRealm.RealmId) {
+		t.Error("Loaded RealmId doesn't match original")
+	}
+	if loadedRealm.AppName != originalRealm.AppName {
+		t.Errorf("Loaded AppName doesn't match original: got %s, want %s", loadedRealm.AppName, originalRealm.AppName)
+	}
+	if !bytes.Equal(loadedRealm.AppLogo, originalRealm.AppLogo) {
+		t.Error("Loaded AppLogo doesn't match original")
+	}
+}
+
+func TestServerCredStore_LoadRealm_Fail(t *testing.T) {
+	ctx := context.Background()
+	store := newServerCredStore(ctx, t)
+
+	// attempt loading realm with non existing id
+	nonExistentRealmId := newID(0x99)
+	var realm credentials.Realm
+	err := store.LoadRealm(ctx, nonExistentRealmId, &realm)
+
+	// make sure you get credentials.ErrNotFound
+	if !errors.Is(err, credentials.ErrNotFound) {
+		t.Errorf("Expected credentials.ErrNotFound, got %v", err)
+	}
+}
+
+func TestServerCredStore_ListRealm(t *testing.T) {
+	ctx := context.Background()
+	store := newEmptyCredStore(ctx, t)
+
+	// Insert 4 distinct Realm in realm table
+	testRealms := []credentials.Realm{
+		{RealmId: newID(0x13), AppName: "Realm 1", AppLogo: []byte{0x01}},
+		{RealmId: newID(0x14), AppName: "Realm 2", AppLogo: []byte{0x02}},
+		{RealmId: newID(0x15), AppName: "Realm 3", AppLogo: []byte{0x03}},
+		{RealmId: newID(0x16), AppName: "Realm 4", AppLogo: []byte{0x04}},
+	}
+
+	for _, realm := range testRealms {
+		err := store.SaveRealm(ctx, realm)
+		if err != nil {
+			t.Fatalf("Failed to save realm %s: %v", realm.AppName, err)
+		}
+	}
+
+	//  Make sure ListRealm returns all inserted Realm...
+	realms, err := store.ListRealm(ctx)
+	if err != nil {
+		t.Fatalf("Failed to list realms after insert: %v", err)
+	}
+	if len(realms) != len(testRealms) {
+		t.Errorf("Expected %d realms, got %d", len(testRealms), len(realms))
+	}
+
+	// Verify each realm was returned (simplified check - just count)
+	realmMap := make(map[string]bool)
+	for _, realm := range realms {
+		realmMap[realm.AppName] = true
+	}
+
+	for _, testRealm := range testRealms {
+		if !realmMap[testRealm.AppName] {
+			t.Errorf("Realm %s not found in list results", testRealm.AppName)
+		}
+	}
+}
+
+func TestServerCredStore_ListRealm_empty(t *testing.T) {
+	ctx := context.Background()
+	store := newEmptyCredStore(ctx, t)
+
+	// Make sure ListReam returns an empty slice.
+	realms, err := store.ListRealm(ctx)
+	if err != nil {
+		t.Fatalf("ListRealm failed with error: %v", err)
+	}
+	if len(realms) != 0 {
+		t.Errorf("Expected empty realm slice, got %d realms", len(realms))
+	}
+}
+
+func TestServerCredStore_RemoveRealm(t *testing.T) {
+	ctx := context.Background()
+	store := newEmptyCredStore(ctx, t)
+
+	// Add 1 Realm
+	realm := credentials.Realm{
+		RealmId: newID(0x17),
+		AppName: "Realm to Remove",
+		AppLogo: []byte{0x07, 0x08, 0x09},
+	}
+	err := store.SaveRealm(ctx, realm)
+	if err != nil {
+		t.Fatalf("Failed to save realm: %v", err)
+	}
+
+	// Make sure RemoveRealm succeeds
+	err = store.RemoveRealm(ctx, realm.RealmId)
+	if err != nil {
+		t.Fatalf("Failed to remove realm: %v", err)
+	}
+
+	// Call RemoveRealm a second time, it shall return ErrNotFound...
+	err = store.RemoveRealm(ctx, realm.RealmId)
+	if !errors.Is(err, credentials.ErrNotFound) {
+		t.Errorf("Expected credentials.ErrNotFound, got %v", err)
+	}
+}
+
 func TestServerCredStore_SaveEnrollAuthorization_Success(t *testing.T) {
 	ctx := context.Background()
 	store := newServerCredStore(ctx, t)
@@ -505,6 +683,37 @@ func newServerCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
 	br := tx.SendBatch(ctx, batch)
 	defer br.Close()
 	for qnum := range 4 {
+		_, err = br.Exec()
+		if nil != err {
+			t.Fatalf("failed tx initialization step #%d, got error %v", qnum, err)
+		}
+	}
+	t.Cleanup(func() {
+		err := tx.Rollback(ctx)
+		if nil != err {
+			t.Logf("failed rolling back test transaction, got error %v", err)
+		} else {
+			t.Log("rolled back test transaction")
+		}
+	})
+	return &ServerCredStore{DB: tx}
+}
+
+func newEmptyCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
+	pgconn := newConn(ctx, t)
+	tx, err := pgconn.Begin(ctx)
+	if nil != err {
+		t.Fatalf("failed starting transaction, got error %v", err)
+	}
+
+	batch := &pgx.Batch{}
+	batch.Queue("DELETE FROM realm")
+	batch.Queue(`DELETE FROM enroll_authorization`)
+	batch.Queue("DELETE FROM card")
+
+	br := tx.SendBatch(ctx, batch)
+	defer br.Close()
+	for qnum := range 3 {
 		_, err = br.Exec()
 		if nil != err {
 			t.Fatalf("failed tx initialization step #%d, got error %v", qnum, err)
