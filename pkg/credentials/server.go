@@ -86,6 +86,8 @@ type ServerCredStore interface {
 	CardCount(ctx context.Context) (int, error)
 }
 
+// A Realm is a trusted domain managed by a single authority,
+// within which Cards and Application can mutually verify each other’s identity.
 type Realm struct {
 	RealmId []byte `json:"id" cbor:"1,keyasint"`
 	AppName string `json:"app_name" cbor:"2,keyasint"`
