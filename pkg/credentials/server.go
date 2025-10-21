@@ -207,15 +207,97 @@ var _ KeyStore = &MemKeyStore{}
 // MemServerCredStore provides "in memory" implementation of ServerCredStore.
 type MemServerCredStore struct {
 	mut            sync.Mutex
+	realms         map[[32]byte]Realm
 	authorizations map[[32]byte]EnrollAuthorization
 	cards          map[[32]byte]ServerCard
 }
 
 func NewMemServerCredStore() *MemServerCredStore {
 	return &MemServerCredStore{
+		realms:         make(map[[32]byte]Realm),
 		authorizations: make(map[[32]byte]EnrollAuthorization),
 		cards:          make(map[[32]byte]ServerCard),
 	}
+}
+
+// ListRealm lists the Realms in the ServerCredStore.
+// It errors if the ServerCredStore is not reachable.
+func (self *MemServerCredStore) ListRealm(_ context.Context) ([]Realm, error) {
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	realms := make([]Realm, 0, len(self.realms))
+	for _, realm := range self.realms {
+		realms = append(realms, realm)
+	}
+
+	return realms, nil
+}
+
+// LoadRealm loads realm data for realmId into dst.
+// It errors if realm data were not successfully loaded.
+func (self *MemServerCredStore) LoadRealm(_ context.Context, realmId []byte, dst *Realm) error {
+	if len(realmId) != 32 {
+		return wrapError(ErrNotFound, "invalid realmId")
+	}
+	var rid [32]byte
+	copy(rid[:], realmId)
+
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	realm, found := self.realms[rid]
+	if !found {
+		return wrapError(ErrNotFound, "unknown realmId")
+	}
+	*dst = realm
+	dst.RealmId = realmId
+
+	return nil
+}
+
+// SaveRealm saves realm into the ServerCredStore.
+// It errors if realm could not be saved.
+func (self *MemServerCredStore) SaveRealm(_ context.Context, realm Realm) error {
+	err := realm.Check()
+	if nil != err {
+		return wrapError(err, "Invalid realm")
+	}
+
+	var rid [32]byte
+	copy(rid[:], realm.RealmId)
+
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	self.realms[rid] = realm
+
+	return nil
+
+}
+
+// RemoveRealm removes the Realm with realmId identifier from the ServerCredStore.
+// It errors if the ServerCredStore is not reachable or if realmId does not exists.
+func (self *MemServerCredStore) RemoveRealm(_ context.Context, realmId []byte) error {
+	if len(realmId) != 32 {
+		return wrapError(ErrNotFound, "invalid realmId")
+	}
+
+	var rid [32]byte
+	copy(rid[:], realmId)
+
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	_, found := self.realms[rid]
+	if !found {
+		return wrapError(ErrNotFound, "unknown realmId")
+	}
+
+	delete(self.realms, rid)
+
+	return nil
+
 }
 
 // PopEnrollAuthorization loads authorization data and remove it from the MemServerCredStore.
