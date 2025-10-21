@@ -56,6 +56,100 @@ func NewServerCredStore(ctx context.Context, dsn string) (*ServerCredStore, erro
 
 }
 
+// ListRealm lists the Realm in the ServerCredStore.
+// It errors if the ServerCredStore is not reachable.
+func (self *ServerCredStore) ListRealm(ctx context.Context) ([]credentials.Realm, error) {
+	rows, err := self.DB.Query(
+		ctx,
+		// columns are renamed to match credentials.Realm struct
+		`SELECT
+		   id as "RealmId",
+		   app_name as "AppName",
+		   app_logo as "AppLogo"
+		 FROM
+		   realm
+		`,
+	)
+	if nil != err {
+		return nil, wrapError(err, "failed DB.Query")
+	}
+	realms, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[credentials.Realm])
+	return realms, wrapError(err, "failed pgx.CollectRows") // nil if err is nil
+}
+
+// LoadRealm loads realm data for realmId into dst.
+// It errors if realm data were not successfully loaded.
+func (self *ServerCredStore) LoadRealm(ctx context.Context, realmId []byte, dst *credentials.Realm) error {
+	rows, err := self.DB.Query(
+		ctx,
+		`SELECT
+		   id as "RealmId",
+		   app_name as "AppName",
+		   app_logo as "AppLogo"
+		 FROM
+		   realm
+		 WHERE
+		   id = $1
+		`,
+		realmId,
+	)
+	if nil != err {
+		return wrapError(err, "failed db.Query")
+	}
+	realm, err := pgx.CollectExactlyOneRow(rows, pgx.RowToStructByNameLax[credentials.Realm])
+	if nil != err {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return wrapError(credentials.ErrNotFound, "unknown realm")
+		}
+		return wrapError(err, "failed loading realm")
+	}
+	*dst = realm
+	return nil
+
+}
+
+// SaveRealm saves realm into the ServerCredStore.
+// It errors if realm could not be saved.
+func (self *ServerCredStore) SaveRealm(ctx context.Context, realm credentials.Realm) error {
+	err := realm.Check()
+	if nil != err {
+		return wrapError(err, "invalid realm")
+	}
+	_, err = self.DB.Exec(
+		ctx,
+		`INSERT INTO realm(id, app_name, app_logo) VALUES ($1, $2, $3)
+		 ON CONFLICT (id) DO UPDATE SET
+		 app_name = EXCLUDED.app_name,
+		 app_logo = EXCLUDED.app_logo`,
+		realm.RealmId,
+		realm.AppName,
+		realm.AppLogo,
+	)
+
+	return wrapError(err, "failed saving realm") // nil if err is nil...
+}
+
+// RemoveRealm removes the Realm with realmId identifier from the ServerCredStore.
+// It errors if the ServerCredStore is not reachable or if realmId does not exists.
+func (self *ServerCredStore) RemoveRealm(ctx context.Context, realmId []byte) error {
+	var deleted int
+	row := self.DB.QueryRow(
+		ctx,
+		`WITH deleted AS (DELETE FROM realm WHERE id = $1 RETURNING id)
+		 SELECT count(id) FROM deleted`,
+		realmId,
+	)
+	err := row.Scan(&deleted)
+	if nil != err {
+		return wrapError(err, "failed DELETE query")
+	}
+	if 0 == deleted {
+		return wrapError(credentials.ErrNotFound, "unknown realmId")
+	}
+
+	return nil
+}
+
 // PopEnrollAuthorization loads authorization data in ea and remove it from the ServerCredStore.
 // It returns an error if the authorization could not be loaded and removed.
 func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authorizationId []byte, ea *credentials.EnrollAuthorization) error {
