@@ -1,8 +1,8 @@
 ---
 title: "KerPass EPHEMSEC One-Time Password Algorithm"
 abbrev: "EPHEMSEC"
-docname: draft-mvieuille-kerpass-ephemsec-01
-date: 2025-05-30
+docname: draft-mvieuille-kerpass-ephemsec-02
+date: 2025-11-10
 ipr: trust200902
 keyword: Internet-Draft
 workgroup: Individual Submission
@@ -27,6 +27,9 @@ informative:
   PASSKEY:
     title: "passkeys-Specifications"
     target: "https://passkeys.dev/docs/reference/specs/"
+  Crockford-B32:
+    title: "Crockford Base 32 Alphabet"
+    target: "https://www.crockford.com/base32.html"
 
 --- abstract
 
@@ -617,8 +620,11 @@ return OTP  # byte string of P digits in [0 .. B)
 ~~~~
 
 **Note**: The result is returned as a sequence of `P` integer digits in base `B`.
-Conversion to a human-readable representation (e.g., alphanumeric alphabet) is outside
-the scope of this specification.
+
+Conversion to a human-readable representation (for example, an alphanumeric alphabet) is
+outside the scope of this specification. Nevertheless, the use of the {{Crockford-B32}}
+alphabet is RECOMMENDED, as it is applicable to all EPHEMSEC OTP schemes and has been
+designed to minimize transcription and input errors.
 
 ## OTK Derivation (`B = 256`)
 
@@ -965,11 +971,12 @@ provides the desired **mutual** secrecy.
 The design requires that both the Initiator and Responder contribute a nonce and are
 responsible for ensuring that their respective nonces are not reused.
 
-During development, it was considered whether the Initiator nonce could serve dual
-purposes with the ephemeral public key contributed by the Initiator. However, after
-recognizing that all practical authentication server designs supporting EPHEMSEC require
-maintaining unique session identifiers, no attempt was made to evaluate whether removing
-the Initiator nonce could provide benefits.
+Although both parties currently contribute a nonce, the Initiator’s nonce may not be
+strictly required. Since the Initiator already contributes an ephemeral public key, this
+element provides sufficient entropy and freshness for the session. The Initiator’s nonce
+is therefore retained primarily to simplify the security analysis and preserve symmetry
+in the protocol design. Future revisions of this specification may remove it if it is
+shown to be redundant.
 
 ### Transmission of the Responder Nonce
 
