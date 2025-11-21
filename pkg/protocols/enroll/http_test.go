@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"code.kerpass.org/golang/internal/observability"
-	"code.kerpass.org/golang/internal/session"
 	"code.kerpass.org/golang/pkg/credentials"
 )
 
@@ -134,7 +133,7 @@ func (self *httpReplayClient) Do(req *http.Request) (*http.Response, error) {
 
 var _ httpClient = &httpReplayClient{}
 
-func makePeerConfig(t *testing.T) (ClientCfg, HttpHandler) {
+func makePeerConfig(t *testing.T) (ClientCfg, *HttpHandler) {
 
 	// generate realmId
 	realmId := make([]byte, 32)
@@ -172,14 +171,10 @@ func makePeerConfig(t *testing.T) (ClientCfg, HttpHandler) {
 		t.Fatalf("failed initializing serverCredStore, got error %v", err)
 	}
 
-	// prepare server Session store.
-	sidFactory, err := session.NewSidFactory(8 * time.Second)
+	// prepare the enrollment handler
+	srv, err := NewHttpHandler(keyStore, serverCredStore)
 	if nil != err {
-		t.Fatalf("failed initializing sidFactory, got error %v", err)
-	}
-	sessionStore, err := session.NewMemStore[session.Sid, HttpSession](sidFactory)
-	if nil != err {
-		t.Fatalf("failed initializing sessionStore, got error %v", err)
+		t.Fatalf("failed creating srv handler, got error %v", err)
 	}
 
 	// prepare client CredStore
@@ -190,12 +185,6 @@ func makePeerConfig(t *testing.T) (ClientCfg, HttpHandler) {
 		RealmId:         realmId,
 		AuthorizationId: authorizationId,
 		Repo:            clientCredStore,
-	}
-
-	// create server handler
-	srv := HttpHandler{
-		Cfg:          ServerCfg{KeyStore: keyStore, Repo: serverCredStore},
-		SessionStore: sessionStore,
 	}
 
 	return cli, srv

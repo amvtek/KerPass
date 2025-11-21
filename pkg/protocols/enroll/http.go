@@ -10,10 +10,18 @@ import (
 	"net/url"
 	"slices"
 	"sync"
+	"time"
 
 	"code.kerpass.org/golang/internal/observability"
 	"code.kerpass.org/golang/internal/session"
+	"code.kerpass.org/golang/pkg/credentials"
 	"code.kerpass.org/golang/pkg/protocols"
+)
+
+const (
+	// enrollment is expected to be fast (3 successive HTTP POST)
+	// SessionLifetime should be sufficient to allow those 3 requests to take place
+	SessionLifetime = 5 * time.Minute
 )
 
 // HttpSession allows synchronized access to enroll ServerState.
@@ -28,9 +36,28 @@ type HttpHandler struct {
 	SessionStore *session.MemStore[session.Sid, HttpSession]
 }
 
+// NewHttpHandler returns a new HttpHandler that maintains enrollment session in memory.
+func NewHttpHandler(keyStore credentials.KeyStore, credStore credentials.ServerCredStore) (*HttpHandler, error) {
+	sidFactory, err := session.NewSidFactory(SessionLifetime)
+	if nil != err {
+		return nil, wrapError(err, "failed initializing sidFactory")
+	}
+	sessionStore, err := session.NewMemStore[session.Sid, HttpSession](sidFactory)
+	if nil != err {
+		return nil, wrapError(err, "failed initializing sessionStore")
+	}
+
+	hdlr := HttpHandler{
+		Cfg:          ServerCfg{KeyStore: keyStore, Repo: credStore},
+		SessionStore: sessionStore,
+	}
+
+	return &hdlr, nil
+}
+
 // ServeHTTP update enroll ServerState using message in incoming request.
 // ServeHTTP restore session ServerState in case of error.
-func (self HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (self *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var errmsg string
 	log := observability.GetObservability(r.Context()).Log().With("handler", "enroll")
 
