@@ -18,15 +18,15 @@ func TestNewScheme(t *testing.T) {
 		{
 			name: "Kerpass_SHA512/256_X25519_E2S2_T400B16P8",
 			expect: scheme{
-				H: "SHA512/256", D: "X25519", K: "E2S2",
-				T: 400, B: 16, P: 8,
+				hn: "SHA512/256", dhn: "X25519", kx: "E2S2",
+				tw: 400, eb: 16, nd: 8,
 			},
 		},
 		{
 			name: "Kerpass_BLAKE2s_P256_E1S1_T600B10P8",
 			expect: scheme{
-				H: "BLAKE2s", D: "P256", K: "E1S1",
-				T: 600, B: 10, P: 8,
+				hn: "BLAKE2s", dhn: "P256", kx: "E1S1",
+				tw: 600, eb: 10, nd: 8,
 			},
 		},
 		{
@@ -69,7 +69,7 @@ func TestNewScheme(t *testing.T) {
 				t.Fatalf("Failed NewScheme, got error %v", err)
 			}
 			expect := &tc.expect
-			expect.N = tc.name
+			expect.name = tc.name
 			err = expect.Init()
 			if nil != err {
 				t.Fatalf("Failed expect Init, got error %v", err)
@@ -87,27 +87,27 @@ func TestSchemeInit(t *testing.T) {
 		fail   bool
 	}{
 		// OTP schemes
-		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 32, P: 8}},
-		{scheme: scheme{N: "1", H: "SHA512/256", D: "X25519", K: "E1S2", T: 400, B: 32, P: 11}},
-		{scheme: scheme{N: "1", H: "SHA256", D: "P256", K: "E2S2", T: 400, B: 32, P: 5}},
-		{scheme: scheme{N: "1", H: "SHA3/256", D: "P384", K: "E1S1", T: 400, B: 16, P: 8}},
-		{scheme: scheme{N: "1", H: "SHA3/512", D: "P521", K: "E1S1", T: 400, B: 16, P: 11}},
-		{scheme: scheme{N: "1", H: "BLAKE2b", D: "P256", K: "E1S1", T: 400, B: 16, P: 5}},
-		{scheme: scheme{N: "1", H: "BLAKE2s", D: "P256", K: "E1S1", T: 400, B: 10, P: 8}},
-		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 10, P: 11}},
-		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 10, P: 5}},
+		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 8}},
+		{scheme: scheme{name: "1", hn: "SHA512/256", dhn: "X25519", kx: "E1S2", tw: 400, eb: 32, nd: 11}},
+		{scheme: scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E2S2", tw: 400, eb: 32, nd: 5}},
+		{scheme: scheme{name: "1", hn: "SHA3/256", dhn: "P384", kx: "E1S1", tw: 400, eb: 16, nd: 8}},
+		{scheme: scheme{name: "1", hn: "SHA3/512", dhn: "P521", kx: "E1S1", tw: 400, eb: 16, nd: 11}},
+		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "P256", kx: "E1S1", tw: 400, eb: 16, nd: 5}},
+		{scheme: scheme{name: "1", hn: "BLAKE2s", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 8}},
+		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 11}},
+		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 5}},
 		// OTK schemes
-		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 256, P: 32}},
-		{scheme: scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 256, P: 64}},
+		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 256, nd: 32}},
+		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 256, nd: 64}},
 		// Invalid schemes
-		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 33, P: 8}, fail: true},   // B not supported
-		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 14}, fail: true},  // P too large (65 > 64 entropy bits)
-		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: -400, B: 32, P: 11}, fail: true}, // T < 0
-		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 400, B: 32, P: 0}, fail: true},   // P == 0
-		{scheme: scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 0, B: 10, P: 6}, fail: true},     // T == 0
-		{scheme: scheme{N: "1", H: "FOO", D: "X25519", K: "E1S1", T: 400, B: 10, P: 6}, fail: true},       // H == FOO unsupported
-		{scheme: scheme{N: "1", H: "SHA256", D: "XBAR", K: "E1S1", T: 400, B: 10, P: 6}, fail: true},      // D == XBAR unsupported
-		{scheme: scheme{N: "1", H: "SHA256", D: "XBAR", K: "E0S1", T: 400, B: 10, P: 6}, fail: true},      // K == E0S1 unsupported
+		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 33, nd: 8}, fail: true},   // B not supported
+		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 14}, fail: true},  // P too large (65 > 64 entropy bits)
+		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: -400, eb: 32, nd: 11}, fail: true}, // T < 0
+		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 0}, fail: true},   // P == 0
+		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 0, eb: 10, nd: 6}, fail: true},     // T == 0
+		{scheme: scheme{name: "1", hn: "FOO", dhn: "X25519", kx: "E1S1", tw: 400, eb: 10, nd: 6}, fail: true},       // H == FOO unsupported
+		{scheme: scheme{name: "1", hn: "SHA256", dhn: "XBAR", kx: "E1S1", tw: 400, eb: 10, nd: 6}, fail: true},      // D == XBAR unsupported
+		{scheme: scheme{name: "1", hn: "SHA256", dhn: "XBAR", kx: "E0S1", tw: 400, eb: 10, nd: 6}, fail: true},      // K == E0S1 unsupported
 	}
 	for pos, tc := range testcases {
 		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
@@ -132,23 +132,23 @@ func TestSchemeTime(t *testing.T) {
 		reftime string
 	}{
 		{
-			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 300, B: 10, P: 7},
+			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 300, eb: 10, nd: 7},
 			reftime: "2008-03-12T12:45:56Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 16, P: 8},
+			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 16, nd: 8},
 			reftime: "2018-06-06T05:32:07Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 32, P: 8},
+			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 8},
 			reftime: "2025-09-14T11:48:07Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 400, B: 32, P: 11},
+			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 11},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "BLAKE2s", D: "X25519", K: "E1S1", T: 1024, B: 256, P: 32},
+			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 1024, eb: 256, nd: 32},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 	}
@@ -173,8 +173,8 @@ func TestSchemeTime(t *testing.T) {
 			// we can recover pts using sc.SyncTime(rts, sync)
 			var vts, pts0, pts1 int64
 			var sync int
-			halfT := int64(sc.T / 2)
-			for dT := range int64(sc.T) {
+			halfT := int64(sc.tw / 2)
+			for dT := range int64(sc.tw) {
 				vts = rts + dT - halfT
 				pts0, sync = sc.Time(vts)
 				pts1, err = sc.SyncTime(rts, sync)
@@ -196,28 +196,28 @@ func TestSchemeTime(t *testing.T) {
 func TestSchemeMakeOTP(t *testing.T) {
 	// TODO: no coverage through this approach for base 256
 	testcases := []struct {
-		B      int
-		P      int
+		eb     int
+		nd     int
 		digits []byte
-		PT     int64
+		pt     int64
 	}{
-		{B: 10, P: 9, digits: []byte{1, 2, 3, 4, 9, 8, 7, 6}, PT: 5},
-		{B: 10, P: 8, digits: []byte{1, 2, 3, 0, 8, 7, 6}, PT: 4},
-		{B: 16, P: 10, digits: []byte{15, 14, 13, 12, 11, 10, 9, 8, 7}, PT: 6},
-		{B: 32, P: 6, digits: []byte{0, 31, 30, 29, 28}, PT: 7},
+		{eb: 10, nd: 9, digits: []byte{1, 2, 3, 4, 9, 8, 7, 6}, pt: 5},
+		{eb: 10, nd: 8, digits: []byte{1, 2, 3, 0, 8, 7, 6}, pt: 4},
+		{eb: 16, nd: 10, digits: []byte{15, 14, 13, 12, 11, 10, 9, 8, 7}, pt: 6},
+		{eb: 32, nd: 6, digits: []byte{0, 31, 30, 29, 28}, pt: 7},
 	}
 	for pos, tc := range testcases {
 		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
-			sch := scheme{N: "1", H: "SHA256", D: "P256", K: "E1S2", T: 400}
-			sch.B = tc.B
-			sch.P = tc.P
+			sch := scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E1S2", tw: 400}
+			sch.eb = tc.eb
+			sch.nd = tc.nd
 			err := sch.Init()
 			if nil != err {
 				t.Fatalf("Failed sch.Init, got error %v", err)
 			}
 
 			// uses digits to calculate corresponding uint64
-			b := uint64(tc.B)
+			b := uint64(tc.eb)
 			var v, digit uint64
 			for _, d := range tc.digits {
 				digit = uint64(d)
@@ -228,14 +228,14 @@ func TestSchemeMakeOTP(t *testing.T) {
 			// serialize v to []byte
 			src := make([]byte, 8)
 			binary.BigEndian.PutUint64(src, v)
-			otp, err := sch.NewOTP(src, tc.PT)
+			otp, err := sch.NewOTP(src, tc.pt)
 			if nil != err {
 				t.Fatalf("Failed sch.NewOTP, got error %v", err)
 			}
 
-			expect := make([]byte, 0, tc.P)
+			expect := make([]byte, 0, tc.nd)
 			expect = append(expect, tc.digits...)
-			expect = append(expect, byte(tc.PT))
+			expect = append(expect, byte(tc.pt))
 			if !reflect.DeepEqual(otp, expect) {
 				t.Errorf("Failed otp control\n%v\n!=\n%v", otp, expect)
 			}
@@ -250,23 +250,23 @@ func FuzzSchemeTime(f *testing.F) {
 		reftime string
 	}{
 		{
-			scheme:  scheme{N: "1", H: "SHA256", D: "P256", K: "E1S1", T: 300, B: 10, P: 7},
+			scheme:  scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E1S1", tw: 300, eb: 10, nd: 7},
 			reftime: "2008-03-12T12:45:56Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "SHA256", D: "X25519", K: "E1S1", T: 400, B: 16, P: 8},
+			scheme:  scheme{name: "1", hn: "SHA256", dhn: "X25519", kx: "E1S1", tw: 400, eb: 16, nd: 8},
 			reftime: "2018-06-06T05:32:07Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "SHA512", D: "P256", K: "E1S1", T: 400, B: 32, P: 8},
+			scheme:  scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 8},
 			reftime: "2025-09-14T11:48:07Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "SHA3/256", D: "P256", K: "E1S1", T: 400, B: 32, P: 11},
+			scheme:  scheme{name: "1", hn: "SHA3/256", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 11},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 		{
-			scheme:  scheme{N: "1", H: "BLAKE2b", D: "X25519", K: "E1S1", T: 1024, B: 256, P: 32},
+			scheme:  scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 1024, eb: 256, nd: 32},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 	}
@@ -293,8 +293,8 @@ func FuzzSchemeTime(f *testing.F) {
 		var sync int
 		for _, tc := range testcases {
 			sc = tc.scheme
-			halfT = int64(sc.T / 2)
-			for dT := range int64(sc.T) {
+			halfT = int64(sc.tw / 2)
+			for dT := range int64(sc.tw) {
 				vts = ts + dT - halfT
 				pts0, sync = sc.Time(vts)
 				pts1, err = sc.SyncTime(ts, sync)

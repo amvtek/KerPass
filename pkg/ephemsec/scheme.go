@@ -36,57 +36,52 @@ const (
 )
 
 // scheme holds configuration parameters for OTP/OTK generation.
-// scheme is an opaque type.
 type scheme struct {
 
-	// N scheme name
-	N string
+	// scheme name
+	name string
 
-	// H hash algorithm name
-	H string
+	// hn hash algorithm name
+	hn string
 
-	// D Diffie-Hellman Key Exchange function name
-	D string
+	// dhn Diffie-Hellman Key Exchange function name
+	dhn string
 
-	// K Diffie-Hellman Key Exchange requirements
-	// K defines the number of Ephemeral & Static keys used to derive the shared secret
-	// K is a string of form E1S2
+	// kx Diffie-Hellman Key Exchange requirements
+	// kx defines the number of Ephemeral & Static keys used to derive the shared secret
+	// kx is a string of form E1S2
 	//   E prefix is followed by the number (1 or 2) of ephemeral keys used in the exchange
 	//   S prefix is followed by the number (1 or 2) of static keys used in the exchange
-	K string
+	kx string
 
-	// T timeWindow size in seconds
-	// T > 0
-	T float64
+	// tw timeWindow size in seconds
+	// tw > 0
+	tw float64
 
-	// B OTP/OTK encoding base
-	// B in 2..256
-	B int
+	// eb OTP/OTK encoding base
+	// eb in 2..256
+	eb int
 
-	// P OTP/OTK number of pseudo random digits
-	// P > 0
-	P int
-
-	// S OTP/OTK number of synchronization digits
-	// S in 0..1
-	// S int
+	// nd OTP/OTK number of pseudo random digits
+	// nd > 0
+	nd int
 
 	// init tracks if Init was successfully called
 	init bool
 
 	// Hash algorithm implementation
-	// loaded from registry using H as name
+	// loaded from registry using hn as name
 	hash crypto.Hash
 
 	// ecdh Curve implementation
-	// loaded from registry using D as name
+	// loaded from registry using dhn as name
 	curve ecdh.Curve
 
 	// pre calculated OTP step
 	step float64
 
 	// pre calculated OTP generation modulus
-	// zero for binary code used for OTK
+	// zero for binary code used for OTkx
 	maxcode int64
 }
 
@@ -112,37 +107,37 @@ func NewScheme(name string) (*scheme, error) {
 	rv := scheme{}
 
 	// N
-	rv.N = parts[schN]
+	rv.name = parts[schN]
 
-	// H
-	rv.H = parts[schH]
+	// hn
+	rv.hn = parts[schH]
 
-	// D & curve
-	rv.D = parts[schD]
+	// dhn & curve
+	rv.dhn = parts[schD]
 
-	// K
-	rv.K = parts[schK]
+	// kx
+	rv.kx = parts[schK]
 
-	// T
+	// tw
 	val, err := strconv.Atoi(parts[schT])
 	if nil != err {
-		return nil, wrapError(err, "can not decode T")
+		return nil, wrapError(err, "can not decode tw")
 	}
-	rv.T = float64(val)
+	rv.tw = float64(val)
 
 	// B
 	val, err = strconv.Atoi(parts[schB])
 	if nil != err {
-		return nil, wrapError(err, "can not decode B")
+		return nil, wrapError(err, "can not decode eb")
 	}
-	rv.B = val
+	rv.eb = val
 
-	// P
+	// nd
 	val, err = strconv.Atoi(parts[schP])
 	if nil != err {
-		return nil, wrapError(err, "can not decode P")
+		return nil, wrapError(err, "can not decode nd")
 	}
-	rv.P = val
+	rv.nd = val
 
 	return &rv, rv.Init()
 }
@@ -154,9 +149,9 @@ func (self *scheme) Init() error {
 	}
 
 	// hash reload
-	hash, err := algos.GetHash(self.H)
+	hash, err := algos.GetHash(self.hn)
 	if nil != err {
-		return wrapError(err, "error loading Hash %s", self.H)
+		return wrapError(err, "error loading Hash %s", self.hn)
 	}
 	if !hash.Available() {
 		return newError("missing implementation for Hash %s", hash)
@@ -167,37 +162,37 @@ func (self *scheme) Init() error {
 	self.hash = hash
 
 	// curve reload
-	curve, err := algos.GetCurve(self.D)
+	curve, err := algos.GetCurve(self.dhn)
 	if nil != err {
-		return wrapError(err, "error loading Curve %s", self.D)
+		return wrapError(err, "error loading Curve %s", self.dhn)
 	}
 	if nil == curve.Curve {
 		// normally unreachable
-		return newError("got a nil Curve loading %s", self.D)
+		return newError("got a nil Curve loading %s", self.dhn)
 	}
 	self.curve = curve.Curve
 
-	// N validation
-	if self.N == "" || len(self.N) > maxSchemeName {
-		return newError("invalid N, empty or longer than %d bytes", maxSchemeName)
+	// name validation
+	if self.name == "" || len(self.name) > maxSchemeName {
+		return newError("invalid name, empty or longer than %d bytes", maxSchemeName)
 	}
 
-	// K validation
-	switch self.K {
+	// kx validation
+	switch self.kx {
 	case "E1S1", "E1S2", "E2S2":
 		// ok
 	default:
-		return newError("non supported K %s", self.K)
+		return newError("non supported kx %s", self.kx)
 	}
 
-	// T validation
-	if self.T <= 0 {
-		return newError("invalid T timeWindow (%v <= 0)", self.T)
+	// tw validation
+	if self.tw <= 0 {
+		return newError("invalid tw timeWindow (%v <= 0)", self.tw)
 	}
 
-	// P validation
+	// nd validation
 	var maxBits int
-	base := self.B
+	base := self.eb
 	switch base {
 	case 256:
 		maxBits = otkMaxBytes * 8
@@ -206,14 +201,14 @@ func (self *scheme) Init() error {
 	case 10:
 		maxBits = otpB10MaxBits
 	default:
-		return newError("invalid B (encoding base) %d", base)
+		return newError("invalid eb (encoding base) %d", base)
 	}
-	digits := self.P - 1
+	digits := self.nd - 1
 	if digits <= 1 {
-		return newError("invalid P (code number of digits) (%d <= 2)", digits+1)
+		return newError("invalid nd (code number of digits) (%d <= 2)", digits+1)
 	}
 	if (float64(digits) * math.Log2(float64(base))) > float64(maxBits) {
-		return newError("not enough entropy for P (code number of digits = %d", digits)
+		return newError("not enough entropy for nd (code number of digits = %d", digits)
 	}
 
 	// maxcode calculation
@@ -224,7 +219,7 @@ func (self *scheme) Init() error {
 	self.maxcode = M
 
 	// step calculation
-	self.step = self.T / float64(base-1)
+	self.step = self.tw / float64(base-1)
 
 	self.init = true // simplify testing that self was properly initialized
 
@@ -233,28 +228,28 @@ func (self *scheme) Init() error {
 
 // Name returns the scheme name.
 func (self scheme) Name() string {
-	return self.N
+	return self.name
 }
 
 // KeyExchangePattern returns the scheme Key Exchange pattern.
 // Possible values are E1S1, E1S2 & E2S2.
 func (self scheme) KeyExchangePattern() string {
-	return self.K
+	return self.kx
 }
 
 // TimeWindow returns the scheme Time Window size in seconds.
 func (self scheme) TimeWindow() float64 {
-	return self.T
+	return self.tw
 }
 
 // DigitBase returns the scheme digit base.
 func (self scheme) DigitBase() int {
-	return self.B
+	return self.eb
 }
 
 // CodeSize returns the scheme code size.
 func (self scheme) CodeSize() int {
-	return self.P
+	return self.nd
 }
 
 // Curve returns the scheme curve.
@@ -271,24 +266,24 @@ func (self scheme) Hash() crypto.Hash {
 // input for OTP/OTK calculation. It returns the pseudo time and its synchronization hint.
 func (self scheme) Time(t int64) (int64, int) {
 	ts := int64(math.Round(float64(t) / self.step))
-	return ts, int(ts % int64(self.B))
+	return ts, int(ts % int64(self.eb))
 }
 
 // SyncTime returns the pseudo time which is the closest from Time(t)
 // having a synchronization hint that matches sync. It errors if the sync
 // parameter is invalid.
 func (self scheme) SyncTime(t int64, sync int) (int64, error) {
-	if sync < 0 || sync >= self.B {
+	if sync < 0 || sync >= self.eb {
 		return 0, newError("invalid sync %d", sync)
 	}
 
 	// synchronization algorithm
 	// t normally corresponds to current time on validator side
 	// sync is the synchro hint forwarded by the responder (last OTP/OTK digit)
-	// solution PTIME has sync synchro hint and correspond to time in [t - T/2 .. t + T/2] interval
+	// solution PTIME has sync synchro hint and correspond to time in [t - tw/2 .. t + tw/2] interval
 
-	ptm, sm := self.Time(t - int64(self.T/2)) // ptm is minimum PTIME that can be valid
-	b := int64(self.B)
+	ptm, sm := self.Time(t - int64(self.tw/2)) // ptm is minimum PTIME that can be valid
+	b := int64(self.eb)
 	s := int64(sync)
 	qm := ptm / b
 	pt := qm*b + s
@@ -299,15 +294,15 @@ func (self scheme) SyncTime(t int64, sync int) (int64, error) {
 }
 
 // NewOTP interprets src as a Uint64 integer and returns an OTP which digits encode
-// the src integer in the scheme base B.
+// the src integer in the scheme base eb.
 func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
-	B := self.B
-	P := self.P
+	eb := self.eb
+	nd := self.nd
 
 	var minSize int
-	switch B {
+	switch eb {
 	case 256:
-		minSize = P
+		minSize = nd
 	default:
 		minSize = 8
 	}
@@ -315,20 +310,20 @@ func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
 		return nil, newError("src does not contain enough entropy")
 	}
 
-	switch B {
+	switch eb {
 	case 256:
-		src[P-1] = byte(ptime % int64(B))
-		return src[:P], nil
+		src[nd-1] = byte(ptime % int64(eb))
+		return src[:nd], nil
 	default:
 		isrc := binary.BigEndian.Uint64(src[:8]) % uint64(self.maxcode)
-		src = slices.Grow(src[:0], P)
-		src = src[:P]
-		base := uint64(B)
-		for i := range P - 1 {
-			src[P-2-i] = byte(isrc % base)
+		src = slices.Grow(src[:0], nd)
+		src = src[:nd]
+		base := uint64(eb)
+		for i := range nd - 1 {
+			src[nd-2-i] = byte(isrc % base)
 			isrc /= base
 		}
-		src[P-1] = byte(ptime % int64(B))
+		src[nd-1] = byte(ptime % int64(eb))
 		return src, nil
 	}
 }
