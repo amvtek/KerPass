@@ -20,7 +20,7 @@ const (
 	CIPHER_CHACHA20_POLY1305 = "ChaChaPoly"
 )
 
-var aeadRegistry *utils.Registry[AEADFactory]
+var aeadRegistry *utils.Registry[string, AEADFactory]
 
 // AEAD extends cipher.AEAD with methods usefull for noise protocol implementation.
 type AEAD interface {
@@ -308,7 +308,7 @@ func (_ chachaPoly1305AEAD) FillNonce(nonce []byte, n uint64) {
 }
 
 func init() {
-	aeadRegistry = utils.NewRegistry[AEADFactory]()
+	aeadRegistry = utils.NewRegistry[string, AEADFactory]()
 	MustRegisterAEAD(CIPHER_AES256_GCM, AEADFactoryFunc(newAESGCM))
 	MustRegisterAEAD(CIPHER_CHACHA20_POLY1305, AEADFactoryFunc(newChachaPoly1305))
 }

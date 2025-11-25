@@ -19,7 +19,7 @@ const (
 	HASH_BLAKE2S = "BLAKE2s"
 )
 
-var hashRegistry *utils.Registry[Hash]
+var hashRegistry *utils.Registry[string, Hash]
 
 // Hash embeds the crypto.Hash type and adds methods usefull for noise protocol implementation.
 type Hash struct {
@@ -81,7 +81,7 @@ func GetHash(name string) (Hash, error) {
 }
 
 func init() {
-	hashRegistry = utils.NewRegistry[Hash]()
+	hashRegistry = utils.NewRegistry[string, Hash]()
 	MustRegisterHash(HASH_SHA512, crypto.SHA512)
 	MustRegisterHash(HASH_SHA256, crypto.SHA256)
 	MustRegisterHash(HASH_BLAKE2B, crypto.BLAKE2b_512)
