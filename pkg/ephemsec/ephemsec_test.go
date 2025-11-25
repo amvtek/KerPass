@@ -39,7 +39,7 @@ func testVector(t *testing.T, vec TestVector) {
 		t.Fatalf("Failed scheme parsing, got error %v", err)
 	}
 	curve := scheme.Curve()
-	P := scheme.CodeSize()
+	P := scheme.P()
 
 	// generate initiator secret
 	istate := State{

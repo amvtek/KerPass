@@ -237,18 +237,18 @@ func (self scheme) KeyExchangePattern() string {
 	return self.kx
 }
 
-// TimeWindow returns the scheme Time Window size in seconds.
-func (self scheme) TimeWindow() float64 {
+// T returns the scheme Time Window size in seconds.
+func (self scheme) T() float64 {
 	return self.tw
 }
 
-// DigitBase returns the scheme digit base.
-func (self scheme) DigitBase() int {
+// B returns the scheme digit base.
+func (self scheme) B() int {
 	return self.eb
 }
 
-// CodeSize returns the scheme code size.
-func (self scheme) CodeSize() int {
+// P returns the scheme code size.
+func (self scheme) P() int {
 	return self.nd
 }
 

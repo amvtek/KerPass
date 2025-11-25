@@ -76,7 +76,7 @@ func parseFlags(progname string, args []string) *Cmd {
 
 	var codes []string
 	const codeDoc = `
-	OTP/OTK encoding pattern of form T600_B32_P9.
+	OTP/OTK encoding pattern of form T600B32P9.
 	Add more than 1 by repeating this option.
 	Defaults to %+v.
 	`
