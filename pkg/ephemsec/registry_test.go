@@ -12,5 +12,5 @@ func TestRegistry_GetScheme(t *testing.T) {
 		t.Fatalf("Failed scheme retrieval, got error %v", err)
 	}
 	t.Logf("scheme -> %s", scm.Name())
-	t.Logf("scheme.T -> %.2f s", scm.TimeWindow())
+	t.Logf("scheme.T -> %.2f s", scm.T())
 }

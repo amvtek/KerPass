@@ -118,7 +118,7 @@ func fillVector(schemename string, vect *ephemsec.TestVector) error {
 	vect.ResponderSynchroHint = sync
 
 	// generate initiator time
-	tw := scheme.TimeWindow()
+	tw := scheme.T() // Time Window
 	vect.InitiatorTime = rt - int64(tw/2) + rand.Int64N(int64(tw))
 
 	// generate the shared secret
@@ -126,13 +126,13 @@ func fillVector(schemename string, vect *ephemsec.TestVector) error {
 	vect.HkdfSalt = salt
 	info := makeInfo(nonce, ptime)
 	vect.HkdfInfo = info
-	secret, err := makeOTP(scheme.Hash(), scheme.DigitBase(), scheme.CodeSize()-1, Z, salt, info)
+	secret, err := makeOTP(scheme.Hash(), scheme.B(), scheme.P()-1, Z, salt, info)
 	if nil != err {
 		return fmt.Errorf("Failed generating the shared secret, got error %w", err)
 	}
 	secret = append(secret, byte(sync)) // Add final synchro digit
 	vect.SharedSecret = utils.HexBinary(secret)
-	if 256 != scheme.DigitBase() {
+	if 256 != scheme.B() {
 		otp, err := ephemsec.B32Alphabet.Format(secret, 0, ' ')
 		if nil != err {
 			return fmt.Errorf("Failed alphabet.Format, got error %v", err)
