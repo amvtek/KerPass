@@ -21,7 +21,7 @@ const (
 // generated secret. If dst is nil, EPHEMSEC will allocate memory to hold the
 // generated secret.
 func (self *State) EPHEMSEC(scheme *scheme, role role, dst []byte) ([]byte, error) {
-	if nil == scheme || !scheme.init || nil == self {
+	if nil == scheme || !scheme.initialized || nil == self {
 		return nil, newError("invalid state")
 	}
 	sch := *scheme

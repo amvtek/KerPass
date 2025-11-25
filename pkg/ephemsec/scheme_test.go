@@ -70,9 +70,9 @@ func TestNewScheme(t *testing.T) {
 			}
 			expect := &tc.expect
 			expect.name = tc.name
-			err = expect.Init()
+			err = expect.init()
 			if nil != err {
-				t.Fatalf("Failed expect Init, got error %v", err)
+				t.Fatalf("Failed expect.init, got error %v", err)
 			}
 			if !reflect.DeepEqual(scm, expect) {
 				t.Fatalf("Failed scheme control, got\n%+v\n!=\n%+v", scm, expect)
@@ -111,7 +111,7 @@ func TestSchemeInit(t *testing.T) {
 	}
 	for pos, tc := range testcases {
 		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
-			err := tc.scheme.Init()
+			err := tc.scheme.init()
 			if tc.fail {
 				if nil == err {
 					t.Fatalf("#%d: success where fail expected", pos)
@@ -155,7 +155,7 @@ func TestSchemeTime(t *testing.T) {
 	for pos, tc := range testcases {
 		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
 			sc := tc.scheme
-			err := sc.Init()
+			err := sc.init()
 			if nil != err {
 				t.Fatalf("Failed scheme Init, got error %v", err)
 			}
@@ -211,7 +211,7 @@ func TestSchemeMakeOTP(t *testing.T) {
 			sch := scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E1S2", tw: 400}
 			sch.eb = tc.eb
 			sch.nd = tc.nd
-			err := sch.Init()
+			err := sch.init()
 			if nil != err {
 				t.Fatalf("Failed sch.Init, got error %v", err)
 			}
@@ -273,7 +273,7 @@ func FuzzSchemeTime(f *testing.F) {
 	var readtime time.Time
 	var err error
 	for pos := range len(testcases) {
-		err = testcases[pos].scheme.Init()
+		err = testcases[pos].scheme.init()
 		if nil != err {
 			f.Fatalf("#%d: Failed initializing scheme, got error %v", pos, err)
 		}
