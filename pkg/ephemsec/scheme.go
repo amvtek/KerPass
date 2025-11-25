@@ -66,8 +66,8 @@ type scheme struct {
 	// nd > 0
 	nd int
 
-	// init tracks if Init was successfully called
-	init bool
+	// initialized tracks if init was successfully called
+	initialized bool
 
 	// Hash algorithm implementation
 	// loaded from registry using hn as name
@@ -139,11 +139,11 @@ func NewScheme(name string) (*scheme, error) {
 	}
 	rv.nd = val
 
-	return &rv, rv.Init()
+	return &rv, rv.init()
 }
 
 // Init validates inner parameters and prepares the scheme for usage.
-func (self *scheme) Init() error {
+func (self *scheme) init() error {
 	if nil == self {
 		return newError("nil scheme")
 	}
@@ -221,7 +221,7 @@ func (self *scheme) Init() error {
 	// step calculation
 	self.step = self.tw / float64(base-1)
 
-	self.init = true // simplify testing that self was properly initialized
+	self.initialized = true // simplify testing that self was properly initialized
 
 	return nil
 }
