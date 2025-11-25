@@ -121,8 +121,8 @@ func (self *State) setContext(sch scheme) error {
 
 	// add scheme Name
 	context = append(context, markSchemeName)
-	context = append(context, byte(len(sch.N))) // fit on 1 byte due to maxSchemeName limit
-	context = append(context, []byte(sch.N)...)
+	context = append(context, byte(len(sch.name))) // fit on 1 byte due to maxSchemeName limit
+	context = append(context, []byte(sch.name)...)
 
 	csz := len(context)
 	if csz > maxContextBuffer {

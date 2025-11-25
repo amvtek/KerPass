@@ -44,10 +44,10 @@ func (self *State) EPHEMSEC(scheme *scheme, role role, dst []byte) ([]byte, erro
 	}
 
 	// adjust dst buffer to hold HKDF intermediary key
-	switch sch.B {
+	switch sch.eb {
 	case 256:
-		dst = slices.Grow(dst[:0], sch.P)
-		dst = dst[:sch.P]
+		dst = slices.Grow(dst[:0], sch.nd)
+		dst = dst[:sch.nd]
 	default:
 		dst = slices.Grow(dst[:0], 8)
 		dst = dst[:8]
@@ -73,9 +73,9 @@ func (self *State) runDH(sch scheme, role role) error {
 	var keyexch string
 	switch role {
 	case Initiator:
-		keyexch = "I" + sch.K
+		keyexch = "I" + sch.kx
 	case Responder:
-		keyexch = "R" + sch.K
+		keyexch = "R" + sch.kx
 	}
 
 	// alias the DH exchange keys
@@ -147,7 +147,7 @@ func (self *State) runDH(sch scheme, role role) error {
 
 	default:
 		// unreachable if properly initialized
-		return newError("scheme has invalid K %s", sch.K)
+		return newError("scheme has invalid K %s", sch.kx)
 	}
 
 	psz := len(self.Psk)
