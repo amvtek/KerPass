@@ -22,7 +22,7 @@ const (
 	HASH_BLAKE2S    = "BLAKE2s"
 )
 
-var hashRegistry *utils.Registry[crypto.Hash]
+var hashRegistry *utils.Registry[string, crypto.Hash]
 
 // MustRegisterHash adds hash to the Hash registry. It panics if name is already in use or hash is invalid.
 func MustRegisterHash(name string, hash crypto.Hash) {
@@ -65,7 +65,7 @@ func ListHashes() []string {
 }
 
 func init() {
-	hashRegistry = utils.NewRegistry[crypto.Hash]()
+	hashRegistry = utils.NewRegistry[string, crypto.Hash]()
 	MustRegisterHash(HASH_SHA256, crypto.SHA256)
 	MustRegisterHash(HASH_SHA512, crypto.SHA512)
 	MustRegisterHash(HASH_SHA512_256, crypto.SHA512_256)

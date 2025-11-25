@@ -74,7 +74,7 @@ func (self *Curve) init() error {
 	return nil
 }
 
-var curveRegistry *utils.Registry[Curve]
+var curveRegistry *utils.Registry[string, Curve]
 
 // MustRegisterCurve adds curve to the Curve registry. It panics if name is already in use or curve is invalid.
 func MustRegisterCurve(name string, curve ecdh.Curve) {
@@ -118,7 +118,7 @@ func ListCurves() []string {
 }
 
 func init() {
-	curveRegistry = utils.NewRegistry[Curve]()
+	curveRegistry = utils.NewRegistry[string, Curve]()
 	MustRegisterCurve(CURVE_X25519, ecdh.X25519())
 	MustRegisterCurve(CURVE_25519, ecdh.X25519())
 	MustRegisterCurve(CURVE_P256, ecdh.P256())

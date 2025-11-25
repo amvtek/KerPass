@@ -6,7 +6,7 @@ import (
 	"code.kerpass.org/golang/internal/utils"
 )
 
-var patternRegistry *utils.Registry[*HandshakePattern]
+var patternRegistry *utils.Registry[string, *HandshakePattern]
 
 // MustRegisterPatternSpec parses dsl which contains name of the pattern and definition of
 // the pattern in noise specification language and stores the resulting HandshakePattern in
@@ -57,7 +57,7 @@ func LoadPattern(name string, dst *HandshakePattern) error {
 }
 
 func init() {
-	patternRegistry = utils.NewRegistry[*HandshakePattern]()
+	patternRegistry = utils.NewRegistry[string, *HandshakePattern]()
 
 	// 1 way patterns
 	MustRegisterPatternSpec(
