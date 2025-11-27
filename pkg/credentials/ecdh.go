@@ -11,6 +11,10 @@ type PublicKeyHandle struct {
 	*ecdh.PublicKey
 }
 
+func (self PublicKeyHandle) IsZero() bool {
+	return nil == self.PublicKey
+}
+
 func (self PublicKeyHandle) MarshalBinary() ([]byte, error) {
 	if nil == self.PublicKey {
 		return nil, nil
@@ -63,6 +67,10 @@ func (self *PublicKeyHandle) UnmarshalJSON(data []byte) error {
 // PrivateKeyHandle "extends" ecdh.PrivateKey to support CBOR/JSON marshal/unmarshal.
 type PrivateKeyHandle struct {
 	*ecdh.PrivateKey
+}
+
+func (self PrivateKeyHandle) IsZero() bool {
+	return nil == self.PrivateKey
 }
 
 func (self PrivateKeyHandle) MarshalBinary() ([]byte, error) {
