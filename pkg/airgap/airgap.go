@@ -20,23 +20,30 @@ const (
 	TagAppOTK             = 16
 )
 
-// AgentMsg is an interface implemented by the message types that maybe sent by the CardAgent
+// AgentMsg is implemented by all message types that may be sent by the CardAgent.
 type AgentMsg interface {
-	// AgentTag returns the CBOR tag to use when marshalling to CBOR
+	// AgentTag returns the CBOR tag value to use when marshaling to CBOR.
 	AgentTag() uint64
 }
 
 // AgentCardCreate is sent by the CardAgent to the CardApp to initiate new Card creation
 type AgentCardCreate struct {
-	RealmId         []byte `json:"rId" cbor:"1,keyasint"`
+	// Realm identifier (min 32 bytes)
+	RealmId []byte `json:"rId" cbor:"1,keyasint"`
+
+	// Authorization  ID (min 32 bytes)
 	AuthorizationId []byte `json:"authId" cbor:"2,keyasint"`
-	AuthServerUrl   string `json:"asu" cbor:"3,keyasint"`
+
+	// Authentication server URL (max 128 chars)
+	AuthServerUrl string `json:"asu" cbor:"3,keyasint"`
 }
 
+// AgentTag returns TagAgentCardCreate for CBOR marshaling.
 func (self *AgentCardCreate) AgentTag() uint64 {
 	return TagAgentCardCreate
 }
 
+// Check returns an error if the AgentCardCreate is invalid.
 func (self *AgentCardCreate) Check() error {
 
 	// check RealmId
@@ -64,7 +71,7 @@ func (self *AgentCardCreate) Check() error {
 	return nil
 }
 
-// AgentCardChallenge is sent by the CardAgent to the CardApp to require OTP/OTK generation
+// AgentCardChallenge requests OTP/OTK generation from CardApp for a specific Realm.
 type AgentCardChallenge struct {
 	// Realm of the Cards than can be used to generate the OTP/OTK
 	RealmId []byte `json:"rId" cbor:"1,keyasint"`
@@ -90,10 +97,12 @@ type AgentCardChallenge struct {
 	INonce []byte `json:"nonce" cbor:"7,keyasint"`
 }
 
+// AgentTag returns TagAgentCardChallenge for CBOR marshaling.
 func (self *AgentCardChallenge) AgentTag() uint64 {
 	return TagAgentCardChallenge
 }
 
+// Check returns an error if the AgentCardChallenge is invalid.
 func (self *AgentCardChallenge) Check() error {
 	// check RealmId
 	if len(self.RealmId) < 32 {
@@ -138,6 +147,7 @@ func (self *AgentCardChallenge) Check() error {
 	return nil
 }
 
+// MarshalAgentMsg validates and CBOR-marshals an AgentMsg with its proper CBOR tag.
 func MarshalAgentMsg(msg AgentMsg) ([]byte, error) {
 	var err error
 	if v, checkable := msg.(checker); checkable {
@@ -151,6 +161,8 @@ func MarshalAgentMsg(msg AgentMsg) ([]byte, error) {
 	return srzmsg, wrapError(err, "failed cbor.Marshal")
 }
 
+// UnmarshalAgentMsg CBOR-unmarshals data into the correct AgentMsg type based on its CBOR tag.
+// It errors if the resulting message is invalid.
 func UnmarshalAgentMsg(srzmsg []byte) (AgentMsg, error) {
 	tag := cbor.RawTag{}
 	err := cbor.Unmarshal(srzmsg, &tag)
@@ -181,6 +193,8 @@ func UnmarshalAgentMsg(srzmsg []byte) (AgentMsg, error) {
 	return agentmsg, err
 }
 
+// checkPad validates that each byte in pad is in [0, base) interval.
+// For base=256, pad is unused and always valid. For other bases, validates length and digit range.
 func checkPad(pad []byte, base int, size int) error {
 	switch base {
 	case 256:
@@ -204,13 +218,13 @@ func checkPad(pad []byte, base int, size int) error {
 	return nil
 }
 
-// AppMsg is an interface implemented by the message types that maybe sent by the CardApp
+// AppMsg is implemented by all message types that may be sent by the CardApp.
 type AppMsg interface {
-	// AppTag returns the CBOR tag to use when marshalling to CBOR
+	// AppTag returns the CBOR tag value to use when marshaling to CBOR.
 	AppTag() uint64
 }
 
-// AppOTK is sent by the CardApp to the CardAgent in response to an AgentCardChallenge requiring OTK generation
+// AppOTK is sent by CardApp to Agent in response to AgentCardChallenge.
 type AppOTK struct {
 	// CardId as registered with authentication server
 	CardId []byte `json:"cId" cbor:"1,keyasint"`
@@ -223,10 +237,12 @@ type AppOTK struct {
 	E credentials.PublicKeyHandle `json:"E" cbor:"3,keyasint,omitzero"`
 }
 
+// AppTag returns TagAppOTK for CBOR marshaling.
 func (self *AppOTK) AppTag() uint64 {
 	return TagAppOTK
 }
 
+// Check returns an error if the AppOTK is invalid.
 func (self *AppOTK) Check() error {
 	if len(self.CardId) != 32 {
 		return newError("invalid CardId, len < 32")
@@ -239,6 +255,7 @@ func (self *AppOTK) Check() error {
 	return nil
 }
 
+// MarshalAppMsg validates and CBOR-marshals an AppMsg with its proper CBOR tag.
 func MarshalAppMsg(msg AppMsg) ([]byte, error) {
 	var err error
 	if v, checkable := msg.(checker); checkable {
@@ -252,6 +269,8 @@ func MarshalAppMsg(msg AppMsg) ([]byte, error) {
 	return srzmsg, wrapError(err, "failed cbor.Marshal")
 }
 
+// UnmarshalAppMsg CBOR-unmarshals data into the correct AppMsg type based on its CBOR tag.
+// It errors if the resulting message is invalid.
 func UnmarshalAppMsg(srzmsg []byte) (AppMsg, error) {
 	tag := cbor.RawTag{}
 	err := cbor.Unmarshal(srzmsg, &tag)
@@ -278,6 +297,8 @@ func UnmarshalAppMsg(srzmsg []byte) (AppMsg, error) {
 	return appmsg, err
 }
 
+// checker is an internal interface for messages that can validate their content.
 type checker interface {
+	// Check validates the message fields and returns an error if any constraint is violated.
 	Check() error
 }
