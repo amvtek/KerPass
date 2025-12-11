@@ -16,10 +16,21 @@ type ClientStateFunc = protocols.StateFunc[*ClientState]
 
 type ClientExitFunc = protocols.ExitFunc[*ClientState]
 
+type CardUser interface {
+	Use(card *credentials.Card) error
+}
+
+type CardUseFunc func(*credentials.Card) error
+
+func (self CardUseFunc) Use(card *credentials.Card) error {
+	return self(card)
+}
+
 type ClientCfg struct {
 	RealmId         []byte
 	AuthorizationId []byte
 	Repo            credentials.ClientCredStore
+	OnNewCard       CardUser
 }
 
 func (self ClientCfg) Check() error {
@@ -40,6 +51,7 @@ type ClientState struct {
 	RealmId         []byte
 	AuthorizationId []byte
 	Repo            credentials.ClientCredStore
+	OnNewCard       CardUser
 	hs              noise.HandshakeState
 	cardId          int
 	next            ClientStateFunc
@@ -55,6 +67,7 @@ func NewClientState(cfg ClientCfg) (*ClientState, error) {
 		RealmId:         cfg.RealmId,
 		AuthorizationId: cfg.AuthorizationId,
 		Repo:            cfg.Repo,
+		OnNewCard:       cfg.OnNewCard,
 		next:            ClientInit,
 	}
 
@@ -283,6 +296,16 @@ func ClientExit(self *ClientState, rs error) error {
 	var err error
 	if nil != rs {
 		_, err = self.Repo.RemoveCard(self.cardId)
+	} else {
+		if nil != self.OnNewCard {
+			card := &credentials.Card{}
+			found, _ := self.Repo.LoadById(self.cardId, card)
+			if found {
+				err = self.OnNewCard.Use(card)
+			} else {
+				err = newError("can not use missing card")
+			}
+		}
 	}
 
 	return err
