@@ -214,11 +214,27 @@ func EnrollOverHTTP(ctx context.Context, cli httpClient, serverUrl string, cfg C
 	}
 
 	// construct ClientState
+	var success bool
 	cs, err := NewClientState(cfg)
 	if nil != err {
 		return wrapError(err, "failed ClientState construction")
 	}
 	state, stateFunc := cs.State()
+	defer func() {
+		eh := cs.ExitHandler()
+		if nil == eh {
+			return
+		}
+		if success {
+			eh(cs, nil)
+			return
+		}
+		if nil != err {
+			eh(cs, err)
+		} else {
+			eh(cs, Error) // something went wrong as success is false
+		}
+	}()
 
 	var srzmsg, srvmsg, climsg, sessionId []byte
 	var hm httpMsg
@@ -277,6 +293,7 @@ func EnrollOverHTTP(ctx context.Context, cli httpClient, serverUrl string, cfg C
 
 	if errors.Is(errProto, protocols.OK) && nil == errIO {
 		err = nil
+		success = true
 	} else {
 		err = errors.Join(errProto, errIO)
 	}
