@@ -17,7 +17,14 @@ import (
 func TestHttpEnrollSuccess(t *testing.T) {
 	observability.SetTestDebugLogging(t)
 
+	var cliOnNewCardCalled bool
 	clicfg, srvhdlr := makePeerConfig(t)
+	clicfg.OnNewCard = CardUseFunc(func(card *credentials.Card) error {
+		cliOnNewCardCalled = true
+		t.Logf("OnNewCard called with %+v", card)
+
+		return nil
+	})
 
 	// starts test server
 	srv := httptest.NewServer(observability.Middleware{}.Wrap(srvhdlr))
@@ -35,6 +42,11 @@ func TestHttpEnrollSuccess(t *testing.T) {
 	count := clicfg.Repo.CardCount()
 	if 1 != count {
 		t.Errorf("failed client CardCount control, %d != 1", count)
+	}
+
+	// check that clicfg.OnNewCard.Use was called
+	if !cliOnNewCardCalled {
+		t.Error("OnNewCard was not called")
 	}
 
 	// check that server Card was saved
