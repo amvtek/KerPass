@@ -21,7 +21,7 @@ const (
 	cardIdTokenKey = contextKey("CARD_ID_TOKEN")
 )
 
-var cborSrz = transport.WrapInSafeSerializer(transport.CBORSerializer{})
+var cborSrz = transport.WrapInSafeSerializer(transport.NewCBORSerializer())
 
 type SrvStoreCard struct {
 	ID       []byte

@@ -53,5 +53,5 @@ func init() {
 	psk := make([]byte, 32)
 	dummyPsks = [][]byte{psk, psk}
 
-	cborSrz = transport.WrapInSafeSerializer(transport.CBORSerializer{})
+	cborSrz = transport.WrapInSafeSerializer(transport.NewCBORSerializer())
 }
