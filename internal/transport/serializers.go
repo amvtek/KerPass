@@ -4,17 +4,18 @@ import (
 	"encoding/json"
 
 	"github.com/fxamacker/cbor/v2"
-
-	"code.kerpass.org/golang/pkg/noise"
 )
 
-// Serializer is an interface that provides methods to Marshal/Unmarshal messages.
+// Serializer defines the interface for message serialization and deserialization.
 type Serializer interface {
+	// Marshal encodes v into a byte slice.
 	Marshal(v any) ([]byte, error)
+
+	// Unmarshal decodes data into v.
 	Unmarshal(data []byte, v any) error
 }
 
-// JSONSerializer provides a Serializer that uses json Marshal/Unmarshal
+// JSONSerializer implements Serializer using standard JSON encoding.
 type JSONSerializer struct{}
 
 // Marshal wraps json.Marshal
@@ -29,29 +30,36 @@ func (self JSONSerializer) Unmarshal(data []byte, v any) error {
 
 var _ Serializer = JSONSerializer{}
 
-// CBORSerializer provides a Serializer that uses default cbor Marshal/Unmarshal
-type CBORSerializer struct{}
-
-// Marshal wraps cbor.Marshal
-func (self CBORSerializer) Marshal(v any) ([]byte, error) {
-	return cbor.Marshal(v)
-}
-
-// Unmarshal wraps cbor.Unmarshal
-func (self CBORSerializer) Unmarshal(data []byte, v any) error {
-	return cbor.Unmarshal(data, v)
+// CBORSerializer implements Serializer using CBOR encoding with configurable modes.
+type CBORSerializer struct {
+	cbor.EncMode
+	cbor.DecMode
 }
 
 var _ Serializer = CBORSerializer{}
 
-// A SafeSerializer wraps a Serializer ensuring that marshaled/unmarshaled messages are optionally
-// validated and encrypted.
-type SafeSerializer struct {
-	Serializer
-	CipherPair *noise.TransportCipherPair
+// NewCBORSerializer creates a CBORSerializer with default encoding options.
+func NewCBORSerializer() Serializer {
+	return CBORSerializer{
+		EncMode: cborDefaultEncMode,
+		DecMode: cborDefaultDecMode,
+	}
 }
 
-// WrapInSafeSerializer returns a SafeSerializer wrapping s.
+// NewCTAP2Serializer creates a CBORSerializer with CTAP2-compliant encoding options.
+func NewCTAP2Serializer() Serializer {
+	return CBORSerializer{
+		EncMode: cborCTAP2EncMode,
+		DecMode: cborDefaultDecMode,
+	}
+}
+
+// A SafeSerializer wraps a Serializer ensuring that marshaled/unmarshaled messages are validated.
+type SafeSerializer struct {
+	Serializer
+}
+
+// WrapInSafeSerializer wraps s in a SafeSerializer. If s is already a SafeSerializer, it returns it unchanged.
 func WrapInSafeSerializer(s Serializer) SafeSerializer {
 	if c, isSafeSerializer := s.(SafeSerializer); isSafeSerializer {
 		return c
@@ -61,10 +69,7 @@ func WrapInSafeSerializer(s Serializer) SafeSerializer {
 
 }
 
-// Marshal performs 3 operations to deliver a serialized v.
-// 1. It v has a Check method, Marshal call it and errors in case it returns a non empty error
-// 2. It marshals v using the wrapped Serializer and errors in case it case it fails.
-// 3. If a CipherPair is set, it uses it to encrypt the marshalled v.
+// Marshal validates v if it implements Checker, then serializes it using the wrapped Serializer.
 func (self SafeSerializer) Marshal(v any) (srzmsg []byte, err error) {
 
 	// optionally validate v
@@ -81,34 +86,12 @@ func (self SafeSerializer) Marshal(v any) (srzmsg []byte, err error) {
 		return nil, wrapError(SerializationError, "failed marshalling msg, got error %v", err)
 	}
 
-	// optionally apply encryption
-	if nil != self.CipherPair {
-		// we need to apply encryption
-		enc := self.CipherPair.Encryptor()
-		srzmsg, err = enc.EncryptWithAd(nil, srzmsg)
-		if nil != err {
-			return nil, wrapError(EncryptionError, "failed encrypting msg, got error %v", err)
-		}
-	}
-
 	return srzmsg, nil
 }
 
-// Unmarshal performs 3 operations to deliver v.
-// 1. If a CipherPair is set, it uses it to decrypt data.
-// 2. It unmarshals data in v using the wrapped Serializer and errors in case it case it fails.
-// 1. It v has a Check method, it calls it and errors in case it returns a non empty error
+// Unmarshal deserializes data into v using the wrapped Serializer, then validates v if it implements Checker.
 func (self SafeSerializer) Unmarshal(data []byte, v any) error {
 	var err error
-
-	// optionally decrypt data
-	if nil != self.CipherPair {
-		dec := self.CipherPair.Decryptor()
-		data, err = dec.DecryptWithAd(nil, data)
-		if nil != err {
-			return wrapError(EncryptionError, "failed decrypting message, got error %v", err)
-		}
-	}
 
 	// performs actual deserialization
 	err = self.Serializer.Unmarshal(data, v)
@@ -129,7 +112,30 @@ func (self SafeSerializer) Unmarshal(data []byte, v any) error {
 
 var _ Serializer = SafeSerializer{}
 
-// Checker is an interface that provides a method Check to validate messages.
+// Checker defines the validation interface for messages.
 type Checker interface {
+	// Check validates the message and returns an error if invalid.
 	Check() error
+}
+
+var cborDefaultEncMode cbor.EncMode
+var cborCTAP2EncMode cbor.EncMode
+var cborDefaultDecMode cbor.DecMode
+
+func init() {
+	var err error
+	cborDefaultEncMode, err = cbor.EncOptions{}.EncMode()
+	if nil != err {
+		panic(wrapError(err, "failed cbor default EncOptions validation"))
+	}
+
+	cborCTAP2EncMode, err = cbor.CTAP2EncOptions().EncMode()
+	if nil != err {
+		panic(wrapError(err, "failed cbor CTAP2 EncOptions validation"))
+	}
+
+	cborDefaultDecMode, err = cbor.DecOptions{}.DecMode()
+	if nil != err {
+		panic(wrapError(err, "failed cbor default DecOptions validation"))
+	}
 }
