@@ -8,6 +8,6 @@ type Store[K comparable, V any] interface {
 }
 
 type KeyFactory[K comparable] interface {
-	New() K
+	New(ad uint64) K
 	Check(key K) error
 }
