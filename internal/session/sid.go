@@ -13,11 +13,12 @@ const (
 	sidMacSize    = 32
 	sidTimeStart  = sidMacSize
 	sidCountStart = sidTimeStart + 8
-	sidSize       = sidMacSize + 8 + 8
+	sidDataStart  = sidCountStart + 8
+	sidSize       = sidMacSize + 3*8
 )
 
 // Sid is a byte array used as session identifier.
-// Sid bytes encode [mac|timestamp|counter]
+// Sid bytes encode [mac|timestamp|counter|data]
 type Sid [sidSize]byte
 
 // T returns the Sid "timestamp".
@@ -27,7 +28,12 @@ func (self Sid) T() int64 {
 
 // C returns the Sid "counter".
 func (self Sid) C() uint64 {
-	return binary.LittleEndian.Uint64(self[sidCountStart:])
+	return binary.LittleEndian.Uint64(self[sidCountStart:sidDataStart])
+}
+
+// AD returns the Sid "additional data"
+func (self Sid) AD() uint64 {
+	return binary.LittleEndian.Uint64(self[sidDataStart:])
 }
 
 // SidFactory generates unique Sids.
@@ -53,12 +59,13 @@ func NewSidFactory(lifetime time.Duration) (*SidFactory, error) {
 }
 
 // New returns a new Sid different from Sid returned by previous calls.
-func (self *SidFactory) New() Sid {
+func (self *SidFactory) New(ad uint64) Sid {
 	sid := Sid{}
 
 	tail := sid[sidMacSize:]
 	binary.LittleEndian.PutUint64(tail, uint64(self.clock.T()))
 	binary.LittleEndian.PutUint64(tail[8:], self.ids.Add(1))
+	binary.LittleEndian.PutUint64(tail[16:], ad)
 
 	hm := hmac.New(sha256.New, self.secret[:])
 	hm.Write(tail)
