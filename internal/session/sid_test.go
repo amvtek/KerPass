@@ -38,7 +38,7 @@ func TestSidFactoryExpires(t *testing.T) {
 		}
 
 		time.Sleep(8500 * time.Hour)
-		sid := sf.New()
+		sid := sf.New(0x11223344_55667788)
 		t.Logf("sid -> % X", sid)
 
 		time.Sleep(lifetime - 1*time.Nanosecond)
@@ -64,7 +64,7 @@ func TestSidFactoryTamper(t *testing.T) {
 		}
 
 		time.Sleep(22 * time.Hour)
-		sid := sf.New()
+		sid := sf.New(0)
 		if nil != err {
 			t.Fatalf("Failed generating sid, got error %v", err)
 		}
@@ -88,6 +88,25 @@ func TestSidFactoryTamper(t *testing.T) {
 	})
 }
 
+func TestSidAD(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		lifetime := 32 * time.Second
+		sf, err := NewSidFactory(lifetime)
+		if nil != err {
+			t.Fatalf("Failed NewSidFactory, got error %v", err)
+		}
+		time.Sleep(70*8700*time.Hour + 1024*time.Hour + 25*time.Minute)
+
+		var sid Sid
+		for i, ad := range []uint64{0, 0x1122, 0x33445566, 0xFF00EE11_DD22CC33} {
+			sid = sf.New(ad)
+			if ad != sid.AD() {
+				t.Errorf("#%d sid.AD() control, %X != %X", i, sid.AD(), ad)
+			}
+		}
+	})
+}
+
 func TestSidLog(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		lifetime := 32 * time.Second
@@ -99,12 +118,13 @@ func TestSidLog(t *testing.T) {
 
 		var sid Sid
 		for i := range 2 {
-			sid = sf.New()
+			sid = sf.New(0xFF00EE11_DD22CC33)
 			t.Log("---")
 			t.Logf("#%d sid[:32] -> % X", i, sid[:32])
 			t.Logf("#%d sid[32:] -> % X", i, sid[32:])
 			t.Logf("#%d sid.T() -> %d", i, sid.T())
 			t.Logf("#%d sid.C() -> %d", i, sid.C())
+			t.Logf("#%d sid.AD() -> %X", i, sid.AD())
 			time.Sleep(2 * time.Second)
 		}
 	})
