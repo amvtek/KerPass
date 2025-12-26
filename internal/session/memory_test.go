@@ -13,7 +13,7 @@ func TestMemStoreGet(t *testing.T) {
 
 		// Get with a non registered key
 		// we use inner KeyFacto to generate this key so that it is valid...
-		k := store.KeyFacto.New()
+		k := store.KeyFacto.New(6345678)
 		_, found := store.Get(k)
 		if found {
 			t.Error("[0]: store.Get reports found on missing key")
@@ -59,7 +59,7 @@ func TestMemStorePop(t *testing.T) {
 
 		// Pop with a non registered key
 		// we use inner KeyFacto to generate this key so that it is valid...
-		k = store.KeyFacto.New()
+		k = store.KeyFacto.New(0xFFEEDDCC_BBAA9988)
 		_, found = store.Pop(k)
 		if found {
 			t.Errorf("store.Pop reports found on missing key")

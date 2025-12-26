@@ -113,7 +113,7 @@ func (self *MemStore[K, V]) Save(data V) (K, error) {
 	var key K
 
 	// generates a key
-	key = self.KeyFacto.New()
+	key = self.KeyFacto.New(0)
 
 	// lock storage
 	ts := key.T()
