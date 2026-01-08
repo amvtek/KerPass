@@ -11,11 +11,11 @@ import (
 type KeyStore interface {
 	// GetServerKey loads realm static Keypair in srvkey.
 	// It returns true if the Keypair was effectively loaded.
-	GetServerKey(ctx context.Context, realmId []byte, srvkey *ServerKey) bool
+	GetServerKey(ctx context.Context, realmId []byte, name string, srvkey *ServerKey) bool
 
 	// SaveServer saves srvkey in the KeyStore.
 	// It errors if the srvkey could not be saved.
-	SaveServerKey(ctx context.Context, srvkey ServerKey) error
+	SaveServerKey(ctx context.Context, name string, srvkey ServerKey) error
 }
 
 // ServerKey holds an ecdh.PrivateKey with Realm certificate.
@@ -158,26 +158,31 @@ func (self ServerCard) Check() error {
 // MemKeyStore provides "in memory" implementation of KeyStore.
 type MemKeyStore struct {
 	mut  sync.Mutex
-	data map[[32]byte]ServerKey
+	data map[keyref]ServerKey
 }
 
 func NewMemKeyStore() *MemKeyStore {
-	return &MemKeyStore{data: make(map[[32]byte]ServerKey)}
+	return &MemKeyStore{data: make(map[keyref]ServerKey)}
+}
+
+type keyref struct {
+	realmkey [32]byte
+	name     string
 }
 
 // GetServerKey loads realm static Keypair in srvkey.
 // It returns true if the Keypair was effectively loaded.
-func (self *MemKeyStore) GetServerKey(_ context.Context, realmId []byte, srvkey *ServerKey) bool {
+func (self *MemKeyStore) GetServerKey(_ context.Context, realmId []byte, name string, srvkey *ServerKey) bool {
 	if len(realmId) != 32 {
 		return false
 	}
-	var realmkey [32]byte
-	copy(realmkey[:], realmId)
+	kr := keyref{name: name}
+	copy(kr.realmkey[:], realmId)
 
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	keydata, found := self.data[realmkey]
+	keydata, found := self.data[kr]
 	if found {
 		*srvkey = keydata
 	}
@@ -187,19 +192,19 @@ func (self *MemKeyStore) GetServerKey(_ context.Context, realmId []byte, srvkey 
 
 // SaveServer saves srvkey in the KeyStore.
 // It errors if the srvkey could not be saved.
-func (self *MemKeyStore) SaveServerKey(_ context.Context, srvkey ServerKey) error {
+func (self *MemKeyStore) SaveServerKey(_ context.Context, name string, srvkey ServerKey) error {
 	err := srvkey.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid srvkey")
 	}
 
-	var realmkey [32]byte
-	copy(realmkey[:], srvkey.RealmId)
+	kr := keyref{name: name}
+	copy(kr.realmkey[:], srvkey.RealmId)
 
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.data[realmkey] = srvkey
+	self.data[kr] = srvkey
 
 	return nil
 }
