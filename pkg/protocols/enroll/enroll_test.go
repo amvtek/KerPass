@@ -283,7 +283,7 @@ func makePeerState(t *testing.T) (*ClientState, *ServerState) {
 
 	// prepare server KeyStore
 	keyStore := credentials.NewMemKeyStore()
-	err = keyStore.SaveServerKey(context.Background(), srvKey)
+	err = keyStore.SaveServerKey(context.Background(), SrvKeyName, srvKey)
 	if nil != err {
 		t.Fatalf("failed initializing keyStore, got error %v", err)
 	}
