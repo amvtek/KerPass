@@ -22,6 +22,8 @@ type srvExitAction int
 const (
 	srvRestoreAuthorization srvExitAction = 1 << iota
 	srvRemoveCard
+
+	SrvKeyName = "ENROLL"
 )
 
 type ServerCfg struct {
@@ -111,7 +113,7 @@ func ServerInit(ctx context.Context, self *ServerState, msg []byte) (sf ServerSt
 	// retrieve Realm ServerKey
 	log.Debug("loading ServerKey for EnrollReq.RealmId")
 	sk := credentials.ServerKey{}
-	found := self.KeyStore.GetServerKey(ctx, req.RealmId, &sk)
+	found := self.KeyStore.GetServerKey(ctx, req.RealmId, SrvKeyName, &sk)
 	if !found {
 		errmsg = "failed loading ServerKey for EnrollReq.RealmId"
 		log.Debug(errmsg, "error", err)
