@@ -75,7 +75,7 @@ type scheme struct {
 
 	// ecdh Curve implementation
 	// loaded from registry using dhn as name
-	curve ecdh.Curve
+	curve algos.Curve
 
 	// pre calculated OTP step
 	step float64
@@ -170,7 +170,7 @@ func (self *scheme) init() error {
 		// normally unreachable
 		return newError("got a nil Curve loading %s", self.dhn)
 	}
-	self.curve = curve.Curve
+	self.curve = curve
 
 	// name validation
 	if self.name == "" || len(self.name) > maxSchemeName {
@@ -253,7 +253,7 @@ func (self scheme) P() int {
 }
 
 // Curve returns the scheme curve.
-func (self scheme) Curve() ecdh.Curve {
+func (self scheme) Curve() algos.Curve {
 	return self.curve
 }
 
@@ -329,7 +329,7 @@ func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
 }
 
 func (self scheme) ecdh(seckey *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error) {
-	if nil == seckey || seckey.Curve() != self.curve {
+	if nil == seckey || seckey.Curve() != self.curve.Curve {
 		return nil, newError("invalid seckey")
 	}
 	return seckey.ECDH(pubkey)
