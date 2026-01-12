@@ -114,7 +114,7 @@ func (self *AgentCardChallenge) Check() error {
 	if nil != err {
 		return wrapError(err, "failed Scheme lookup")
 	}
-	curve := sch.Curve()
+	curve := sch.Curve().Curve
 
 	// check OtpPad
 	err = checkPad(self.OtpPad, sch.B(), sch.P())
