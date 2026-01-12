@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-const testDSN = "host=localhost port=5432 database=kerpass_db user=postgres password=notasecret sslmode=disable search_path=kerpass_test,public"
+const testDSN = "host=localhost port=25432 database=kpdb user=postgres password=notasecret sslmode=disable search_path=kerpass_test,public"
 
 var testRealmId = newID(0x1F)
 
