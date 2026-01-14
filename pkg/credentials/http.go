@@ -52,6 +52,7 @@ func (self *RealmInfoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	var errmsg string
 	log := observability.GetObservability(r.Context()).Log().With("handler", "realm-info")
+	log.Info("RealmInfoHandler called")
 
 	srzRealmId, isCbor := strings.CutSuffix(r.PathValue("realmId"), ".cbor")
 	if !isCbor {
@@ -152,6 +153,7 @@ func GetRealmInfo(ctx context.Context, authServerUrl string, realmId []byte) (*R
 
 	var realm Realm
 	if err := cborSrz.Unmarshal(body, &realm); err != nil {
+		fmt.Printf("failed CBOR decoding of %s", string(body))
 		return nil, wrapError(err, "failed to unmarshal CBOR response")
 	}
 
