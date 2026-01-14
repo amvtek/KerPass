@@ -152,6 +152,49 @@ type ChallengeFactoryImpl struct {
 	cfg []AuthContext
 }
 
+// Check validates the ChallengeFactoryImpl and returns an error if invalid.
+func (self *ChallengeFactoryImpl) Check() error {
+	if nil == self {
+		return wrapError(ErrValidation, "nil ChallengeFactoryImpl")
+	}
+	if nil == self.skf {
+		return wrapError(ErrValidation, "nil session KeyFactory")
+	}
+	if nil == self.kst {
+		return wrapError(ErrValidation, "nil credentials KeyStore")
+	}
+	if nil == self.cst {
+		return wrapError(ErrValidation, "nil ChalSetter")
+	}
+	if 0 == len(self.cfg) {
+		return wrapError(ErrValidation, "empty cfg list")
+	}
+
+	var err error
+	for pos, cfg := range self.cfg {
+		err = cfg.Check()
+		if nil != err {
+			return wrapError(err, "failed validating configured AuthContext at position %d", pos)
+		}
+
+		// make sure that KeyStore kst contains scheme static key...
+		sch, err := ephemsec.GetScheme(cfg.AuthMethod.Scheme)
+		if nil != err {
+			return wrapError(err, "failed loading cfg[%d] scheme", pos)
+		}
+		kx := sch.KeyExchangePattern()
+		if kx == "E1S2" || kx == "E2S2" {
+			sk := credentials.ServerKey{}
+			found := self.kst.GetServerKey(context.Background(), cfg.RealmId[:], sch.Name(), &sk)
+			if !found {
+				return wrapError(ErrValidation, "failed loading static key for cfg[%d]", pos)
+			}
+		}
+
+	}
+	return nil
+}
+
 // GetCardChallenge generates a CardChallenge response for a given CardChallengeRequest.
 // It validates the request against configured AuthContexts, generates a session ID,
 // creates an authentication challenge using the configured ChalSetter, and loads
