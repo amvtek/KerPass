@@ -523,7 +523,7 @@ func createTestFactory(t *testing.T) *ChallengeFactoryImpl {
 	kst.SaveServerKey(ctx, sch2.Name(), serverKey2)
 
 	// Create configurations
-	cfg := []AuthContext{
+	cfgs := []AuthContext{
 		{
 			RealmId:              [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
 			AuthMethod:           AuthMethod{Protocol: SlpDirect, Scheme: ephemsec.SHA512_X25519_E1S1_T600B32P9},
@@ -551,9 +551,9 @@ func createTestFactory(t *testing.T) *ChallengeFactoryImpl {
 	}
 
 	return &ChallengeFactoryImpl{
-		skf: skf,
-		kst: kst,
-		cst: cst,
-		cfg: cfg,
+		Skf:  skf,
+		Kst:  kst,
+		Cst:  cst,
+		Cfgs: cfgs,
 	}
 }

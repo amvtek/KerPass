@@ -146,10 +146,10 @@ func (self *AuthContext) Check() error {
 // It uses a session key factory, key store, and challenge setter to generate
 // authentication challenges and contexts based on configuration.
 type ChallengeFactoryImpl struct {
-	skf session.KeyFactory[session.Sid]
-	kst credentials.KeyStore
-	cst ChalSetter
-	cfg []AuthContext
+	Skf  session.KeyFactory[session.Sid]
+	Kst  credentials.KeyStore
+	Cst  ChalSetter
+	Cfgs []AuthContext
 }
 
 // Check validates the ChallengeFactoryImpl and returns an error if invalid.
@@ -157,27 +157,27 @@ func (self *ChallengeFactoryImpl) Check() error {
 	if nil == self {
 		return wrapError(ErrValidation, "nil ChallengeFactoryImpl")
 	}
-	if nil == self.skf {
+	if nil == self.Skf {
 		return wrapError(ErrValidation, "nil session KeyFactory")
 	}
-	if nil == self.kst {
+	if nil == self.Kst {
 		return wrapError(ErrValidation, "nil credentials KeyStore")
 	}
-	if nil == self.cst {
+	if nil == self.Cst {
 		return wrapError(ErrValidation, "nil ChalSetter")
 	}
-	if 0 == len(self.cfg) {
-		return wrapError(ErrValidation, "empty cfg list")
+	if 0 == len(self.Cfgs) {
+		return wrapError(ErrValidation, "empty Cfgs list")
 	}
 
 	var err error
-	for pos, cfg := range self.cfg {
+	for pos, cfg := range self.Cfgs {
 		err = cfg.Check()
 		if nil != err {
 			return wrapError(err, "failed validating configured AuthContext at position %d", pos)
 		}
 
-		// make sure that KeyStore kst contains scheme static key...
+		// make sure that KeyStore Kst contains scheme static key...
 		sch, err := ephemsec.GetScheme(cfg.AuthMethod.Scheme)
 		if nil != err {
 			return wrapError(err, "failed loading cfg[%d] scheme", pos)
@@ -185,7 +185,7 @@ func (self *ChallengeFactoryImpl) Check() error {
 		kx := sch.KeyExchangePattern()
 		if kx == "E1S2" || kx == "E2S2" {
 			sk := credentials.ServerKey{}
-			found := self.kst.GetServerKey(context.Background(), cfg.RealmId[:], sch.Name(), &sk)
+			found := self.Kst.GetServerKey(context.Background(), cfg.RealmId[:], sch.Name(), &sk)
 			if !found {
 				return wrapError(ErrValidation, "failed loading static key for cfg[%d]", pos)
 			}
@@ -204,16 +204,16 @@ func (self *ChallengeFactoryImpl) GetCardChallenge(req *CardChallengeRequest, ds
 	// load the AuthContext that corresponds to req.
 	var realmId [32]byte
 	copy(realmId[:], req.RealmId)
-	cfgIdx := slices.IndexFunc(self.cfg, func(elt AuthContext) bool {
+	cfgIdx := slices.IndexFunc(self.Cfgs, func(elt AuthContext) bool {
 		return (elt.RealmId == realmId) && (elt.AuthMethod == req.SelectedMethod) && (elt.AppContextUrl == req.AppContextUrl)
 	})
 	if -1 == cfgIdx {
 		return newError("invalid CardChallengeRequest")
 	}
-	cfg := self.cfg[cfgIdx]
+	cfg := self.Cfgs[cfgIdx]
 
 	// generates new session Id that encodes the selected AuthContext.
-	sId := self.skf.New(uint64(cfgIdx))
+	sId := self.Skf.New(uint64(cfgIdx))
 
 	// retrieve req EPHEMSEC scheme.
 	sch, err := ephemsec.GetScheme(req.SelectedMethod.Scheme)
@@ -224,7 +224,7 @@ func (self *ChallengeFactoryImpl) GetCardChallenge(req *CardChallengeRequest, ds
 
 	// generates new authentication challenge.
 	chal := SessionChal{}
-	err = self.cst.SetChal(curve, sId[:], &chal)
+	err = self.Cst.SetChal(curve, sId[:], &chal)
 	if nil != err {
 		return wrapError(err, "failed generating session challenge")
 	}
@@ -233,7 +233,7 @@ func (self *ChallengeFactoryImpl) GetCardChallenge(req *CardChallengeRequest, ds
 	kx := sch.KeyExchangePattern()
 	if kx == "E1S2" || kx == "E2S2" {
 		sk := credentials.ServerKey{}
-		found := self.kst.GetServerKey(context.Background(), req.RealmId, sch.Name(), &sk)
+		found := self.Kst.GetServerKey(context.Background(), req.RealmId, sch.Name(), &sk)
 		if !found {
 			return newError("failed loading scheme static key, with keyref{[%d][%v], %s}", len(req.RealmId), req.RealmId, sch.Name())
 		}
@@ -263,17 +263,17 @@ func (self *ChallengeFactoryImpl) GetAgentAuthContext(sid []byte, dst *AgentAuth
 		return wrapError(ErrValidation, "invalid sid length")
 	}
 	copy(sId[:], sid)
-	err := self.skf.Check(sId)
+	err := self.Skf.Check(sId)
 	if nil != err {
 		return wrapError(err, "failed sId validation")
 	}
 
 	// retrieve session cfg
 	cfgIdx := sId.AD()
-	if cfgIdx >= uint64(len(self.cfg)) {
+	if cfgIdx >= uint64(len(self.Cfgs)) {
 		return newError("invalid cfg index")
 	}
-	cfg := self.cfg[int(cfgIdx)]
+	cfg := self.Cfgs[int(cfgIdx)]
 
 	// retrieve session EPHEMSEC scheme
 	sch, err := ephemsec.GetScheme(cfg.AuthMethod.Scheme)
@@ -285,7 +285,7 @@ func (self *ChallengeFactoryImpl) GetAgentAuthContext(sid []byte, dst *AgentAuth
 	kx := sch.KeyExchangePattern()
 	if kx == "E1S2" || kx == "E2S2" {
 		sk := credentials.ServerKey{}
-		found := self.kst.GetServerKey(context.Background(), cfg.RealmId[:], sch.Name(), &sk)
+		found := self.Kst.GetServerKey(context.Background(), cfg.RealmId[:], sch.Name(), &sk)
 		if !found {
 			return newError("failed loading scheme static key")
 		}
