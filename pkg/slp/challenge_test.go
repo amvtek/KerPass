@@ -278,7 +278,7 @@ func testFactorySetup(t *testing.T) *ChallengeFactoryImpl {
 	kst.SaveServerKey(ctx, sch.Name(), serverKey2)
 
 	// Create configurations
-	cfg := []AuthContext{
+	cfgs := []AuthContext{
 		{
 			RealmId:              [32]byte{1},
 			AuthMethod:           AuthMethod{Protocol: SlpDirect, Scheme: ephemsec.SHA512_X25519_E1S1_T600B32P9},
@@ -306,10 +306,10 @@ func testFactorySetup(t *testing.T) *ChallengeFactoryImpl {
 	}
 
 	return &ChallengeFactoryImpl{
-		skf: skf,
-		kst: kst,
-		cst: cst,
-		cfg: cfg,
+		Skf:  skf,
+		Kst:  kst,
+		Cst:  cst,
+		Cfgs: cfgs,
 	}
 }
 
@@ -455,7 +455,7 @@ func TestChallenge_FactoryImpl_GetCardChallenge(t *testing.T) {
 		kst := credentials.NewMemKeyStore()
 		cst, _ := NewHkdfChalSetter(crypto.SHA256)
 
-		cfg := []AuthContext{
+		cfgs := []AuthContext{
 			{
 				RealmId:              [32]byte{3},
 				AuthMethod:           AuthMethod{Protocol: SlpCpace, Scheme: ephemsec.BLAKE2S_X25519_E1S2_T600B32P9},
@@ -467,10 +467,10 @@ func TestChallenge_FactoryImpl_GetCardChallenge(t *testing.T) {
 		}
 
 		factory := &ChallengeFactoryImpl{
-			skf: skf,
-			kst: kst,
-			cst: cst,
-			cfg: cfg,
+			Skf:  skf,
+			Kst:  kst,
+			Cst:  cst,
+			Cfgs: cfgs,
 		}
 
 		req := &CardChallengeRequest{
