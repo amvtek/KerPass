@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"slices"
+	"time"
 
 	"golang.org/x/crypto/hkdf"
 
@@ -150,6 +151,43 @@ type ChallengeFactoryImpl struct {
 	Kst  credentials.KeyStore
 	Cst  ChalSetter
 	Cfgs []AuthContext
+}
+
+// NewChallengeFactoryImpl creates and initializes a new ChallengeFactoryImpl instance.
+// It configures a session key factory with the specified session lifetime,
+// initializes an HKDF-based challenge setter using SHA-512, and validates
+// the provided authentication contexts and key store configuration.
+//
+// Parameters:
+//   - sl: The session lifetime duration for generated session identifiers
+//   - kst: The key store used to retrieve server static keys during challenge generation
+//   - acts: A list of authentication contexts defining available authentication realms
+//
+// Returns:
+//   - *ChallengeFactoryImpl: A fully initialized challenge factory ready for use
+//   - error: An error if any component fails initialization or configuration validation
+//
+// The factory performs comprehensive validation during construction including:
+//   - Verifying all authentication contexts have valid URLs and authentication methods
+//   - Ensuring the key store contains required static keys for applicable EPHEMSEC schemes
+//   - Validating the internal challenge setter configuration
+//
+// Note: The factory uses HKDF with SHA-512 for deterministic generation of
+// ephemeral keys and nonces. Sessions created by this factory encode the
+// authentication context index in their session identifier structure.
+func NewChallengeFactoryImpl(sl time.Duration, kst credentials.KeyStore, acts []AuthContext) (*ChallengeFactoryImpl, error) {
+	skf, err := session.NewSidFactory(sl)
+	if nil != err {
+		return nil, wrapError(err, "failed creating SidFactory")
+	}
+	cst, err := NewHkdfChalSetter(crypto.SHA512)
+	if nil != err {
+		return nil, wrapError(err, "failed creating HkdfChalSetter")
+	}
+
+	rv := &ChallengeFactoryImpl{Skf: skf, Kst: kst, Cst: cst, Cfgs: acts}
+
+	return rv, wrapError(rv.Check(), "failed ChallengeFactoryImpl Check")
 }
 
 // Check validates the ChallengeFactoryImpl and returns an error if invalid.
