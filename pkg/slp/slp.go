@@ -105,6 +105,27 @@ func (self AuthMethod) Check() error {
 	return nil
 }
 
+// ReadInt decodes an integer into an AuthMethod by extracting Protocol from bits 16-17 and Scheme from bits 0-15.
+// It validates the decoded AuthMethod and returns an error if invalid.
+func (self *AuthMethod) ReadInt(v int) error {
+	uv := uint32(v & 0x3FFFF) // mask keeps the lowest 18 bits of v
+	mtd := AuthMethod{Protocol: uint16(uv >> 16), Scheme: uint16(uv)}
+	err := mtd.Check()
+	if nil != err {
+		return wrapError(err, "can not decode valid AuthMethod")
+	}
+	*self = mtd
+
+	return nil
+}
+
+// EncodeToInt encodes the AuthMethod into an integer with Protocol in bits 16-17 and Scheme in bits 0-15.
+func (self AuthMethod) EncodeToInt() int {
+	uv := (uint32(self.Protocol) << 16) | uint32(self.Scheme)
+
+	return int(uv)
+}
+
 // CardChallengeRequest allows obtaining EPHEMSEC ephemeral key & nonce.
 // It is submitted by a KerPass CardAgent to a relying application AuthServer.
 type CardChallengeRequest struct {
