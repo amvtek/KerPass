@@ -12,19 +12,19 @@ import (
 func TestNewScheme(t *testing.T) {
 	testcases := []struct {
 		name   string
-		expect scheme
+		expect Scheme
 		fail   bool
 	}{
 		{
 			name: "Kerpass_SHA512/256_X25519_E2S2_T400B16P8",
-			expect: scheme{
+			expect: Scheme{
 				hn: "SHA512/256", dhn: "X25519", kx: "E2S2",
 				tw: 400, eb: 16, nd: 8,
 			},
 		},
 		{
 			name: "Kerpass_BLAKE2s_P256_E1S1_T600B10P8",
-			expect: scheme{
+			expect: Scheme{
 				hn: "BLAKE2s", dhn: "P256", kx: "E1S1",
 				tw: 600, eb: 10, nd: 8,
 			},
@@ -83,31 +83,31 @@ func TestNewScheme(t *testing.T) {
 
 func TestSchemeInit(t *testing.T) {
 	testcases := []struct {
-		scheme scheme
+		scheme Scheme
 		fail   bool
 	}{
 		// OTP schemes
-		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 8}},
-		{scheme: scheme{name: "1", hn: "SHA512/256", dhn: "X25519", kx: "E1S2", tw: 400, eb: 32, nd: 11}},
-		{scheme: scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E2S2", tw: 400, eb: 32, nd: 5}},
-		{scheme: scheme{name: "1", hn: "SHA3/256", dhn: "P384", kx: "E1S1", tw: 400, eb: 16, nd: 8}},
-		{scheme: scheme{name: "1", hn: "SHA3/512", dhn: "P521", kx: "E1S1", tw: 400, eb: 16, nd: 11}},
-		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "P256", kx: "E1S1", tw: 400, eb: 16, nd: 5}},
-		{scheme: scheme{name: "1", hn: "BLAKE2s", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 8}},
-		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 11}},
-		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 5}},
+		{scheme: Scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 8}},
+		{scheme: Scheme{name: "1", hn: "SHA512/256", dhn: "X25519", kx: "E1S2", tw: 400, eb: 32, nd: 11}},
+		{scheme: Scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E2S2", tw: 400, eb: 32, nd: 5}},
+		{scheme: Scheme{name: "1", hn: "SHA3/256", dhn: "P384", kx: "E1S1", tw: 400, eb: 16, nd: 8}},
+		{scheme: Scheme{name: "1", hn: "SHA3/512", dhn: "P521", kx: "E1S1", tw: 400, eb: 16, nd: 11}},
+		{scheme: Scheme{name: "1", hn: "BLAKE2b", dhn: "P256", kx: "E1S1", tw: 400, eb: 16, nd: 5}},
+		{scheme: Scheme{name: "1", hn: "BLAKE2s", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 8}},
+		{scheme: Scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 11}},
+		{scheme: Scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 10, nd: 5}},
 		// OTK schemes
-		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 256, nd: 32}},
-		{scheme: scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 256, nd: 64}},
+		{scheme: Scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 256, nd: 32}},
+		{scheme: Scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 256, nd: 64}},
 		// Invalid schemes
-		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 33, nd: 8}, fail: true},   // B not supported
-		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 14}, fail: true},  // P too large (65 > 64 entropy bits)
-		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: -400, eb: 32, nd: 11}, fail: true}, // T < 0
-		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 0}, fail: true},   // P == 0
-		{scheme: scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 0, eb: 10, nd: 6}, fail: true},     // T == 0
-		{scheme: scheme{name: "1", hn: "FOO", dhn: "X25519", kx: "E1S1", tw: 400, eb: 10, nd: 6}, fail: true},       // H == FOO unsupported
-		{scheme: scheme{name: "1", hn: "SHA256", dhn: "XBAR", kx: "E1S1", tw: 400, eb: 10, nd: 6}, fail: true},      // D == XBAR unsupported
-		{scheme: scheme{name: "1", hn: "SHA256", dhn: "XBAR", kx: "E0S1", tw: 400, eb: 10, nd: 6}, fail: true},      // K == E0S1 unsupported
+		{scheme: Scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 33, nd: 8}, fail: true},   // B not supported
+		{scheme: Scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 14}, fail: true},  // P too large (65 > 64 entropy bits)
+		{scheme: Scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: -400, eb: 32, nd: 11}, fail: true}, // T < 0
+		{scheme: Scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 0}, fail: true},   // P == 0
+		{scheme: Scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 0, eb: 10, nd: 6}, fail: true},     // T == 0
+		{scheme: Scheme{name: "1", hn: "FOO", dhn: "X25519", kx: "E1S1", tw: 400, eb: 10, nd: 6}, fail: true},       // H == FOO unsupported
+		{scheme: Scheme{name: "1", hn: "SHA256", dhn: "XBAR", kx: "E1S1", tw: 400, eb: 10, nd: 6}, fail: true},      // D == XBAR unsupported
+		{scheme: Scheme{name: "1", hn: "SHA256", dhn: "XBAR", kx: "E0S1", tw: 400, eb: 10, nd: 6}, fail: true},      // K == E0S1 unsupported
 	}
 	for pos, tc := range testcases {
 		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
@@ -128,27 +128,27 @@ func TestSchemeInit(t *testing.T) {
 
 func TestSchemeTime(t *testing.T) {
 	testcases := []struct {
-		scheme  scheme
+		scheme  Scheme
 		reftime string
 	}{
 		{
-			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 300, eb: 10, nd: 7},
+			scheme:  Scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 300, eb: 10, nd: 7},
 			reftime: "2008-03-12T12:45:56Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 16, nd: 8},
+			scheme:  Scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 16, nd: 8},
 			reftime: "2018-06-06T05:32:07Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 8},
+			scheme:  Scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 8},
 			reftime: "2025-09-14T11:48:07Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 11},
+			scheme:  Scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 400, eb: 32, nd: 11},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 1024, eb: 256, nd: 32},
+			scheme:  Scheme{name: "1", hn: "BLAKE2s", dhn: "X25519", kx: "E1S1", tw: 1024, eb: 256, nd: 32},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 	}
@@ -208,7 +208,7 @@ func TestSchemeMakeOTP(t *testing.T) {
 	}
 	for pos, tc := range testcases {
 		t.Run(fmt.Sprintf("case#%d", pos), func(t *testing.T) {
-			sch := scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E1S2", tw: 400}
+			sch := Scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E1S2", tw: 400}
 			sch.eb = tc.eb
 			sch.nd = tc.nd
 			err := sch.init()
@@ -246,27 +246,27 @@ func TestSchemeMakeOTP(t *testing.T) {
 
 func FuzzSchemeTime(f *testing.F) {
 	testcases := []struct {
-		scheme  scheme
+		scheme  Scheme
 		reftime string
 	}{
 		{
-			scheme:  scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E1S1", tw: 300, eb: 10, nd: 7},
+			scheme:  Scheme{name: "1", hn: "SHA256", dhn: "P256", kx: "E1S1", tw: 300, eb: 10, nd: 7},
 			reftime: "2008-03-12T12:45:56Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "SHA256", dhn: "X25519", kx: "E1S1", tw: 400, eb: 16, nd: 8},
+			scheme:  Scheme{name: "1", hn: "SHA256", dhn: "X25519", kx: "E1S1", tw: 400, eb: 16, nd: 8},
 			reftime: "2018-06-06T05:32:07Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 8},
+			scheme:  Scheme{name: "1", hn: "SHA512", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 8},
 			reftime: "2025-09-14T11:48:07Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "SHA3/256", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 11},
+			scheme:  Scheme{name: "1", hn: "SHA3/256", dhn: "P256", kx: "E1S1", tw: 400, eb: 32, nd: 11},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 		{
-			scheme:  scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 1024, eb: 256, nd: 32},
+			scheme:  Scheme{name: "1", hn: "BLAKE2b", dhn: "X25519", kx: "E1S1", tw: 1024, eb: 256, nd: 32},
 			reftime: "2031-10-18T15:38:12Z",
 		},
 	}
@@ -288,7 +288,7 @@ func FuzzSchemeTime(f *testing.F) {
 			ts = -ts
 		}
 		var err error
-		var sc scheme
+		var sc Scheme
 		var vts, pts0, pts1, halfT int64
 		var sync int
 		for _, tc := range testcases {

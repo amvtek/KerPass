@@ -108,7 +108,7 @@ func (self *State) Reset() {
 
 // setContext concatenates Context & scheme Name and saves resulting byte string into the State.
 // the resulting byte string will be used as 'salt' for HKDF domain separation.
-func (self *State) setContext(sch scheme) error {
+func (self *State) setContext(sch Scheme) error {
 	context := self.context[:0]
 
 	// add state Context
@@ -135,7 +135,7 @@ func (self *State) setContext(sch scheme) error {
 
 // setPtime save PTIME into the state
 // It derives PTIME from the Time parameter or system Unix time
-func (self *State) setPTime(sch scheme, role role) error {
+func (self *State) setPTime(sch Scheme, role role) error {
 	ts := self.Time
 	if 0 == ts {
 		ts = time.Now().Unix()

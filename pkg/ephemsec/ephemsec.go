@@ -20,7 +20,7 @@ const (
 // If a non nil dst buffer is passed, EPHEMSEC will try reusing it to output the
 // generated secret. If dst is nil, EPHEMSEC will allocate memory to hold the
 // generated secret.
-func (self *State) EPHEMSEC(scheme *scheme, role role, dst []byte) ([]byte, error) {
+func (self *State) EPHEMSEC(scheme *Scheme, role role, dst []byte) ([]byte, error) {
 	if nil == scheme || !scheme.initialized || nil == self {
 		return nil, newError("invalid state")
 	}
@@ -68,7 +68,7 @@ func (self *State) EPHEMSEC(scheme *scheme, role role, dst []byte) ([]byte, erro
 
 // runDH run the scheme Diffie-Hellmann key exchanges using state keys and save the resulting
 // secrets into the state. It appends the state Psk to such secrets.
-func (self *State) runDH(sch scheme, role role) error {
+func (self *State) runDH(sch Scheme, role role) error {
 
 	var keyexch string
 	switch role {
