@@ -96,9 +96,9 @@ func (self AuthMethod) Check() error {
 		if sch.P() < 33 {
 			return wrapError(ErrUnsafeMethod, "SlpNXpsk2 unsafe with OTK having less than 256 bits entropy")
 		}
-	case SlpDirect, SlpCpace:
+	case SlpCpace:
 		if 256 == sch.B() {
-			return wrapError(ErrNotSupported, "Usage of OTK with SlpDirect or SlpCpace not supported")
+			return wrapError(ErrNotSupported, "Usage of OTK with SlpCpace not supported")
 		}
 	}
 
