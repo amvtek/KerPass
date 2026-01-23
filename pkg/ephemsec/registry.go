@@ -57,7 +57,7 @@ const (
 
 // GetScheme returns the EPHEMSEC scheme that corresponds to code.
 // It errors if no scheme corresponds to code.
-func GetScheme(code uint16) (*scheme, error) {
+func GetScheme(code uint16) (*Scheme, error) {
 	scm, found := utils.RegistryGet(shortCodeRegistry, code)
 	if !found {
 		return scm, newError("missing scheme")
@@ -66,7 +66,7 @@ func GetScheme(code uint16) (*scheme, error) {
 	return &rv, nil
 }
 
-var shortCodeRegistry *utils.Registry[uint16, *scheme]
+var shortCodeRegistry *utils.Registry[uint16, *Scheme]
 
 func mustRegister(code uint16, scheme string) {
 	err := registerScheme(code, scheme)
@@ -88,7 +88,7 @@ func registerScheme(code uint16, scheme string) error {
 }
 
 func init() {
-	shortCodeRegistry = utils.NewRegistry[uint16, *scheme]()
+	shortCodeRegistry = utils.NewRegistry[uint16, *Scheme]()
 
 	mustRegister(SHA512_X25519_E1S1_T600B10P8, "Kerpass_SHA512_X25519_E1S1_T600B10P8")
 	mustRegister(SHA512_256_X25519_E1S1_T600B10P8, "Kerpass_SHA512/256_X25519_E1S1_T600B10P8")

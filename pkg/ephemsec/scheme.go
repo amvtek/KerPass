@@ -35,8 +35,8 @@ const (
 	schP = 6
 )
 
-// scheme holds configuration parameters for OTP/OTK generation.
-type scheme struct {
+// Scheme holds configuration parameters for OTP/OTK generation.
+type Scheme struct {
 
 	// scheme name
 	name string
@@ -85,26 +85,26 @@ type scheme struct {
 	maxcode int64
 }
 
-// NewScheme parses the name string to extract scheme fields values. It errors if name can not
-// be parsed or if the constructed scheme is invalid.
+// NewScheme parses the name string to extract Scheme fields values. It errors if name can not
+// be parsed or if the constructed Scheme is invalid.
 //
-// scheme name have the following form
+// Scheme name have the following form
 //
 //	Kerpass_SHA512/256_X25519_E1S2_T400B32P8
-//	  1st subgroup (eg SHA512/256) is the name of the scheme Hash function
-//	  2nd subgroup (eg X25519) is the name of the scheme Diffie-Hellmann function
+//	  1st subgroup (eg SHA512/256) is the name of the Scheme Hash function
+//	  2nd subgroup (eg X25519) is the name of the Scheme Diffie-Hellmann function
 //	  3rd subgroup (eg E1S2) details Diffie-Hellmann key exchange requirements,
 //	    E is the number of ephemeral keys and S the number of static keys
 //	  4th subgroup (eg T400) is the size of the OTP/OTK validation time window in seconds
 //	  5th subgroup (eg B32) is the OTP encoding alphabet
 //	  6th subgroup (eg P8) is the number of digits of the generated OTP/OTK
-//	    including scheme synchronization digits
-func NewScheme(name string) (*scheme, error) {
+//	    including Scheme synchronization digits
+func NewScheme(name string) (*Scheme, error) {
 	parts := schemeRe.FindStringSubmatch(name)
 	if len(parts) != 7 {
-		return nil, newError("Invalid scheme name %s", name)
+		return nil, newError("Invalid Scheme name %s", name)
 	}
-	rv := scheme{}
+	rv := Scheme{}
 
 	// N
 	rv.name = parts[schN]
@@ -142,8 +142,8 @@ func NewScheme(name string) (*scheme, error) {
 	return &rv, rv.init()
 }
 
-// Init validates inner parameters and prepares the scheme for usage.
-func (self *scheme) init() error {
+// Init validates inner parameters and prepares the Scheme for usage.
+func (self *Scheme) init() error {
 	if nil == self {
 		return newError("nil scheme")
 	}
@@ -226,45 +226,45 @@ func (self *scheme) init() error {
 	return nil
 }
 
-// Name returns the scheme name.
-func (self scheme) Name() string {
+// Name returns the Scheme name.
+func (self Scheme) Name() string {
 	return self.name
 }
 
-// KeyExchangePattern returns the scheme Key Exchange pattern.
+// KeyExchangePattern returns the Scheme Key Exchange pattern.
 // Possible values are E1S1, E1S2 & E2S2.
-func (self scheme) KeyExchangePattern() string {
+func (self Scheme) KeyExchangePattern() string {
 	return self.kx
 }
 
-// T returns the scheme Time Window size in seconds.
-func (self scheme) T() float64 {
+// T returns the Scheme Time Window size in seconds.
+func (self Scheme) T() float64 {
 	return self.tw
 }
 
-// B returns the scheme digit base.
-func (self scheme) B() int {
+// B returns the Scheme digit base.
+func (self Scheme) B() int {
 	return self.eb
 }
 
-// P returns the scheme code size.
-func (self scheme) P() int {
+// P returns the Scheme code size.
+func (self Scheme) P() int {
 	return self.nd
 }
 
-// Curve returns the scheme curve.
-func (self scheme) Curve() algos.Curve {
+// Curve returns the Scheme curve.
+func (self Scheme) Curve() algos.Curve {
 	return self.curve
 }
 
-// Hash returns the scheme hash.
-func (self scheme) Hash() crypto.Hash {
+// Hash returns the Scheme hash.
+func (self Scheme) Hash() crypto.Hash {
 	return self.hash
 }
 
 // Time transforms a second precision Unix timestamp into a pseudo time that can be used as
 // input for OTP/OTK calculation. It returns the pseudo time and its synchronization hint.
-func (self scheme) Time(t int64) (int64, int) {
+func (self Scheme) Time(t int64) (int64, int) {
 	ts := int64(math.Round(float64(t) / self.step))
 	return ts, int(ts % int64(self.eb))
 }
@@ -272,7 +272,7 @@ func (self scheme) Time(t int64) (int64, int) {
 // SyncTime returns the pseudo time which is the closest from Time(t)
 // having a synchronization hint that matches sync. It errors if the sync
 // parameter is invalid.
-func (self scheme) SyncTime(t int64, sync int) (int64, error) {
+func (self Scheme) SyncTime(t int64, sync int) (int64, error) {
 	if sync < 0 || sync >= self.eb {
 		return 0, newError("invalid sync %d", sync)
 	}
@@ -294,8 +294,8 @@ func (self scheme) SyncTime(t int64, sync int) (int64, error) {
 }
 
 // NewOTP interprets src as a Uint64 integer and returns an OTP which digits encode
-// the src integer in the scheme base eb.
-func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
+// the src integer in the Scheme base eb.
+func (self Scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
 	eb := self.eb
 	nd := self.nd
 
@@ -328,7 +328,7 @@ func (self scheme) NewOTP(src []byte, ptime int64) ([]byte, error) {
 	}
 }
 
-func (self scheme) ecdh(seckey *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error) {
+func (self Scheme) ecdh(seckey *ecdh.PrivateKey, pubkey *ecdh.PublicKey) ([]byte, error) {
 	if nil == seckey || seckey.Curve() != self.curve.Curve {
 		return nil, newError("invalid seckey")
 	}
