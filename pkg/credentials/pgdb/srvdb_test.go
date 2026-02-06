@@ -230,16 +230,16 @@ func TestServerCredStore_SaveEnrollAuthorization_Success(t *testing.T) {
 
 		err := store.SaveEnrollAuthorization(ctx, ea)
 		if err != nil {
-			t.Errorf("Failed to save authorization #%d: %v", i+1, err)
+			t.Fatalf("Failed to save authorization #%d: %v", i+1, err)
 		}
 	}
 
 	// Verify final count
 	finalCount, err := store.AuthorizationCount(ctx)
 	if err != nil {
-		t.Errorf("Failed authorizations count, got error %v", err)
+		t.Fatalf("Failed authorizations count, got error %v", err)
 	} else if finalCount != len(authIDs) {
-		t.Errorf("Expected %d authorizations, got %d", len(authIDs), finalCount)
+		t.Fatalf("Expected %d authorizations, got %d", len(authIDs), finalCount)
 	}
 }
 
@@ -256,7 +256,6 @@ func TestServerCredStore_SaveEnrollAuthorization_InvalidRealm(t *testing.T) {
 		RealmId:         nonExistentRealmID,
 	}
 
-	// This should error due to foreign key constraint
 	err := store.SaveEnrollAuthorization(ctx, ea)
 	if err == nil {
 		t.Error("Expected error when saving authorization with non-existent realm, but got none")
@@ -311,7 +310,7 @@ func TestServerCredStore_PopEnrollAuthorization_WithLogo(t *testing.T) {
 
 	// Use plain SQL to modify the testRealm
 	_, err := store.DB.Exec(ctx,
-		`UPDATE realm SET app_name = $1, app_logo = $2 WHERE id = $3`,
+		`UPDATE realm SET app_name = $1, app_logo = $2 WHERE rid = $3`,
 		"Updated Test App",
 		expectedLogo,
 		testRealmId,
@@ -391,8 +390,13 @@ func TestServerCredStore_AuthorizationCount(t *testing.T) {
 	authIDs := [][]byte{newID(0x3B), newID(0x4C), newID(0x5D)}
 	for _, authID := range authIDs {
 		_, err := store.DB.Exec(ctx,
-			`INSERT INTO enroll_authorization(id, realm_id) VALUES ($1, $2)`,
-			authID, testRealmId)
+			`INSERT INTO enroll_authorization(aid, realm_id) 
+			 SELECT v.aid, r.id
+			 FROM (VALUES ($1::bytea, $2::bytea)) v(aid, rid)
+			 INNER JOIN realm r ON (r.rid = v.rid)`,
+			authID,
+			testRealmId,
+		)
 		if err != nil {
 			t.Fatalf("Failed to setup test data: %v", err)
 		}
@@ -678,7 +682,7 @@ func newServerCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
 	batch.Queue("DELETE FROM realm")
 	batch.Queue(`DELETE FROM enroll_authorization`)
 	batch.Queue("DELETE FROM card")
-	batch.Queue("INSERT INTO realm(id, app_name) VALUES ($1, $2)", testRealmId, "Test App 1F")
+	batch.Queue("INSERT INTO realm(rid, app_name) VALUES ($1, $2)", testRealmId, "Test App 1F")
 
 	br := tx.SendBatch(ctx, batch)
 	defer br.Close()
