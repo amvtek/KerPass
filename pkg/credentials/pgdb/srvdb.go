@@ -83,13 +83,13 @@ func (self *ServerCredStore) LoadRealm(ctx context.Context, realmId []byte, dst 
 	rows, err := self.DB.Query(
 		ctx,
 		`SELECT
-		   id as "RealmId",
+		   rid as "RealmId",
 		   app_name as "AppName",
 		   app_logo as "AppLogo"
 		 FROM
 		   realm
 		 WHERE
-		   id = $1
+		   rid = $1
 		`,
 		realmId,
 	)
@@ -117,7 +117,7 @@ func (self *ServerCredStore) SaveRealm(ctx context.Context, realm credentials.Re
 	}
 	_, err = self.DB.Exec(
 		ctx,
-		`INSERT INTO realm(id, app_name, app_logo) VALUES ($1, $2, $3)
+		`INSERT INTO realm(rid, app_name, app_logo) VALUES ($1, $2, $3)
 		 ON CONFLICT (id) DO UPDATE SET
 		 app_name = EXCLUDED.app_name,
 		 app_logo = EXCLUDED.app_logo`,
@@ -135,7 +135,7 @@ func (self *ServerCredStore) RemoveRealm(ctx context.Context, realmId []byte) er
 	var deleted int
 	row := self.DB.QueryRow(
 		ctx,
-		`WITH deleted AS (DELETE FROM realm WHERE id = $1 RETURNING id)
+		`WITH deleted AS (DELETE FROM realm WHERE rid = $1 RETURNING id)
 		 SELECT count(id) FROM deleted`,
 		realmId,
 	)
@@ -156,8 +156,8 @@ func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authori
 	row := self.DB.QueryRow(
 		ctx,
 		`DELETE FROM enroll_authorization a
-		 USING "realm" r WHERE a.id = $1 AND a.realm_id = r.id
-		 RETURNING a.id, a.realm_id, r.app_name, r.app_logo`,
+		 USING "realm" r WHERE a.aid = $1 AND a.realm_id = r.id
+		 RETURNING a.aid, r.rid, r.app_name, r.app_logo`,
 		authorizationId,
 	)
 	err := row.Scan(&ea.AuthorizationId, &ea.RealmId, &ea.AppName, &ea.AppLogo)
@@ -173,17 +173,27 @@ func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authori
 // SaveEnrollAuthorization saves ea in the ServerCredStore.
 // It errors if the authorization could not be saved.
 func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, ea credentials.EnrollAuthorization) error {
-	_, err := self.DB.Exec(
+	var created int
+	row := self.DB.QueryRow(
 		ctx,
-		`INSERT INTO enroll_authorization(realm_id, id)
-		 VALUES ($1, $2)
-		 ON CONFLICT(id) DO NOTHING`,
+		`WITH created AS (INSERT INTO enroll_authorization(realm_id, aid)
+		   SELECT r.id, v.aid
+		   FROM (VALUES ($1::bytea, $2::bytea)) v(rid, aid)
+		   INNER JOIN realm r ON (v.rid = r.rid)
+		   ON CONFLICT(aid) DO NOTHING
+	           RETURNING 1)
+		 SELECT count(*) FROM created`,
 		ea.RealmId,
 		ea.AuthorizationId,
 	)
+	err := row.Scan(&created)
 	if nil != err {
 		return wrapError(err, "Failed saving authorization")
 	}
+	if 1 != created {
+		return newError("Failed saving authorization")
+	}
+
 	return nil
 }
 
@@ -214,9 +224,11 @@ func (self *ServerCredStore) LoadCard(ctx context.Context, cardId []byte, dst *c
 	var sc credentials.SrvStoreCard
 	row := self.DB.QueryRow(
 		ctx,
-		`SELECT id, realm_id, seal_type, key_data
-		 FROM card
-		 WHERE id = $1`,
+		`SELECT c.cid, r.rid, c.seal_type, c.key_data
+		 FROM card c
+		 INNER JOIN realm r
+		   ON (c.realm_id = r.id)
+		 WHERE cid = $1`,
 		sId,
 	)
 	err = row.Scan(&sc.ID, &sc.RealmId, &sc.SealType, &sc.KeyData)
@@ -251,22 +263,35 @@ func (self *ServerCredStore) SaveCard(ctx context.Context, card credentials.Serv
 		return wrapError(err, "Failed SrvStoreCard adaptation")
 	}
 
-	_, err = self.DB.Exec(
+	var saved int
+	row := self.DB.QueryRow(
 		ctx,
-		`INSERT INTO card(realm_id, id, seal_type, key_data)
-		 VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (id) DO UPDATE SET
-		 seal_type = excluded.seal_type,
-		 key_data = excluded.key_data
+		`WITH saved AS (INSERT INTO card(realm_id, cid, seal_type, key_data)
+		 SELECT 
+		   r.id, v.cid, v.seal_type, v.key_data
+		 FROM 
+		   (VALUES ($1::bytea, $2::bytea, $3::int, $4::bytea)) v(rid, cid, seal_type, key_data)
+		   INNER JOIN realm r
+		     ON (v.rid = r.rid)
+		 ON CONFLICT (cid) DO UPDATE SET
+		   seal_type = excluded.seal_type,
+		   key_data = excluded.key_data
+		 RETURNING 1)
+		 SELECT count(*) FROM saved
 		`,
 		sc.RealmId,
 		sc.ID,
 		sc.SealType,
 		sc.KeyData,
 	)
+	err = row.Scan(&saved)
 	if nil != err {
 		return wrapError(err, "Failed saving card")
 	}
+	if 1 != saved {
+		return newError("Failed saving card")
+	}
+
 	return nil
 }
 
@@ -276,7 +301,7 @@ func (self *ServerCredStore) RemoveCard(ctx context.Context, cardId []byte) bool
 	var deleted int
 	row := self.DB.QueryRow(
 		ctx,
-		`WITH deleted AS (DELETE FROM card WHERE id = $1 RETURNING id)
+		`WITH deleted AS (DELETE FROM card WHERE cid = $1 RETURNING id)
 		 SELECT count(id) FROM deleted`,
 		cardId,
 	)
