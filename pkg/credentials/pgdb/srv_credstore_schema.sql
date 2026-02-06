@@ -26,10 +26,15 @@ begin;
   );
 
   create table if not exists realm (
-    id bytea not null primary key
-      check(octet_length(id) >= 32),
+
+    id serial not null primary key,
+
+    rid bytea not null unique
+      check(octet_length(rid) >= 32),
 
     app_name varchar(64) not null,
+
+    app_desc varchar(255),
 
     app_logo bytea
       check(octet_length(app_logo) <= 65536),
@@ -39,10 +44,12 @@ begin;
 
   create table if not exists enroll_authorization (
 
-    id bytea not null primary key
-      check(octet_length(id) >= 32),
+    id serial not null primary key,
 
-    realm_id bytea not null references realm(id)
+    aid bytea not null unique
+      check(octet_length(aid) >= 32),
+
+    realm_id integer not null references realm(id)
       on delete cascade,
 
     like timestamp_mixin including all
@@ -51,10 +58,12 @@ begin;
 
   create table if not exists card (
 
-    id bytea not null primary key
-      check(octet_length(id) >= 32),
+    id serial not null primary key,
 
-    realm_id bytea not null references realm(id)
+    cid bytea not null unique
+      check(octet_length(cid) >= 32),
+
+    realm_id integer not null references realm(id)
       on delete cascade,
 
     seal_type int not null default 0,
