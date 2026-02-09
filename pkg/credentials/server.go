@@ -2,6 +2,7 @@ package credentials
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 )
@@ -91,7 +92,8 @@ type ServerCredStore interface {
 type Realm struct {
 	RealmId []byte `json:"id" cbor:"1,keyasint"`
 	AppName string `json:"app_name" cbor:"2,keyasint"`
-	AppLogo []byte `json:"app_logo" cbor:"3,keyasint"`
+	AppDesc string `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
+	AppLogo []byte `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
 }
 
 // Check returns an error if the Realm is invalid.
@@ -108,10 +110,12 @@ func (self Realm) Check() error {
 
 // EnrollAuthorization contains Card creation information.
 type EnrollAuthorization struct {
-	AuthorizationId []byte `json:"-" cbor:"-"`
-	RealmId         []byte `json:"1" cbor:"1,keyasint"`
-	AppName         string `json:"2" cbor:"2,keyasint"`
-	AppLogo         []byte `json:"3" cbor:"3,keyasint,omitempty"`
+	AuthorizationId []byte          `json:"-" cbor:"-"`
+	RealmId         []byte          `json:"rid" cbor:"1,keyasint"`
+	AppName         string          `json:"app_name" cbor:"2,keyasint"`
+	AppDesc         string          `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
+	AppLogo         []byte          `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
+	UserData        json.RawMessage `json:"user_data,omitempty" cbor:"5,keyasint,omitempty"`
 }
 
 // Check returns an error if the EnrollAuthorization is invalid.
@@ -132,9 +136,9 @@ func (self EnrollAuthorization) Check() error {
 // ServerCard holds keys necessary for validating/generating EPHEMSEC OTP/OTK.
 type ServerCard struct {
 	CardId  []byte          `json:"-" cbor:"-"`
-	RealmId []byte          `json:"1" cbor:"1,keyasint"`
-	Kh      PublicKeyHandle `json:"2" cbor:"2,keyasint"` // uses Kh.PublicKey to obtain the ecdh.PublicKey
-	Psk     []byte          `json:"3" cbor:"3,keyasint"`
+	RealmId []byte          `json:"rid" cbor:"1,keyasint"`
+	Kh      PublicKeyHandle `json:"pubkey" cbor:"2,keyasint"` // uses Kh.PublicKey to obtain the ecdh.PublicKey
+	Psk     []byte          `json:"psk" cbor:"3,keyasint"`
 }
 
 // Check returns an error if the ServerCard is invalid.

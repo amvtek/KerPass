@@ -31,12 +31,14 @@ type ClientCredStore interface {
 // Card holds keys necessary for validating/generating EPHEMSEC OTP/OTK.
 type Card struct {
 	ID      int              `json:"-" cbor:"-"` // ClientCredStore identifier
-	RealmId []byte           `json:"1" cbor:"1,keyasint"`
-	IdToken []byte           `json:"2" cbor:"2,keyasint"` // used by Server to reference the Card
-	Kh      PrivateKeyHandle `json:"3" cbor:"3,keyasint"` // uses Kh.PrivateKey to obtain the ecdh.PrivateKey
-	Psk     []byte           `json:"4" cbor:"4,keyasint"`
-	AppName string           `json:"5" cbor:"5,keyasint"`
-	AppLogo []byte           `json:"6" cbor:"6,keyasint,omitempty"`
+	RealmId []byte           `json:"rid" cbor:"1,keyasint"`
+	IdToken []byte           `json:"idt" cbor:"2,keyasint"`                         // used as CardId with OTK
+	UserId  string           `json:"user_id,omitempty" cbor:"3,keyasint,omitempty"` // used as CardId with OTP
+	Kh      PrivateKeyHandle `json:"sk" cbor:"4,keyasint"`                          // uses Kh.PrivateKey to obtain the ecdh.PrivateKey
+	Psk     []byte           `json:"psk" cbor:"5,keyasint"`
+	AppName string           `json:"app_name" cbor:"6,keyasint"`
+	AppDesc string           `json:"app_desc,omitempty" cbor:"7,keyasint,omitempty"`
+	AppLogo []byte           `json:"app_logo,omitempty" cbor:"8,keyasint,omitempty"`
 }
 
 // Check returns an error if the Card is invalid.
@@ -62,16 +64,17 @@ func (self Card) Check() error {
 
 // Info returns a CardInfo{} extracted from self.
 func (self Card) Info() CardInfo {
-	return CardInfo{ID: self.ID, RealmId: self.RealmId, AppName: self.AppName, AppLogo: self.AppLogo}
+	return CardInfo{ID: self.ID, RealmId: self.RealmId, AppName: self.AppName, AppDesc: self.AppDesc, AppLogo: self.AppLogo}
 }
 
 // CardInfo holds Card information useful for display.
 // CardInfo can be used to read Card cbor/json encoding.
 type CardInfo struct {
 	ID      int    `json:"-" cbor:"-"` // ClientCredStore identifier
-	RealmId []byte `json:"1" cbor:"1,keyasint"`
-	AppName string `json:"5" cbor:"5,keyasint"`
-	AppLogo []byte `json:"6" cbor:"6,keyasint,omitempty"`
+	RealmId []byte `json:"rid" cbor:"1,keyasint"`
+	AppName string `json:"app_name" cbor:"6,keyasint"`
+	AppDesc string `json:"app_desc,omitempty" cbor:"7,keyasint,omitempty"`
+	AppLogo []byte `json:"app_logo,omitempty" cbor:"8,keyasint,omitempty"`
 }
 
 // CardQuery parametrizes ClientCredStore ListInfo.

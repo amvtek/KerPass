@@ -3,8 +3,8 @@ package enroll
 // EnrollReq is sent by the CardAgent client to the KerPass server.
 // It is a plaintext that starts the EnrollProtocol.
 type EnrollReq struct {
-	RealmId []byte `json:"realm_id" cbor:"1,keyasint"` // Determine the Static Key used by the Server
-	Msg     []byte `json:"noise_msg" cbor:"2,keyasint"`
+	RealmId []byte `json:"rid" cbor:"1,keyasint"` // Determine the Static Key used by the Server
+	Msg     []byte `json:"msg" cbor:"2,keyasint"`
 }
 
 func (self EnrollReq) Check() error {
@@ -22,7 +22,7 @@ func (self EnrollReq) Check() error {
 
 // EnrollAuthorization is sent by the CardAgent client to the KerPass server.
 type EnrollAuthorization struct {
-	AuthorizationId []byte `json:"authorization_id" cbor:"1,keyasint"`
+	AuthorizationId []byte `json:"aid" cbor:"1,keyasint"`
 }
 
 func (self EnrollAuthorization) Check() error {
@@ -37,15 +37,17 @@ func (self EnrollAuthorization) Check() error {
 // EnrollCardCreateResp is sent by the KerPass server to the CardAgent client.
 // It contains information that are necessary for creating the Card.
 type EnrollCardCreateResp struct {
-	CardId  []byte `json:"card_id" cbor:"1,keyasint"`
+	IdToken []byte `json:"idt" cbor:"1,keyasint"`
+	UserId  string `json:"user_id,omitempty" cbor:"2,keyasint,omitempty"`
 	AppName string `json:"app_name" cbor:"3,keyasint"`
-	AppLogo []byte `json:"app_logo" cbor:"4,keyasint"`
+	AppDesc string `json:"app_desc,omitempty" cbor:"4,keyasint,omitempty"`
+	AppLogo []byte `json:"app_logo,omitempty" cbor:"5,keyasint,omitempty"`
 }
 
 func (self EnrollCardCreateResp) Check() error {
-	csz := len(self.CardId)
+	csz := len(self.IdToken)
 	if csz < 32 {
-		return newError("Invalid CardId size, %d < 32", csz)
+		return newError("Invalid IdToken size, %d < 32", csz)
 	}
 
 	return nil
