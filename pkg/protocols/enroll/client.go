@@ -252,7 +252,7 @@ func ClientCardCreate(ctx context.Context, self *ClientState, msg []byte) (sf Cl
 
 	// create new Card
 	log.Debug("creating Card")
-	psk, err := derivePSK(self.RealmId, srv.CardId, self.hs.GetHandshakeHash())
+	psk, err := derivePSK(self.RealmId, srv.IdToken, self.hs.GetHandshakeHash())
 	if nil != err {
 		errmsg = "failed deriving Card psk"
 		log.Debug(errmsg, "error", err)
@@ -260,8 +260,10 @@ func ClientCardCreate(ctx context.Context, self *ClientState, msg []byte) (sf Cl
 	}
 	card := credentials.Card{
 		RealmId: self.RealmId,
-		IdToken: srv.CardId,
+		IdToken: srv.IdToken,
+		UserId:  srv.UserId,
 		AppName: srv.AppName,
+		AppDesc: srv.AppDesc,
 		AppLogo: srv.AppLogo,
 		Psk:     psk,
 	}

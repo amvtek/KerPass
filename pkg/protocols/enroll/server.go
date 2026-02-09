@@ -221,7 +221,7 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 
 	// create EnrollCardCreateResp
 	log.Debug("preparing EnrollCardCreateResp")
-	cardId := make([]byte, 32)
+	cardId := make([]byte, 32) // TODO: needs to generate UserId
 	_, err = rand.Read(cardId)
 	if nil != err {
 		errmsg = "failed generating cardId"
@@ -229,8 +229,9 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 		return sf, rmsg, wrapError(err, errmsg)
 	}
 	cardresp := EnrollCardCreateResp{
-		CardId:  cardId,
+		IdToken: cardId,
 		AppName: authorization.AppName,
+		AppDesc: authorization.AppDesc,
 		AppLogo: authorization.AppLogo,
 	}
 	srzcardresp, err := cborSrz.Marshal(cardresp)
