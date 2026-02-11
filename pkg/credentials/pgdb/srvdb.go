@@ -65,6 +65,7 @@ func (self *ServerCredStore) ListRealm(ctx context.Context) ([]credentials.Realm
 		`SELECT
 		   id as "RealmId",
 		   app_name as "AppName",
+		   app_desc as "AppDesc",
 		   app_logo as "AppLogo"
 		 FROM
 		   realm
@@ -85,6 +86,7 @@ func (self *ServerCredStore) LoadRealm(ctx context.Context, realmId []byte, dst 
 		`SELECT
 		   rid as "RealmId",
 		   app_name as "AppName",
+		   app_desc as "AppDesc",
 		   app_logo as "AppLogo"
 		 FROM
 		   realm
@@ -117,12 +119,14 @@ func (self *ServerCredStore) SaveRealm(ctx context.Context, realm credentials.Re
 	}
 	_, err = self.DB.Exec(
 		ctx,
-		`INSERT INTO realm(rid, app_name, app_logo) VALUES ($1, $2, $3)
-		 ON CONFLICT (id) DO UPDATE SET
+		`INSERT INTO realm(rid, app_name, app_desc, app_logo) VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (rid) DO UPDATE SET
 		 app_name = EXCLUDED.app_name,
+		 app_desc = EXCLUDED.app_desc,
 		 app_logo = EXCLUDED.app_logo`,
 		realm.RealmId,
 		realm.AppName,
+		realm.AppDesc,
 		realm.AppLogo,
 	)
 
@@ -157,10 +161,10 @@ func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authori
 		ctx,
 		`DELETE FROM enroll_authorization a
 		 USING "realm" r WHERE a.aid = $1 AND a.realm_id = r.id
-		 RETURNING a.aid, r.rid, r.app_name, r.app_logo`,
+		 RETURNING a.aid, r.rid, r.app_name, coalesce(r.app_desc, ''), r.app_logo, a.user_data`,
 		authorizationId,
 	)
-	err := row.Scan(&ea.AuthorizationId, &ea.RealmId, &ea.AppName, &ea.AppLogo)
+	err := row.Scan(&ea.AuthorizationId, &ea.RealmId, &ea.AppName, &ea.AppDesc, &ea.AppLogo, &ea.UserData)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return wrapError(credentials.ErrNotFound, "failed loading authorization")
@@ -176,15 +180,16 @@ func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, ea cre
 	var created int
 	row := self.DB.QueryRow(
 		ctx,
-		`WITH created AS (INSERT INTO enroll_authorization(realm_id, aid)
-		   SELECT r.id, v.aid
-		   FROM (VALUES ($1::bytea, $2::bytea)) v(rid, aid)
+		`WITH created AS (INSERT INTO enroll_authorization(realm_id, aid, user_data)
+		   SELECT r.id, v.aid, v.user_data
+		   FROM (VALUES ($1::bytea, $2::bytea, $3::json)) v(rid, aid, user_data)
 		   INNER JOIN realm r ON (v.rid = r.rid)
 		   ON CONFLICT(aid) DO NOTHING
 	           RETURNING 1)
 		 SELECT count(*) FROM created`,
 		ea.RealmId,
 		ea.AuthorizationId,
+		ea.UserData,
 	)
 	err := row.Scan(&created)
 	if nil != err {

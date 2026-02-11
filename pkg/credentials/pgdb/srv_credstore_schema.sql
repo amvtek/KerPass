@@ -52,6 +52,8 @@ begin;
     realm_id integer not null references realm(id)
       on delete cascade,
 
+    user_data json,
+
     like timestamp_mixin including all
 
   );
