@@ -3,7 +3,6 @@ package enroll
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
 	"slices"
 
@@ -29,6 +28,7 @@ const (
 type ServerCfg struct {
 	KeyStore credentials.KeyStore
 	Repo     credentials.ServerCredStore
+	IdGen    *credentials.CardIdGenerator
 }
 
 func (self ServerCfg) Check() error {
@@ -45,6 +45,7 @@ func (self ServerCfg) Check() error {
 type ServerState struct {
 	KeyStore      credentials.KeyStore
 	Repo          credentials.ServerCredStore
+	IdGen         *credentials.CardIdGenerator
 	realmId       []byte
 	exitActions   srvExitAction
 	authorization credentials.EnrollAuthorization
@@ -62,6 +63,7 @@ func NewServerState(cfg ServerCfg) (*ServerState, error) {
 	rv := &ServerState{
 		KeyStore: cfg.KeyStore,
 		Repo:     cfg.Repo,
+		IdGen:    cfg.IdGen,
 		next:     ServerInit,
 	}
 
@@ -221,15 +223,17 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 
 	// create EnrollCardCreateResp
 	log.Debug("preparing EnrollCardCreateResp")
-	cardId := make([]byte, 32) // TODO: needs to generate UserId
-	_, err = rand.Read(cardId)
+	crf := credentials.CardRef{}
+	err = self.IdGen.GenCardIds(authorization.RealmId, authorization.UserData, &crf)
 	if nil != err {
-		errmsg = "failed generating cardId"
+		errmsg = "failed generating card ids"
 		log.Debug(errmsg, "error", err)
 		return sf, rmsg, wrapError(err, errmsg)
 	}
+
 	cardresp := EnrollCardCreateResp{
-		IdToken: cardId,
+		IdToken: crf.ClientIdToken[:],
+		UserId:  crf.ClientUserId[:],
 		AppName: authorization.AppName,
 		AppDesc: authorization.AppDesc,
 		AppLogo: authorization.AppLogo,
@@ -253,13 +257,13 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 
 	// create new ServerCard
 	log.Debug("creating Card")
-	psk, err := derivePSK(authorization.RealmId, cardId, self.hs.GetHandshakeHash())
+	psk, err := derivePSK(authorization.RealmId, crf.ClientIdToken[:], self.hs.GetHandshakeHash())
 	if nil != err {
 		errmsg = "failed deriving Card psk"
 		log.Debug(errmsg, "error", err)
 		return sf, rmsg, wrapError(err, errmsg)
 	}
-	sc := credentials.ServerCard{RealmId: authorization.RealmId, CardId: cardId, Psk: psk}
+	sc := credentials.ServerCard{RealmId: authorization.RealmId, CardId: crf.ServerCardId[:], Psk: psk}
 	sc.Kh.PublicKey = self.hs.RemoteStaticKey()
 	self.card = sc
 
