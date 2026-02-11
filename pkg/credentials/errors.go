@@ -11,6 +11,7 @@ const (
 	// All package errors are wrapping Error
 	Error           = errorFlag("credentials: error")
 	ErrCardMutation = errorFlag("credentials: Card RealmId & IdToken can not change")
+	ErrValidation   = errorFlag("credentials: Failed validation")
 	ErrNotFound     = errorFlag("credentials: Not found")
 	noError         = errorFlag("")
 )
