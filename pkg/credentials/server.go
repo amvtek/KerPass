@@ -53,8 +53,9 @@ type ServerCredStore interface {
 	LoadRealm(ctx context.Context, realmId []byte, dst *Realm) error
 
 	// SaveRealm saves realm into the ServerCredStore.
+	// SaveRealm may modify realm before/after saving it, eg to record actual storage key.
 	// It errors if realm could not be saved.
-	SaveRealm(ctx context.Context, realm Realm) error
+	SaveRealm(ctx context.Context, realm *Realm) error
 
 	// RemoveRealm removes the Realm with realmId identifier from the ServerCredStore.
 	// It errors if the ServerCredStore is not reachable or if realmId does not exists.
@@ -65,8 +66,9 @@ type ServerCredStore interface {
 	PopEnrollAuthorization(ctx context.Context, authorizationId []byte, authorization *EnrollAuthorization) error
 
 	// SaveEnrollAuthorization saves authorization in the ServerCredStore.
+	// SaveEnrollAuthorization may modify authorization before/after saving it, eg to record actual storage key.
 	// It errors if the authorization could not be saved.
-	SaveEnrollAuthorization(ctx context.Context, authorization EnrollAuthorization) error
+	SaveEnrollAuthorization(ctx context.Context, authorization *EnrollAuthorization) error
 
 	// AuthorizationCount returns the number of EnrollAuthorization in the ServerCredStore.
 	AuthorizationCount(ctx context.Context) (int, error)
@@ -76,8 +78,9 @@ type ServerCredStore interface {
 	LoadCard(ctx context.Context, cardId []byte, dst *ServerCard) error
 
 	// SaveCard saves card in the ServerCredStore.
+	// SaveCard may modify card before/after saving it, eg to record actual storage key.
 	// It errors if the card could not be saved.
-	SaveCard(ctx context.Context, card ServerCard) error
+	SaveCard(ctx context.Context, card *ServerCard) error
 
 	// RemoveCard removes the ServerCard with cardId identifier from the ServerCredStore.
 	// It returns true if the ServerCard was effectively removed.
@@ -94,10 +97,14 @@ type Realm struct {
 	AppName string `json:"app_name" cbor:"2,keyasint"`
 	AppDesc string `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
 	AppLogo []byte `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
+	Ext     any    `json:"-" cbor:"-"` // maybe used by ServerCredStore implementation...
 }
 
 // Check returns an error if the Realm is invalid.
-func (self Realm) Check() error {
+func (self *Realm) Check() error {
+	if nil == self {
+		return newError("nil Realm")
+	}
 	if len(self.RealmId) < 32 {
 		return newError("Invalid RealmId, length < 32")
 	}
@@ -116,10 +123,14 @@ type EnrollAuthorization struct {
 	AppDesc         string          `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
 	AppLogo         []byte          `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
 	UserData        json.RawMessage `json:"user_data,omitempty" cbor:"5,keyasint,omitempty"`
+	Ext             any             `json:"-" cbor:"-"` // maybe used by ServerCredStore implementation...
 }
 
 // Check returns an error if the EnrollAuthorization is invalid.
-func (self EnrollAuthorization) Check() error {
+func (self *EnrollAuthorization) Check() error {
+	if nil == self {
+		return newError("nil EnrollAuthorization")
+	}
 	if len(self.AuthorizationId) != 32 {
 		return newError("Invalid AuthorizationId, length != 32")
 	}
@@ -139,10 +150,14 @@ type ServerCard struct {
 	RealmId []byte          `json:"rid" cbor:"1,keyasint"`
 	Kh      PublicKeyHandle `json:"pubkey" cbor:"2,keyasint"` // uses Kh.PublicKey to obtain the ecdh.PublicKey
 	Psk     []byte          `json:"psk" cbor:"3,keyasint"`
+	Ext     any             `json:"-" cbor:"-"` // maybe used by ServerCredStore implementation...
 }
 
 // Check returns an error if the ServerCard is invalid.
-func (self ServerCard) Check() error {
+func (self *ServerCard) Check() error {
+	if nil == self {
+		return newError("nil ServerCard")
+	}
 	if len(self.CardId) != 32 {
 		return newError("Invalid CardId, length != 32")
 	}
@@ -269,19 +284,16 @@ func (self *MemServerCredStore) LoadRealm(_ context.Context, realmId []byte, dst
 
 // SaveRealm saves realm into the ServerCredStore.
 // It errors if realm could not be saved.
-func (self *MemServerCredStore) SaveRealm(_ context.Context, realm Realm) error {
+func (self *MemServerCredStore) SaveRealm(_ context.Context, realm *Realm) error {
 	err := realm.Check()
 	if nil != err {
 		return wrapError(err, "Invalid realm")
 	}
 
-	var rid [32]byte
-	copy(rid[:], realm.RealmId)
-
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.realms[rid] = realm
+	self.realms[[32]byte(realm.RealmId)] = *realm
 
 	return nil
 
@@ -335,21 +347,18 @@ func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, author
 	return nil
 }
 
-// SaveEnrollAuthorization saves authorization in the MemServerCredStore.
+// SaveEnrollAuthorization saves atz authorization in the MemServerCredStore.
 // It errors if the authorization could not be saved.
-func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, authorization EnrollAuthorization) error {
-	err := authorization.Check()
+func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, atz *EnrollAuthorization) error {
+	err := atz.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid authorization")
 	}
 
-	var atk [32]byte
-	copy(atk[:], authorization.AuthorizationId)
-
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.authorizations[atk] = authorization
+	self.authorizations[[32]byte(atz.AuthorizationId)] = *atz
 
 	return nil
 }
@@ -385,19 +394,16 @@ func (self *MemServerCredStore) LoadCard(_ context.Context, cardId []byte, dst *
 
 // SaveCard saves card in the MemServerCredStore.
 // It errors if the card could not be saved.
-func (self *MemServerCredStore) SaveCard(_ context.Context, card ServerCard) error {
+func (self *MemServerCredStore) SaveCard(_ context.Context, card *ServerCard) error {
 	err := card.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid card")
 	}
 
-	var ck [32]byte
-	copy(ck[:], card.CardId)
-
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.cards[ck] = card
+	self.cards[[32]byte(card.CardId)] = *card
 
 	return nil
 }

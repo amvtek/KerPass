@@ -112,7 +112,7 @@ func (self *ServerCredStore) LoadRealm(ctx context.Context, realmId []byte, dst 
 
 // SaveRealm saves realm into the ServerCredStore.
 // It errors if realm could not be saved.
-func (self *ServerCredStore) SaveRealm(ctx context.Context, realm credentials.Realm) error {
+func (self *ServerCredStore) SaveRealm(ctx context.Context, realm *credentials.Realm) error {
 	err := realm.Check()
 	if nil != err {
 		return wrapError(err, "invalid realm")
@@ -176,7 +176,7 @@ func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authori
 
 // SaveEnrollAuthorization saves ea in the ServerCredStore.
 // It errors if the authorization could not be saved.
-func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, ea credentials.EnrollAuthorization) error {
+func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, ea *credentials.EnrollAuthorization) error {
 	var created int
 	row := self.DB.QueryRow(
 		ctx,
@@ -245,7 +245,7 @@ func (self *ServerCredStore) LoadCard(ctx context.Context, cardId []byte, dst *c
 	}
 
 	// adapt retrieved SrvStoreCard to ServerCard
-	err = self.cardAdapter.FromStorage(cardId, sc, dst)
+	err = self.cardAdapter.FromStorage(cardId, &sc, dst)
 	if nil != err {
 		return wrapError(err, "failed card adaptation")
 	}
@@ -255,7 +255,7 @@ func (self *ServerCredStore) LoadCard(ctx context.Context, cardId []byte, dst *c
 
 // SaveCard saves card in the ServerCredStore.
 // It errors if the card could not be saved.
-func (self *ServerCredStore) SaveCard(ctx context.Context, card credentials.ServerCard) error {
+func (self *ServerCredStore) SaveCard(ctx context.Context, card *credentials.ServerCard) error {
 	err := card.Check()
 	if nil != err {
 		return wrapError(err, "Invalid card")

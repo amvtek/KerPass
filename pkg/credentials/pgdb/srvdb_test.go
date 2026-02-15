@@ -43,7 +43,7 @@ func TestServerCredStore_SaveRealm_Success(t *testing.T) {
 	}
 
 	// saves it using SaveRealm
-	err := store.SaveRealm(ctx, realm)
+	err := store.SaveRealm(ctx, &realm)
 	if err != nil {
 		t.Fatalf("Failed to save realm: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestServerCredStore_SaveRealm_Fail(t *testing.T) {
 	}
 
 	// makes sure SaveRealm returns non nil error
-	err := store.SaveRealm(ctx, realm)
+	err := store.SaveRealm(ctx, &realm)
 	if err == nil {
 		t.Error("Expected SaveRealm to fail with invalid realm, but it succeeded")
 	}
@@ -87,7 +87,7 @@ func TestServerCredStore_LoadRealm_Success(t *testing.T) {
 	}
 
 	// saves it using SaveRealm
-	err := store.SaveRealm(ctx, originalRealm)
+	err := store.SaveRealm(ctx, &originalRealm)
 	if err != nil {
 		t.Fatalf("Failed to save realm: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestServerCredStore_ListRealm(t *testing.T) {
 	}
 
 	for _, realm := range testRealms {
-		err := store.SaveRealm(ctx, realm)
+		err := store.SaveRealm(ctx, &realm)
 		if err != nil {
 			t.Fatalf("Failed to save realm %s: %v", realm.AppName, err)
 		}
@@ -191,7 +191,7 @@ func TestServerCredStore_RemoveRealm(t *testing.T) {
 		AppName: "Realm to Remove",
 		AppLogo: []byte{0x07, 0x08, 0x09},
 	}
-	err := store.SaveRealm(ctx, realm)
+	err := store.SaveRealm(ctx, &realm)
 	if err != nil {
 		t.Fatalf("Failed to save realm: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestServerCredStore_SaveEnrollAuthorization_Success(t *testing.T) {
 			RealmId:         testRealmId,
 		}
 
-		err := store.SaveEnrollAuthorization(ctx, ea)
+		err := store.SaveEnrollAuthorization(ctx, &ea)
 		if err != nil {
 			t.Fatalf("Failed to save authorization #%d: %v", i+1, err)
 		}
@@ -256,7 +256,7 @@ func TestServerCredStore_SaveEnrollAuthorization_InvalidRealm(t *testing.T) {
 		RealmId:         nonExistentRealmID,
 	}
 
-	err := store.SaveEnrollAuthorization(ctx, ea)
+	err := store.SaveEnrollAuthorization(ctx, &ea)
 	if err == nil {
 		t.Error("Expected error when saving authorization with non-existent realm, but got none")
 	}
@@ -273,7 +273,7 @@ func TestServerCredStore_PopEnrollAuthorization(t *testing.T) {
 		RealmId:         testRealmId,
 	}
 
-	err := store.SaveEnrollAuthorization(ctx, ea)
+	err := store.SaveEnrollAuthorization(ctx, &ea)
 	if err != nil {
 		t.Fatalf("Failed to save authorization: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestServerCredStore_PopEnrollAuthorization_WithLogo(t *testing.T) {
 			AuthorizationId: authID,
 			RealmId:         testRealmId,
 		}
-		err := store.SaveEnrollAuthorization(ctx, ea)
+		err := store.SaveEnrollAuthorization(ctx, &ea)
 		if err != nil {
 			t.Fatalf("Failed to save authorization %x: %v", authID, err)
 		}
@@ -432,7 +432,7 @@ func TestServerCredStore_SaveCard_Success(t *testing.T) {
 	card.RealmId = testRealmId
 
 	// Save the card
-	err = store.SaveCard(ctx, card)
+	err = store.SaveCard(ctx, &card)
 	if err != nil {
 		t.Errorf("SaveCard failed: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestServerCredStore_SaveCard_Fail(t *testing.T) {
 	card.RealmId = newID(0xFF) // Non-existent realm
 
 	// Save the card - this should fail due to foreign key constraint
-	err = store.SaveCard(ctx, card)
+	err = store.SaveCard(ctx, &card)
 	if err == nil {
 		t.Error("Expected SaveCard to fail with non-existent realm, but it succeeded")
 	}
@@ -478,7 +478,7 @@ func TestServerCredStore_LoadCard_Success(t *testing.T) {
 	originalCard.RealmId = testRealmId
 
 	// Save the card
-	err = store.SaveCard(ctx, originalCard)
+	err = store.SaveCard(ctx, &originalCard)
 	if err != nil {
 		t.Fatalf("Failed to save card: %v", err)
 	}
@@ -554,7 +554,7 @@ func TestServerCredStore_RemoveCard_Success(t *testing.T) {
 	card.RealmId = testRealmId
 
 	// Save the card in store
-	err = store.SaveCard(ctx, card)
+	err = store.SaveCard(ctx, &card)
 	if err != nil {
 		t.Fatalf("Failed to save card: %v", err)
 	}
@@ -624,7 +624,7 @@ func TestServerCredStore_CardCount(t *testing.T) {
 		cards[i].RealmId = testRealmId
 
 		// Save the card
-		err = store.SaveCard(ctx, cards[i])
+		err = store.SaveCard(ctx, &cards[i])
 		if err != nil {
 			t.Fatalf("Failed to save card %d: %v", i+1, err)
 		}
