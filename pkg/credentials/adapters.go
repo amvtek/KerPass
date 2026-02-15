@@ -57,11 +57,13 @@ func (self *SrvCardStorageAdapter) GetStorageId(cardIdToken []byte) ([]byte, err
 
 }
 
-func (self *SrvCardStorageAdapter) ToStorage(cardIdToken []byte, src ServerCard, dst *SrvStoreCard) error {
+func (self *SrvCardStorageAdapter) ToStorage(cardIdToken []byte, src *ServerCard, dst *SrvStoreCard) error {
 	var err error
 
 	// check src
-	src.CardId = cardIdToken
+	if nil != src {
+		src.CardId = cardIdToken
+	}
 	err = src.Check()
 	if nil != err {
 		return wrapError(err, "Invalid src ServerCard")
@@ -114,7 +116,7 @@ func (self *SrvCardStorageAdapter) ToStorage(cardIdToken []byte, src ServerCard,
 	return err
 }
 
-func (self *SrvCardStorageAdapter) FromStorage(cardIdToken []byte, src SrvStoreCard, dst *ServerCard) error {
+func (self *SrvCardStorageAdapter) FromStorage(cardIdToken []byte, src *SrvStoreCard, dst *ServerCard) error {
 
 	// check dst
 	if nil == dst {
