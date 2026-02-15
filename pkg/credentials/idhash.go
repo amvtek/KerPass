@@ -22,7 +22,7 @@ const (
 const (
 	saltUserId = iota
 	saltIdToken
-	saltAuthId
+	saltEnrollToken
 	numSalts
 )
 
@@ -31,7 +31,7 @@ var (
 	saltNames = []string{
 		"salt:card:UserId/IdToken",
 		"salt:card:IdToken/Derivation",
-		"salt:authorization:AuthId/Derivation",
+		"salt:authorization:EnrollToken/Derivation",
 	}
 )
 
@@ -67,8 +67,7 @@ type CardRef struct {
 	ServerCardId [32]byte
 }
 
-
-// DerivedKeys holds the result of HKDF-based derivations from either IdToken or AuthorizationId.
+// DerivedKeys holds the result of HKDF-based derivations from either IdToken or EnrollToken.
 type DerivedKeys struct {
 	// IdKey is used as a server-side identifier for Card or EnrollAuthorization subjects.
 	IdKey [32]byte
@@ -163,7 +162,7 @@ func (self *IdHasher) IdTokenOfUserId(realmId []byte, userId string, dst []byte)
 	return dst, nil
 }
 
-// DeriveFromIdToken derives operational keys from a 32-byte IdToken.
+// DeriveFromIdToken derives operational keys from a 32-byte [IdToken].
 //
 // It produces domain-separated keys for:
 //   - IdKey: used as a server-side card identifier.
@@ -198,33 +197,33 @@ func (self *IdHasher) DeriveFromIdToken(idToken []byte, dst *DerivedKeys) error 
 	return nil
 }
 
-// DeriveFromAuthorizationId derives operational keys from a 32-byte AuthorizationId.
+// DeriveFromEnrollToken derives operational keys from a 32-byte [EnrollToken].
 //
 // It produces domain-separated keys for:
-//   - IdKey: used as a server-side Authorization identifier.
-//   - StorageKey: used to protect Authorization  stored data.
+//   - IdKey: used as a server-side EnrollAuthorization identifier.
+//   - StorageKey: used to protect EnrollAuthorization  user data.
 //
-// The derivation is deterministic and bound to the IdHasher seed. AuthorizationId must
+// The derivation is deterministic and bound to the IdHasher seed. EnrollToken must
 // contain sufficient entropy for the intended security level.
-func (self *IdHasher) DeriveFromAuthorizationId(authId []byte, dst *DerivedKeys) error {
-	if 32 != len(authId) {
-		return wrapError(ErrValidation, "invalid authId, length != 32")
+func (self *IdHasher) DeriveFromEnrollToken(enrollToken []byte, dst *DerivedKeys) error {
+	if 32 != len(enrollToken) {
+		return wrapError(ErrValidation, "invalid enrollToken, length != 32")
 	}
 
-	prk := hkdf.Extract(sha256.New, authId, self.salts[saltAuthId][:])
+	prk := hkdf.Extract(sha256.New, enrollToken, self.salts[saltEnrollToken][:])
 
 	var rdr io.Reader
 	var err error
 
 	// IdKey derivation
-	rdr = hkdf.Expand(sha256.New, prk, []byte("AuthId/IdKey"))
+	rdr = hkdf.Expand(sha256.New, prk, []byte("EnrollToken/IdKey"))
 	_, err = io.ReadFull(rdr, dst.IdKey[:])
 	if nil != err {
 		return wrapError(err, "failed IdKey derivation")
 	}
 
 	// StorageKey derivation
-	rdr = hkdf.Expand(sha256.New, prk, []byte("AuthId/StorageKey"))
+	rdr = hkdf.Expand(sha256.New, prk, []byte("EnrollToken/StorageKey"))
 	_, err = io.ReadFull(rdr, dst.StorageKey[:])
 	if nil != err {
 		return wrapError(err, "failed StorageKey derivation")
@@ -280,8 +279,8 @@ func (self *CardIdGenerator) GenCardIds(realmId []byte, userdata json.RawMessage
 
 	// generate ClientIdToken
 	if "" == dst.ClientUserId {
-		// generates a random idToken
 		rand.Read(dst.ClientIdToken[:])
+
 	} else {
 		_, err = self.idh.IdTokenOfUserId(realmId, dst.ClientUserId, dst.ClientIdToken[:])
 		if nil != err {
