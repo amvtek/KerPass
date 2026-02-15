@@ -46,8 +46,8 @@ func (self Card) Check() error {
 	if len(self.RealmId) < 32 {
 		return newError("Invalid RealmId, length < 32")
 	}
-	if len(self.IdToken) != 32 {
-		return newError("Invalid IdToken, length != 32")
+	if len(self.IdToken) < 32 {
+		return newError("Invalid IdToken, length < 32")
 	}
 	if nil == self.Kh.PrivateKey {
 		return newError("nil PrivateKey")
