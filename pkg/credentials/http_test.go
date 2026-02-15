@@ -28,7 +28,7 @@ func TestRealmInfo_MockStore(t *testing.T) {
 
 	// Save realm to store
 	ctx := context.Background()
-	if err = store.SaveRealm(ctx, testRealm); err != nil {
+	if err = store.SaveRealm(ctx, &testRealm); err != nil {
 		t.Fatalf("Failed to save test realm: %v", err)
 	}
 
@@ -59,7 +59,7 @@ func TestRealmInfo_SuccessfulRetrieval(t *testing.T) {
 
 	// Save realm to store
 	ctx := context.Background()
-	if err := store.SaveRealm(ctx, testRealm); err != nil {
+	if err := store.SaveRealm(ctx, &testRealm); err != nil {
 		t.Fatalf("Failed to save test realm: %v", err)
 	}
 
@@ -186,7 +186,7 @@ func TestRealmInfo_ConcurrentAccess(t *testing.T) {
 			RealmId: realmID,
 			AppName: "Test App " + string(rune('A'+i)),
 		}
-		if err := store.SaveRealm(context.Background(), realms[i]); err != nil {
+		if err := store.SaveRealm(context.Background(), &realms[i]); err != nil {
 			t.Fatalf("Failed to save realm %d: %v", i, err)
 		}
 	}
@@ -227,7 +227,7 @@ func TestRealmInfo_EmptyRealm(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := store.SaveRealm(ctx, minimalRealm); err != nil {
+	if err := store.SaveRealm(ctx, &minimalRealm); err != nil {
 		t.Fatalf("Failed to save minimal realm: %v", err)
 	}
 

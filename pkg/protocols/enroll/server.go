@@ -299,7 +299,7 @@ func ServerCardSave(ctx context.Context, self *ServerState, msg []byte) (sf Serv
 
 	// save new ServerCard
 	log.Debug("saving Card")
-	err = self.Repo.SaveCard(ctx, self.card)
+	err = self.Repo.SaveCard(ctx, &self.card)
 	if nil != err {
 		errmsg = "failed saving card"
 		log.Debug(errmsg, "error", err)
@@ -322,7 +322,7 @@ func ServerExit(self *ServerState, rs error) error {
 
 	var err1, err2 error
 	if srvRestoreAuthorization == (self.exitActions & srvRestoreAuthorization) {
-		err1 = self.Repo.SaveEnrollAuthorization(context.Background(), self.authorization)
+		err1 = self.Repo.SaveEnrollAuthorization(context.Background(), &self.authorization)
 	}
 	if srvRemoveCard == (self.exitActions & srvRemoveCard) {
 		removed := self.Repo.RemoveCard(context.Background(), self.card.CardId)
