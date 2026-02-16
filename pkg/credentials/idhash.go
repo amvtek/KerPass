@@ -162,7 +162,42 @@ func (self *IdHasher) IdTokenOfUserId(realmId []byte, userId string, dst []byte)
 	return dst, nil
 }
 
-// DeriveFromIdToken derives operational keys from a 32-byte [IdToken].
+// DeriveFromCardAccess derives operational keys from a 32-byte [ServerCardAccess].
+//
+// It produces domain-separated keys for:
+//   - IdKey: used as a server-side card identifier.
+//   - StorageKey: used to protect card-related stored data.
+//
+// The derivation is deterministic and bound to the IdHasher seed.
+func (self *IdHasher) DeriveFromCardAccess(sca ServerCardAccess, dst *DerivedKeys) error {
+	var err error
+
+	if chk, ok := sca.(interface{ Check() error }); ok {
+		err = chk.Check()
+		if nil != err {
+			return wrapError(err, "failed sca Check")
+		}
+	}
+
+	var idtkn IdToken
+	switch v := sca.(type) {
+	case IdToken:
+		idtkn = v
+	case OtpId:
+		idtkn, err = self.IdTokenOfUserId(v.Realm, v.Username, nil)
+		if nil != err {
+			return wrapError(err, "failed deriving IdToken")
+		}
+
+	default:
+		return wrapError(ErrValidation, "non supported ServerCardAccess")
+	}
+
+	return wrapError(self.deriveFromIdToken(idtkn, dst), "failed deriveFromIdToken")
+
+}
+
+// deriveFromIdToken derives operational keys from a 32-byte [IdToken].
 //
 // It produces domain-separated keys for:
 //   - IdKey: used as a server-side card identifier.
@@ -170,11 +205,7 @@ func (self *IdHasher) IdTokenOfUserId(realmId []byte, userId string, dst []byte)
 //
 // The derivation is deterministic and bound to the IdHasher seed. The IdToken must
 // contain sufficient entropy for the intended security level.
-func (self *IdHasher) DeriveFromIdToken(idToken []byte, dst *DerivedKeys) error {
-	if 32 != len(idToken) {
-		return wrapError(ErrValidation, "invalid idToken, length != 32")
-	}
-
+func (self *IdHasher) deriveFromIdToken(idToken []byte, dst *DerivedKeys) error {
 	prk := hkdf.Extract(sha256.New, idToken, self.salts[saltIdToken][:])
 
 	var rdr io.Reader
@@ -197,7 +228,32 @@ func (self *IdHasher) DeriveFromIdToken(idToken []byte, dst *DerivedKeys) error 
 	return nil
 }
 
-// DeriveFromEnrollToken derives operational keys from a 32-byte [EnrollToken].
+// deriveFromEnrollAccess derives operational keys from an [EnrollAccess].
+//
+// It produces domain-separated keys for:
+//   - IdKey: used as a server-side EnrollAuthorization identifier.
+//   - StorageKey: used to protect EnrollAuthorization  user data.
+//
+// The derivation is deterministic and bound to the IdHasher seed.
+func (self *IdHasher) DeriveFromEnrollAccess(ea EnrollAccess, dst *DerivedKeys) error {
+	var err error
+
+	if chk, ok := ea.(interface{ Check() error }); ok {
+		err = chk.Check()
+		if nil != err {
+			return wrapError(err, "failed ea Check")
+		}
+	}
+
+	switch v := ea.(type) {
+	case EnrollToken:
+		return wrapError(self.deriveFromEnrollToken(v, dst), "failed deriveFromEnrollToken")
+	default:
+		return wrapError(ErrValidation, "non supported ServerCardAccess")
+	}
+}
+
+// deriveFromEnrollToken derives operational keys from a 32-byte [EnrollToken].
 //
 // It produces domain-separated keys for:
 //   - IdKey: used as a server-side EnrollAuthorization identifier.
@@ -205,11 +261,7 @@ func (self *IdHasher) DeriveFromIdToken(idToken []byte, dst *DerivedKeys) error 
 //
 // The derivation is deterministic and bound to the IdHasher seed. EnrollToken must
 // contain sufficient entropy for the intended security level.
-func (self *IdHasher) DeriveFromEnrollToken(enrollToken []byte, dst *DerivedKeys) error {
-	if 32 != len(enrollToken) {
-		return wrapError(ErrValidation, "invalid enrollToken, length != 32")
-	}
-
+func (self *IdHasher) deriveFromEnrollToken(enrollToken []byte, dst *DerivedKeys) error {
 	prk := hkdf.Extract(sha256.New, enrollToken, self.salts[saltEnrollToken][:])
 
 	var rdr io.Reader
@@ -290,7 +342,7 @@ func (self *CardIdGenerator) GenCardIds(realmId []byte, userdata json.RawMessage
 
 	// generate CardServerId
 	dks := DerivedKeys{}
-	err = self.idh.DeriveFromIdToken(dst.ClientIdToken[:], &dks)
+	err = self.idh.deriveFromIdToken(dst.ClientIdToken[:], &dks)
 	if nil != err {
 		return wrapError(err, "failed obtaining IdToken derived keys")
 	}
