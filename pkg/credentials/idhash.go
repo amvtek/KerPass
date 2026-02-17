@@ -55,7 +55,7 @@ func (self UserIdFactoryFunc) MakeUserId(ud json.RawMessage) (string, error) {
 
 // CardRef represents the client/server linkage for a Card credential.
 type CardRef struct {
-	// ClientIdToken is held by the client and used to derive operational keys.
+	// ClientIdToken is held by the client and used to derive access keys.
 	ClientIdToken [32]byte
 
 	// ClientUserId is optional.
@@ -67,13 +67,29 @@ type CardRef struct {
 	ServerCardId [32]byte
 }
 
-// DerivedKeys holds the result of HKDF-based derivations from either IdToken or EnrollToken.
-type DerivedKeys struct {
+// AccessKeys holds the result of HKDF-based derivations from either IdToken or EnrollToken.
+type AccessKeys struct {
 	// IdKey is used as a server-side identifier for Card or EnrollAuthorization subjects.
 	IdKey [32]byte
 
 	// StorageKey is used to protect subject sensitive data.
 	StorageKey [32]byte
+}
+
+// Check returns an error if the AccessKeys are invalid.
+func (self *AccessKeys) Check() error {
+	if nil == self {
+		return wrapError(ErrValidation, "nil AccessKey")
+	}
+	zeros := [32]byte{}
+	if self.IdKey == zeros {
+		return wrapError(ErrValidation, "IdKey is 0")
+	}
+	if self.StorageKey == zeros {
+		return wrapError(ErrValidation, "StorageKey is 0")
+	}
+
+	return nil
 }
 
 // IdHasher manages domain-separated HKDF-based derivations used by the credential system.
@@ -162,14 +178,14 @@ func (self *IdHasher) IdTokenOfUserId(realmId []byte, userId string, dst []byte)
 	return dst, nil
 }
 
-// DeriveFromCardAccess derives operational keys from a 32-byte [ServerCardAccess].
+// DeriveFromCardAccess derives access keys from a [ServerCardAccess] key.
 //
 // It produces domain-separated keys for:
 //   - IdKey: used as a server-side card identifier.
 //   - StorageKey: used to protect card-related stored data.
 //
 // The derivation is deterministic and bound to the IdHasher seed.
-func (self *IdHasher) DeriveFromCardAccess(sca ServerCardAccess, dst *DerivedKeys) error {
+func (self *IdHasher) DeriveFromCardAccess(sca ServerCardAccess, dst *AccessKeys) error {
 	var err error
 
 	if chk, ok := sca.(interface{ Check() error }); ok {
@@ -197,7 +213,7 @@ func (self *IdHasher) DeriveFromCardAccess(sca ServerCardAccess, dst *DerivedKey
 
 }
 
-// deriveFromIdToken derives operational keys from a 32-byte [IdToken].
+// deriveFromIdToken derives access keys from a 32-byte [IdToken].
 //
 // It produces domain-separated keys for:
 //   - IdKey: used as a server-side card identifier.
@@ -205,7 +221,7 @@ func (self *IdHasher) DeriveFromCardAccess(sca ServerCardAccess, dst *DerivedKey
 //
 // The derivation is deterministic and bound to the IdHasher seed. The IdToken must
 // contain sufficient entropy for the intended security level.
-func (self *IdHasher) deriveFromIdToken(idToken []byte, dst *DerivedKeys) error {
+func (self *IdHasher) deriveFromIdToken(idToken []byte, dst *AccessKeys) error {
 	prk := hkdf.Extract(sha256.New, idToken, self.salts[saltIdToken][:])
 
 	var rdr io.Reader
@@ -228,16 +244,17 @@ func (self *IdHasher) deriveFromIdToken(idToken []byte, dst *DerivedKeys) error 
 	return nil
 }
 
-// deriveFromEnrollAccess derives operational keys from an [EnrollAccess].
+// DeriveFromEnrollAccess derives access keys from an [EnrollAccess].
 //
 // It produces domain-separated keys for:
 //   - IdKey: used as a server-side EnrollAuthorization identifier.
 //   - StorageKey: used to protect EnrollAuthorization  user data.
 //
 // The derivation is deterministic and bound to the IdHasher seed.
-func (self *IdHasher) DeriveFromEnrollAccess(ea EnrollAccess, dst *DerivedKeys) error {
+func (self *IdHasher) DeriveFromEnrollAccess(ea EnrollAccess, dst *AccessKeys) error {
 	var err error
 
+	// check ea validity
 	if chk, ok := ea.(interface{ Check() error }); ok {
 		err = chk.Check()
 		if nil != err {
@@ -253,7 +270,7 @@ func (self *IdHasher) DeriveFromEnrollAccess(ea EnrollAccess, dst *DerivedKeys) 
 	}
 }
 
-// deriveFromEnrollToken derives operational keys from a 32-byte [EnrollToken].
+// deriveFromEnrollToken derives access keys from a 32-byte [EnrollToken].
 //
 // It produces domain-separated keys for:
 //   - IdKey: used as a server-side EnrollAuthorization identifier.
@@ -261,7 +278,7 @@ func (self *IdHasher) DeriveFromEnrollAccess(ea EnrollAccess, dst *DerivedKeys) 
 //
 // The derivation is deterministic and bound to the IdHasher seed. EnrollToken must
 // contain sufficient entropy for the intended security level.
-func (self *IdHasher) deriveFromEnrollToken(enrollToken []byte, dst *DerivedKeys) error {
+func (self *IdHasher) deriveFromEnrollToken(enrollToken []byte, dst *AccessKeys) error {
 	prk := hkdf.Extract(sha256.New, enrollToken, self.salts[saltEnrollToken][:])
 
 	var rdr io.Reader
@@ -341,12 +358,12 @@ func (self *CardIdGenerator) GenCardIds(realmId []byte, userdata json.RawMessage
 	}
 
 	// generate CardServerId
-	dks := DerivedKeys{}
-	err = self.idh.deriveFromIdToken(dst.ClientIdToken[:], &dks)
+	aks := AccessKeys{}
+	err = self.idh.deriveFromIdToken(dst.ClientIdToken[:], &aks)
 	if nil != err {
-		return wrapError(err, "failed obtaining IdToken derived keys")
+		return wrapError(err, "failed deriving IdToken access keys")
 	}
-	dst.ServerCardId = dks.IdKey
+	dst.ServerCardId = aks.IdKey
 
 	return nil
 
