@@ -17,6 +17,8 @@ const testDSN = "host=localhost port=25432 database=kpdb user=postgres password=
 
 var testRealmId = newID(0x1F)
 
+var storageAdapter *credentials.SrvStorageAdapter
+
 func TestPing(t *testing.T) {
 	ctx := context.Background() // t.Context() gets in the way when controlling transaction
 	pgconn := newConn(ctx, t)
@@ -425,7 +427,7 @@ func TestServerCredStore_SaveCard_Success(t *testing.T) {
 
 	// Generate random card in testRealm
 	var card credentials.ServerCard
-	err = initCard(&card)
+	_, err = initCard(&card)
 	if err != nil {
 		t.Fatalf("Failed to generate random card: %v", err)
 	}
@@ -452,7 +454,7 @@ func TestServerCredStore_SaveCard_Fail(t *testing.T) {
 
 	// Generate random card with non-existent realm
 	var card credentials.ServerCard
-	err := initCard(&card)
+	_, err := initCard(&card)
 	if err != nil {
 		t.Fatalf("Failed to generate random card: %v", err)
 	}
@@ -471,7 +473,7 @@ func TestServerCredStore_LoadCard_Success(t *testing.T) {
 
 	// Generate random card in testRealm
 	var originalCard credentials.ServerCard
-	err := initCard(&originalCard)
+	idtkn, err := initCard(&originalCard)
 	if err != nil {
 		t.Fatalf("Failed to generate random card: %v", err)
 	}
@@ -485,7 +487,7 @@ func TestServerCredStore_LoadCard_Success(t *testing.T) {
 
 	// Load the card using LoadCard
 	var retrievedCard credentials.ServerCard
-	err = store.LoadCard(ctx, originalCard.CardId, &retrievedCard)
+	err = store.LoadCard(ctx, idtkn, &retrievedCard)
 	if nil != err {
 		t.Fatalf("LoadCard failed to retrieve the saved card, got error %v", err)
 	}
@@ -520,7 +522,7 @@ func TestServerCredStore_LoadCard_Fail(t *testing.T) {
 	store := newServerCredStore(ctx, t)
 
 	// Try to load a card with a non-existent ID
-	nonExistentCardId := newID(0x99)
+	nonExistentCardId := credentials.IdToken(newID(0x99))
 	var retrievedCard credentials.ServerCard
 
 	// Check that LoadCard returns error for non-existent card
@@ -547,7 +549,7 @@ func TestServerCredStore_RemoveCard_Success(t *testing.T) {
 
 	// Generate random card in testRealm
 	var card credentials.ServerCard
-	err = initCard(&card)
+	_, err = initCard(&card)
 	if err != nil {
 		t.Fatalf("Failed to generate random card: %v", err)
 	}
@@ -567,7 +569,7 @@ func TestServerCredStore_RemoveCard_Success(t *testing.T) {
 		t.Errorf("Expected 1 card after saving, got %d", countAfterSave)
 	}
 
-	// Remove card using RemoveCard
+	// Remove card
 	removed := store.RemoveCard(ctx, card.CardId)
 	if !removed {
 		t.Error("RemoveCard should return true for existing card, but returned false")
@@ -593,7 +595,7 @@ func TestServerCredStore_RemoveCard_Fail(t *testing.T) {
 	store := newServerCredStore(ctx, t)
 
 	// Try to remove a card that doesn't exist
-	nonExistentCardId := newID(0x88)
+	nonExistentCardId := credentials.ServerCardIdKey(newID(0x88))
 
 	// Check that removing non-existing card returns false
 	removed := store.RemoveCard(ctx, nonExistentCardId)
@@ -617,7 +619,7 @@ func TestServerCredStore_CardCount(t *testing.T) {
 	// Generate & save 4 random cards
 	cards := make([]credentials.ServerCard, 4)
 	for i := range cards {
-		err := initCard(&cards[i])
+		_, err := initCard(&cards[i])
 		if err != nil {
 			t.Fatalf("Failed to generate card %d: %v", i+1, err)
 		}
@@ -669,6 +671,17 @@ func init() {
 		err = ServerCredStoreMigrate(pgconn, "kerpass_test")
 	}
 	dbInitError = err
+
+	// initializes global storageAdapter
+	idHasher, err := credentials.NewIdHasher(nil)
+	if nil != err {
+		panic(wrapError(err, "failed instantiating idHasher"))
+	}
+	storageAdapter, err = credentials.NewSrvStorageAdapter(idHasher)
+	if nil != err {
+		panic(wrapError(err, "failed instantiating storageAdapter"))
+	}
+
 }
 
 func newServerCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
@@ -700,7 +713,8 @@ func newServerCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
 			t.Log("rolled back test transaction")
 		}
 	})
-	return &ServerCredStore{DB: tx}
+
+	return &ServerCredStore{DB: tx, cardAdapter: storageAdapter}
 }
 
 func newEmptyCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
@@ -731,7 +745,7 @@ func newEmptyCredStore(ctx context.Context, t *testing.T) *ServerCredStore {
 			t.Log("rolled back test transaction")
 		}
 	})
-	return &ServerCredStore{DB: tx}
+	return &ServerCredStore{DB: tx, cardAdapter: storageAdapter}
 }
 
 func newID(val byte) []byte {
@@ -743,14 +757,22 @@ func newID(val byte) []byte {
 }
 
 // initCard set random id & keys on dst.
-func initCard(dst *credentials.ServerCard) error {
-	cardId := make([]byte, 32)
-	rand.Read(cardId)
-	dst.CardId = cardId
+func initCard(dst *credentials.ServerCard) (credentials.IdToken, error) {
+	idtkn := credentials.IdToken(make([]byte, 32))
+	rand.Read(idtkn)
+
+	aks := credentials.AccessKeys{}
+	err := storageAdapter.GetCardAccess(idtkn, &aks)
+	if nil != err {
+		return nil, err
+	}
+
+	dst.AccessKeys = &aks
+	dst.CardId = aks.IdKey[:]
 
 	keypair, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if nil != err {
-		return err
+		return nil, err
 	}
 	dst.Kh = credentials.PublicKeyHandle{PublicKey: keypair.PublicKey()}
 
@@ -758,5 +780,5 @@ func initCard(dst *credentials.ServerCard) error {
 	rand.Read(psk)
 	dst.Psk = psk
 
-	return nil
+	return idtkn, nil
 }
