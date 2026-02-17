@@ -1,6 +1,8 @@
 package credentials
 
 import (
+	"strings"
+
 	"code.kerpass.org/golang/internal/transport"
 )
 
@@ -32,6 +34,36 @@ func (self *SrvStoreCard) Check() error {
 	}
 	if err := self.RealmId.Check(); err != nil {
 		return wrapError(ErrValidation, "failed RealmId validation")
+	}
+
+	return nil
+}
+
+// SrvStoreEnrollAuthorization is the storage representation of an EnrollAuthorization.
+// It allows encrypting the UserData.
+type SrvStoreEnrollAuthorization struct {
+	ID       EnrollIdKey
+	RealmId  RealmId
+	AppName  string
+	AppDesc  string
+	AppLogo  []byte
+	SealType sealType
+	UserData []byte
+}
+
+// Check returns an error if the SrvStoreEnrollAuthorization is invalid.
+func (self *SrvStoreEnrollAuthorization) Check() error {
+	if nil == self {
+		return wrapError(ErrValidation, "nil SrvStoreEnrollAuthorization")
+	}
+	if err := self.ID.Check(); err != nil {
+		return wrapError(ErrValidation, "failed ID validation")
+	}
+	if err := self.RealmId.Check(); err != nil {
+		return wrapError(ErrValidation, "failed RealmId validation")
+	}
+	if 0 == len(strings.TrimSpace(self.AppName)) {
+		return wrapError(ErrValidation, "empty AppName")
 	}
 
 	return nil
@@ -122,6 +154,71 @@ func (self *SrvStorageAdapter) FromCardStorage(aks *AccessKeys, src *SrvStoreCar
 	dst.RealmId = src.RealmId
 	dst.Kh = ck.Kh
 	dst.Psk = ck.Psk
+
+	return nil
+
+}
+
+// GetEnrollAuthorizationAccess derives AccessKeys from an EnrollAccess credential.
+// The returned keys are used to encrypt/decrypt user data in storage.
+func (self *SrvStorageAdapter) GetEnrollAuthorizationAccess(ea EnrollAccess, dst *AccessKeys) error {
+	return wrapError(self.idh.DeriveFromEnrollAccess(ea, dst), "failed obtaining EnrollAuthorization access keys")
+}
+
+// ToEnrollAuthorizationStorage serializes an EnrollAuthorization into storage form.
+// It hashes the EnrollToken identifier that grants authorization to create a new Card and encrypts the UserData.
+func (self *SrvStorageAdapter) ToEnrollAuthorizationStorage(aks *AccessKeys, src *EnrollAuthorization, dst *SrvStoreEnrollAuthorization) error {
+	var err error
+
+	// check src
+	if nil != src {
+		src.EnrollId = aks.IdKey[:]
+	}
+	err = src.Check()
+	if nil != err {
+		return wrapError(err, "Invalid src EnrollAuthorization")
+	}
+
+	// check dst
+	if nil == dst {
+		return newError("nil dst SrvStoreEnrollAuthorization")
+	}
+
+	// TODO: use aks to encrypt UserData
+	dst.SealType = KsSealNone
+	dst.UserData = src.UserData
+
+	// initializes dst
+	dst.ID = src.EnrollId
+	dst.RealmId = src.RealmId
+	dst.AppName = src.AppName
+	dst.AppDesc = src.AppDesc
+	dst.AppLogo = src.AppLogo
+
+	return nil
+}
+
+// FromEnrollAuthorizationStorage deserializes and decrypts a SrvStoreEnrollAuthorization into an EnrollAuthorization.
+// It unseals UserData using the provided AccessKeys and reconstructs the EnrollAuthorization.
+func (self *SrvStorageAdapter) FromEnrollAuthorizationStorage(aks *AccessKeys, src *SrvStoreEnrollAuthorization, dst *EnrollAuthorization) error {
+	if err := src.Check(); err != nil {
+		return wrapError(err, "failed src validation")
+	}
+
+	if nil == dst {
+		return wrapError(ErrValidation, "nil dst")
+	}
+
+	// TODO: use aks to decrypt src.UserData
+	dst.UserData = src.UserData
+
+	// initializes dst
+	dst.EnrollId = src.ID
+	dst.RealmId = src.RealmId
+	dst.AppName = src.AppName
+	dst.AppDesc = src.AppDesc
+	dst.AppLogo = src.AppLogo
+	dst.AccessKeys = aks
 
 	return nil
 
