@@ -156,42 +156,72 @@ func (self *ServerCredStore) RemoveRealm(ctx context.Context, realmId credential
 
 // PopEnrollAuthorization loads authorization data in ea and remove it from the ServerCredStore.
 // It returns an error if the authorization could not be loaded and removed.
-func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, authorizationId []byte, ea *credentials.EnrollAuthorization) error {
+func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, etk credentials.EnrollAccess, dst *credentials.EnrollAuthorization) error {
+
+	// determine DB aid that corresponds to etk
+	aks := credentials.AccessKeys{}
+	err := self.cardAdapter.GetEnrollAuthorizationAccess(etk, &aks)
+	if nil != err {
+		return wrapError(credentials.ErrNotFound, "failed storage aid determination")
+	}
+
+	// pop the authorization if it exists
+	sa := credentials.SrvStoreEnrollAuthorization{}
 	row := self.DB.QueryRow(
 		ctx,
 		`DELETE FROM enroll_authorization a
 		 USING "realm" r WHERE a.aid = $1 AND a.realm_id = r.id
 		 RETURNING a.aid, r.rid, r.app_name, coalesce(r.app_desc, ''), r.app_logo, a.user_data`,
-		authorizationId,
+		aks.IdKey[:],
 	)
-	err := row.Scan(&ea.AuthorizationId, &ea.RealmId, &ea.AppName, &ea.AppDesc, &ea.AppLogo, &ea.UserData)
+	err = row.Scan(&sa.ID, &sa.RealmId, &sa.AppName, &sa.AppDesc, &sa.AppLogo, &sa.UserData)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return wrapError(credentials.ErrNotFound, "failed loading authorization")
 		}
 		return wrapError(err, "failed loading authorization")
 	}
+
+	// adapt retrieved SrvStoreEnrollAuthorization to EnrollAuthorization
+	err = self.cardAdapter.FromEnrollAuthorizationStorage(&aks, &sa, dst)
+	if nil != err {
+		return wrapError(err, "failed authorization adaptation")
+	}
+
 	return nil
 }
 
 // SaveEnrollAuthorization saves ea in the ServerCredStore.
 // It errors if the authorization could not be saved.
 func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, ea *credentials.EnrollAuthorization) error {
+	// validate ea
+	err := ea.Check()
+	if nil != err {
+		return wrapError(err, "Invalid EnrollAuthorization")
+	}
+
+	// transform ea in SrvStoreEnrollAuthorization
+	var sa credentials.SrvStoreEnrollAuthorization
+	err = self.cardAdapter.ToEnrollAuthorizationStorage(ea.AccessKeys, ea, &sa)
+	if nil != err {
+		return wrapError(err, "Failed SrvStoreEnrollAuthorization adaptation")
+	}
+
 	var created int
 	row := self.DB.QueryRow(
 		ctx,
 		`WITH created AS (INSERT INTO enroll_authorization(realm_id, aid, user_data)
 		   SELECT r.id, v.aid, v.user_data
-		   FROM (VALUES ($1::bytea, $2::bytea, $3::json)) v(rid, aid, user_data)
+		   FROM (VALUES ($1::bytea, $2::bytea, $3::bytea)) v(rid, aid, user_data)
 		   INNER JOIN realm r ON (v.rid = r.rid)
 		   ON CONFLICT(aid) DO NOTHING
 	           RETURNING 1)
 		 SELECT count(*) FROM created`,
-		ea.RealmId,
-		ea.AuthorizationId,
-		ea.UserData,
+		sa.RealmId,
+		sa.ID,
+		sa.UserData,
 	)
-	err := row.Scan(&created)
+	err = row.Scan(&created)
 	if nil != err {
 		return wrapError(err, "Failed saving authorization")
 	}
@@ -259,7 +289,7 @@ func (self *ServerCredStore) LoadCard(ctx context.Context, cardId credentials.Se
 func (self *ServerCredStore) SaveCard(ctx context.Context, card *credentials.ServerCard) error {
 	err := card.Check()
 	if nil != err {
-		return wrapError(err, "Invalid card")
+		return wrapError(err, "Invalid ServerCard")
 	}
 
 	// transform card in SrvStoreCard

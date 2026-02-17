@@ -52,7 +52,9 @@ begin;
     realm_id integer not null references realm(id)
       on delete cascade,
 
-    user_data json,
+    seal_type int not null default 0,
+
+    user_data bytea,
 
     like timestamp_mixin including all
 
