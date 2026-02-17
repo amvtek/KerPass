@@ -1,68 +1,71 @@
 package credentials
 
 import (
-	"context"
-
 	"code.kerpass.org/golang/internal/transport"
 )
 
 type sealType int
 
 const (
-	KsSealNone = sealType(0)
-	KsSealMac  = sealType(1)
-	KsSealAead = sealType(2)
-)
-
-type contextKey string
-
-const (
-	authIdTokenKey = contextKey("AUTHORIZATION_ID_TOKEN")
-	cardIdTokenKey = contextKey("CARD_ID_TOKEN")
+	KsSealNone = sealType(0) // TODO: phase out, all ServerCredStore must encrypt ServerCard keys.
+	KsSealAead = sealType(1)
 )
 
 var cborSrz = transport.WrapInSafeSerializer(transport.NewCBORSerializer())
 
+// SrvStoreCard is the storage representation of a ServerCard.
+// It separates identity (ID, RealmId) from encrypted key material (KeyData).
 type SrvStoreCard struct {
-	ID       []byte
-	RealmId  []byte
+	ID       ServerCardIdKey
+	RealmId  RealmId
 	SealType sealType
 	KeyData  []byte
 }
 
-type SrvCardStorageAdapter struct {
-	sealType sealType
-	sealkey  []byte
-}
-
-func (self *SrvCardStorageAdapter) GetStorageId(cardIdToken []byte) ([]byte, error) {
-	var storeId []byte
-	var err error
-
-	sealtype := KsSealNone
-	if nil != self {
-		sealtype = self.sealType
+// Check returns an error if the SrvStoreCard is invalid.
+func (self *SrvStoreCard) Check() error {
+	if nil == self {
+		return wrapError(ErrValidation, "nil SrvStoreCard")
 	}
-	switch sealtype {
-	case KsSealNone, KsSealMac:
-		storeId = cardIdToken
-	case KsSealAead:
-		// TODO: replace cardIdToken by hash...
-		err = newError("TODO: missing AEAD seal implementation")
-	default:
-		err = newError("Non supported sealType")
+	if err := self.ID.Check(); err != nil {
+		return wrapError(ErrValidation, "failed ID validation")
+	}
+	if err := self.RealmId.Check(); err != nil {
+		return wrapError(ErrValidation, "failed RealmId validation")
 	}
 
-	return storeId, err
-
+	return nil
 }
 
-func (self *SrvCardStorageAdapter) ToStorage(cardIdToken []byte, src *ServerCard, dst *SrvStoreCard) error {
+// SrvStorageAdapter transforms ServerCard and EnrollAuthorization into encrypted storage representations.
+// It uses IdHasher-derived keys to protect sensitive key material and user data at rest.
+type SrvStorageAdapter struct {
+	idh *IdHasher
+}
+
+// NewSrvStorageAdapter creates a SrvStorageAdapter using the provided IdHasher for key derivation.
+func NewSrvStorageAdapter(idHasher *IdHasher) (*SrvStorageAdapter, error) {
+	if nil == idHasher {
+		return nil, wrapError(ErrValidation, "nil idHasher")
+	}
+
+	return &SrvStorageAdapter{idh: idHasher}, nil
+}
+
+// GetCardAccess derives AccessKeys from a ServerCardAccess credential.
+// The returned keys are used to encrypt/decrypt card data in storage.
+func (self *SrvStorageAdapter) GetCardAccess(sca ServerCardAccess, dst *AccessKeys) error {
+	return wrapError(self.idh.DeriveFromCardAccess(sca, dst), "failed obtaining Card access keys")
+}
+
+// ToCardStorage serializes a ServerCard into storage form.
+// It marshals key material (Kh, Psk) and seals it using the provided AccessKeys.
+func (self *SrvStorageAdapter) ToCardStorage(aks *AccessKeys, src *ServerCard, dst *SrvStoreCard) error {
 	var err error
 
 	// check src
 	if nil != src {
-		src.CardId = cardIdToken
+		src.CardId = aks.IdKey[:]
 	}
 	err = src.Check()
 	if nil != err {
@@ -83,97 +86,54 @@ func (self *SrvCardStorageAdapter) ToStorage(cardIdToken []byte, src *ServerCard
 		return wrapError(err, "failed keys serialization")
 	}
 
-	sealtype := KsSealNone
-	if nil != self {
-		sealtype = self.sealType
-	}
-	switch sealtype {
-	case KsSealNone:
-		dst.ID = cardIdToken
-		dst.KeyData = srzkeys
+	// TODO: use aks to encrypt srzkeys
 
-	case KsSealMac:
-		dst.ID = cardIdToken
-		// TODO:
-		// Add mac tag to srzkeys
-		// this tag shall bind srzkeys to CardId & RealmId
-		return newError("Missing implementation: KsSealMac")
-
-	case KsSealAead:
-		// TODO:
-		// 1. dst.ID = hash(CardId)
-		// 2. derive AEAD key from sealkey, CardId
-		//    dst.KeyData = aead.Seal(srzkey, adddata)
-		//    and adddata contains RealmId & something related to CardId...
-		return newError("Missing implementation: KsSealAEAD")
-
-	default:
-		return newError("Invalid seal type")
-	}
+	// initializes dst
+	dst.ID = src.CardId
 	dst.RealmId = src.RealmId
-	dst.SealType = sealtype
+	dst.SealType = KsSealNone
+	dst.KeyData = srzkeys
 
-	return err
+	return nil
 }
 
-func (self *SrvCardStorageAdapter) FromStorage(cardIdToken []byte, src *SrvStoreCard, dst *ServerCard) error {
+// FromCardStorage deserializes and decrypts a SrvStoreCard into a ServerCard.
+// It unseals KeyData using the provided AccessKeys and reconstructs the card.
+func (self *SrvStorageAdapter) FromCardStorage(aks *AccessKeys, src *SrvStoreCard, dst *ServerCard) error {
+	if err := src.Check(); err != nil {
+		return wrapError(err, "failed src validation")
+	}
 
-	// check dst
 	if nil == dst {
-		return newError("nil dst ServerCard")
+		return wrapError(ErrValidation, "nil dst")
 	}
 
-	// check seal type compatibility
-	sealtype := KsSealNone
-	if nil != self {
-		sealtype = self.sealType
-	}
-	if src.SealType != sealtype {
-		return newError("src sealType not compatible with adapter")
-	}
+	// TODO: use aks to decrypt src.KeyData
 
-	var srzkeys []byte
-	switch sealtype {
-	case KsSealNone:
-		dst.CardId = src.ID
-		srzkeys = src.KeyData
-
-	case KsSealMac:
-		dst.CardId = src.ID
-		// TODO: check mac tag on KeyData & set srzkeys...
-		return newError("Missing implementation: KsSealMac")
-
-	case KsSealAead:
-		// TODO:
-		// 1. derive CardId from cardIdToken
-		// 2. derive aead key from sealkey & cardIdToken
-		// 3. unseal KeyData using aead key & set srzkeys
-		return newError("Missing implementation: KsSealAEAD")
-
-	default:
-		return newError("Invalid seal type")
-	}
-
+	// unmarshal src.KeyData
 	var ck srvCardKey
-	err := cborSrz.Unmarshal(srzkeys, &ck)
+	err := cborSrz.Unmarshal(src.KeyData, &ck)
 	if nil != err {
 		return wrapError(err, "failed unmarshalling KeyData")
 	}
 
-	// fill dst
+	// initializes dst
+	dst.CardId = src.ID
 	dst.RealmId = src.RealmId
 	dst.Kh = ck.Kh
 	dst.Psk = ck.Psk
 
 	return nil
+
 }
 
-// srvCardKey is an helper struct used for transforming ServerCard keys into KeyData bytes.
+// srvCardKey holds the sensitive key material extracted from ServerCard for serialization.
 type srvCardKey struct {
 	Kh  PublicKeyHandle `cbor:"1,keyasint"`
 	Psk []byte          `cbor:"2,keyasint"`
 }
 
+// Check returns an error if the srvCardKey is invalid.
 func (self srvCardKey) Check() error {
 	if nil == self.Kh.PublicKey {
 		return newError("nil PublicKey")
@@ -183,16 +143,4 @@ func (self srvCardKey) Check() error {
 	}
 
 	return nil
-}
-
-// GetCardIdToken returns ctx CARD_ID_TOKEN or nil if the value is unset.
-func GetCardIdToken(ctx context.Context) []byte {
-	var rv []byte
-	rv, _ = ctx.Value(cardIdTokenKey).([]byte)
-	return rv
-}
-
-// SetCardIdToken returns a Context deriving from ctx with value as CARD_ID_TOKEN value.
-func SetCardIdToken(ctx context.Context, value []byte) context.Context {
-	return context.WithValue(ctx, cardIdTokenKey, value)
 }
