@@ -63,7 +63,7 @@ type ServerCredStore interface {
 
 	// PopEnrollAuthorization loads authorization data and remove it from the ServerCredStore.
 	// It errors if authorization data were not successfully loaded.
-	PopEnrollAuthorization(ctx context.Context, authorizationId []byte, authorization *EnrollAuthorization) error
+	PopEnrollAuthorization(ctx context.Context, ert EnrollAccess, authorization *EnrollAuthorization) error
 
 	// SaveEnrollAuthorization saves authorization in the ServerCredStore.
 	// SaveEnrollAuthorization may modify authorization before/after saving it, eg to record actual storage key.
@@ -116,27 +116,28 @@ func (self *Realm) Check() error {
 
 // EnrollAuthorization contains Card creation information.
 type EnrollAuthorization struct {
-	AuthorizationId []byte          `json:"-" cbor:"-"`
-	RealmId         []byte          `json:"rid" cbor:"1,keyasint"`
-	AppName         string          `json:"app_name" cbor:"2,keyasint"`
-	AppDesc         string          `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
-	AppLogo         []byte          `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
-	UserData        json.RawMessage `json:"user_data,omitempty" cbor:"5,keyasint,omitempty"`
+	EnrollId   EnrollIdKey     `json:"-" cbor:"-"`
+	RealmId    RealmId         `json:"rid" cbor:"1,keyasint"`
+	AppName    string          `json:"app_name" cbor:"2,keyasint"`
+	AppDesc    string          `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
+	AppLogo    []byte          `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
+	UserData   json.RawMessage `json:"user_data,omitempty" cbor:"5,keyasint,omitempty"`
+	AccessKeys *AccessKeys     `json:"-" cbor:"-"`
 }
 
 // Check returns an error if the EnrollAuthorization is invalid.
 func (self *EnrollAuthorization) Check() error {
 	if nil == self {
-		return newError("nil EnrollAuthorization")
+		return wrapError(ErrValidation, "nil EnrollAuthorization")
 	}
-	if len(self.AuthorizationId) != 32 {
-		return newError("Invalid AuthorizationId, length != 32")
+	if err := self.EnrollId.Check(); err != nil {
+		return wrapError(err, "failed EnrollId validation")
 	}
-	if len(self.RealmId) < 32 {
-		return newError("Invalid RealmId, length < 32")
+	if err := self.RealmId.Check(); err != nil {
+		return wrapError(err, "failed RealmId validation")
 	}
 	if 0 == len(strings.TrimSpace(self.AppName)) {
-		return newError("Empty AppName")
+		return wrapError(ErrValidation, "empty AppName")
 	}
 
 	return nil
@@ -320,23 +321,24 @@ func (self *MemServerCredStore) RemoveRealm(_ context.Context, realmId RealmId) 
 
 // PopEnrollAuthorization loads authorization data and remove it from the MemServerCredStore.
 // It errors if authorization data were not successfully loaded.
-func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, authorizationId []byte, authorization *EnrollAuthorization) error {
-	if len(authorizationId) != 32 {
-		return wrapError(ErrNotFound, "invalid authorizationId")
-	}
+func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, enrollId EnrollAccess, authorization *EnrollAuthorization) error {
 	var atk [32]byte
-	copy(atk[:], authorizationId)
+	switch v := enrollId.(type) {
+	case EnrollToken:
+		atk = [32]byte(v)
+	default:
+		return wrapError(ErrNotFound, "non supported EnrollAccess type")
+	}
 
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
 	atd, found := self.authorizations[atk]
 	if !found {
-		return wrapError(ErrNotFound, "unknown authorizationId")
+		return wrapError(ErrNotFound, "unknown enrollId")
 	}
 
 	*authorization = atd
-	authorization.AuthorizationId = authorizationId
 	delete(self.authorizations, atk)
 
 	return nil
@@ -353,7 +355,7 @@ func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, atz *
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.authorizations[[32]byte(atz.AuthorizationId)] = *atz
+	self.authorizations[[32]byte(atz.EnrollId)] = *atz
 
 	return nil
 }
