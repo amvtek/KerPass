@@ -26,7 +26,7 @@ type PGDB interface {
 
 type ServerCredStore struct {
 	DB          PGDB
-	cardAdapter *credentials.SrvCardStorageAdapter
+	cardAdapter *credentials.SrvStorageAdapter
 }
 
 //go:embed srv_credstore_schema.sql
@@ -80,7 +80,7 @@ func (self *ServerCredStore) ListRealm(ctx context.Context) ([]credentials.Realm
 
 // LoadRealm loads realm data for realmId into dst.
 // It errors if realm data were not successfully loaded.
-func (self *ServerCredStore) LoadRealm(ctx context.Context, realmId []byte, dst *credentials.Realm) error {
+func (self *ServerCredStore) LoadRealm(ctx context.Context, realmId credentials.RealmId, dst *credentials.Realm) error {
 	rows, err := self.DB.Query(
 		ctx,
 		`SELECT
@@ -135,7 +135,7 @@ func (self *ServerCredStore) SaveRealm(ctx context.Context, realm *credentials.R
 
 // RemoveRealm removes the Realm with realmId identifier from the ServerCredStore.
 // It errors if the ServerCredStore is not reachable or if realmId does not exists.
-func (self *ServerCredStore) RemoveRealm(ctx context.Context, realmId []byte) error {
+func (self *ServerCredStore) RemoveRealm(ctx context.Context, realmId credentials.RealmId) error {
 	var deleted int
 	row := self.DB.QueryRow(
 		ctx,
@@ -219,10 +219,11 @@ func (self *ServerCredStore) AuthorizationCount(ctx context.Context) (int, error
 
 // LoadCard loads stored card data in dst.
 // It returns true if card data were successfully loaded.
-func (self *ServerCredStore) LoadCard(ctx context.Context, cardId []byte, dst *credentials.ServerCard) error {
+func (self *ServerCredStore) LoadCard(ctx context.Context, cardId credentials.ServerCardAccess, dst *credentials.ServerCard) error {
 
 	// load related SrvStoreCard
-	sId, err := self.cardAdapter.GetStorageId(cardId)
+	aks := credentials.AccessKeys{}
+	err := self.cardAdapter.GetCardAccess(cardId, &aks)
 	if nil != err {
 		return wrapError(credentials.ErrNotFound, "failed storage id determination")
 	}
@@ -234,7 +235,7 @@ func (self *ServerCredStore) LoadCard(ctx context.Context, cardId []byte, dst *c
 		 INNER JOIN realm r
 		   ON (c.realm_id = r.id)
 		 WHERE cid = $1`,
-		sId,
+		aks.IdKey[:],
 	)
 	err = row.Scan(&sc.ID, &sc.RealmId, &sc.SealType, &sc.KeyData)
 	if nil != err {
@@ -245,7 +246,7 @@ func (self *ServerCredStore) LoadCard(ctx context.Context, cardId []byte, dst *c
 	}
 
 	// adapt retrieved SrvStoreCard to ServerCard
-	err = self.cardAdapter.FromStorage(cardId, &sc, dst)
+	err = self.cardAdapter.FromCardStorage(&aks, &sc, dst)
 	if nil != err {
 		return wrapError(err, "failed card adaptation")
 	}
@@ -263,7 +264,7 @@ func (self *ServerCredStore) SaveCard(ctx context.Context, card *credentials.Ser
 
 	// transform card in SrvStoreCard
 	var sc credentials.SrvStoreCard
-	err = self.cardAdapter.ToStorage(card.CardId, card, &sc)
+	err = self.cardAdapter.ToCardStorage(card.AccessKeys, card, &sc)
 	if nil != err {
 		return wrapError(err, "Failed SrvStoreCard adaptation")
 	}
@@ -302,7 +303,7 @@ func (self *ServerCredStore) SaveCard(ctx context.Context, card *credentials.Ser
 
 // RemoveCard removes the ServerCard with cardId identifier from the ServerCredStore.
 // It returns true if the ServerCard was effectively removed.
-func (self *ServerCredStore) RemoveCard(ctx context.Context, cardId []byte) bool {
+func (self *ServerCredStore) RemoveCard(ctx context.Context, cardId credentials.ServerCardKey) bool {
 	var deleted int
 	row := self.DB.QueryRow(
 		ctx,
