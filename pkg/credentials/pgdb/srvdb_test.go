@@ -215,24 +215,18 @@ func TestServerCredStore_SaveEnrollAuthorization_Success(t *testing.T) {
 	ctx := context.Background()
 	store := newServerCredStore(ctx, t)
 
-	// Test data - 4 distinct authorizations in testRealm
-	authIDs := [][]byte{
-		newID(0x10),
-		newID(0x20),
-		newID(0x30),
-		newID(0x40),
-	}
-
 	// Save 4 distinct EnrollAuthorization in testRealm
-	for i, authID := range authIDs {
-		ea := credentials.EnrollAuthorization{
-			AuthorizationId: authID,
-			RealmId:         testRealmId,
+	var err error
+	for i := range 4 {
+		ea := credentials.EnrollAuthorization{}
+		_, err = initEnrollAuth(&ea)
+		if nil != err {
+			t.Fatalf("Failed initEnrollAuth #%d, got error %v", i, err)
 		}
 
-		err := store.SaveEnrollAuthorization(ctx, &ea)
+		err = store.SaveEnrollAuthorization(ctx, &ea)
 		if err != nil {
-			t.Fatalf("Failed to save authorization #%d: %v", i+1, err)
+			t.Fatalf("Failed to save authorization #%d: %v", i, err)
 		}
 	}
 
@@ -240,8 +234,8 @@ func TestServerCredStore_SaveEnrollAuthorization_Success(t *testing.T) {
 	finalCount, err := store.AuthorizationCount(ctx)
 	if err != nil {
 		t.Fatalf("Failed authorizations count, got error %v", err)
-	} else if finalCount != len(authIDs) {
-		t.Fatalf("Expected %d authorizations, got %d", len(authIDs), finalCount)
+	} else if finalCount != 4 {
+		t.Fatalf("Expected 4 authorizations, got %d", finalCount)
 	}
 }
 
@@ -250,15 +244,16 @@ func TestServerCredStore_SaveEnrollAuthorization_InvalidRealm(t *testing.T) {
 	store := newServerCredStore(ctx, t)
 
 	// Create authorization with non-existent realm
-	authID := newID(0x50)
 	nonExistentRealmID := newID(0xFF) // Different from testRealmId
-
-	ea := credentials.EnrollAuthorization{
-		AuthorizationId: authID,
-		RealmId:         nonExistentRealmID,
+	ea := credentials.EnrollAuthorization{}
+	_, err := initEnrollAuth(&ea)
+	if nil != err {
+		t.Fatalf("Failed initEnrollAuth, got error %v", err)
 	}
+	ea.RealmId = credentials.RealmId(nonExistentRealmID)
 
-	err := store.SaveEnrollAuthorization(ctx, &ea)
+	// Save the authorization
+	err = store.SaveEnrollAuthorization(ctx, &ea)
 	if err == nil {
 		t.Error("Expected error when saving authorization with non-existent realm, but got none")
 	}
@@ -269,20 +264,19 @@ func TestServerCredStore_PopEnrollAuthorization(t *testing.T) {
 	store := newServerCredStore(ctx, t)
 
 	// Create and save an authorization
-	authID := newID(0x60)
-	ea := credentials.EnrollAuthorization{
-		AuthorizationId: authID,
-		RealmId:         testRealmId,
+	ea := credentials.EnrollAuthorization{}
+	enrollToken, err := initEnrollAuth(&ea)
+	if nil != err {
+		t.Fatalf("Failed initEnrollAuth, got error %v", err)
 	}
-
-	err := store.SaveEnrollAuthorization(ctx, &ea)
+	err = store.SaveEnrollAuthorization(ctx, &ea)
 	if err != nil {
 		t.Fatalf("Failed to save authorization: %v", err)
 	}
 
 	// Pop the authorization
 	var poppedEA credentials.EnrollAuthorization
-	err = store.PopEnrollAuthorization(ctx, authID, &poppedEA)
+	err = store.PopEnrollAuthorization(ctx, enrollToken, &poppedEA)
 	if nil != err {
 		t.Fatalf("Failed to pop authorization, got error %v", err)
 	}
@@ -321,38 +315,34 @@ func TestServerCredStore_PopEnrollAuthorization_WithLogo(t *testing.T) {
 		t.Fatalf("Failed to update realm: %v", err)
 	}
 
-	// Save and pop 4 different authorizations
-	authIDs := [][]byte{
-		newID(0x70),
-		newID(0x71),
-		newID(0x72),
-		newID(0x73),
-	}
-
-	// Save all authorizations first
-	for _, authID := range authIDs {
-		ea := credentials.EnrollAuthorization{
-			AuthorizationId: authID,
-			RealmId:         testRealmId,
+	// Save 4 distinct EnrollAuthorization in testRealm
+	var atk credentials.EnrollToken
+	authTokens := make([]credentials.EnrollToken, 0, 4)
+	for i := range 4 {
+		ea := credentials.EnrollAuthorization{}
+		atk, err = initEnrollAuth(&ea)
+		if nil != err {
+			t.Fatalf("Failed initEnrollAuth #%d, got error %v", i, err)
 		}
-		err := store.SaveEnrollAuthorization(ctx, &ea)
+		err = store.SaveEnrollAuthorization(ctx, &ea)
 		if err != nil {
-			t.Fatalf("Failed to save authorization %x: %v", authID, err)
+			t.Fatalf("Failed to save authorization #%d: %v", i, err)
 		}
+		authTokens = append(authTokens, atk)
 	}
 
 	// Check initial count
 	initialCount, err := store.AuthorizationCount(ctx)
 	if nil != err {
 		t.Errorf("Failed counting authorizations, got error %v", err)
-	} else if initialCount != len(authIDs) {
-		t.Errorf("Expected %d authorizations before popping, got %d", len(authIDs), initialCount)
+	} else if initialCount != 4 {
+		t.Errorf("Expected 4 authorizations before popping, got %d", initialCount)
 	}
 
 	// Pop all authorizations and check their data
-	for i, authID := range authIDs {
+	for i, authToken := range authTokens {
 		var poppedEA credentials.EnrollAuthorization
-		err = store.PopEnrollAuthorization(ctx, authID, &poppedEA)
+		err = store.PopEnrollAuthorization(ctx, authToken, &poppedEA)
 		if nil != err {
 			t.Errorf("Failed to pop authorization #%d, got error %v", i+1, err)
 			continue
@@ -757,6 +747,7 @@ func newID(val byte) []byte {
 }
 
 // initCard set random id & keys on dst.
+// initCard returns the IdToken from which the dst identifier was derived.
 func initCard(dst *credentials.ServerCard) (credentials.IdToken, error) {
 	idtkn := credentials.IdToken(make([]byte, 32))
 	rand.Read(idtkn)
@@ -781,4 +772,24 @@ func initCard(dst *credentials.ServerCard) (credentials.IdToken, error) {
 	dst.Psk = psk
 
 	return idtkn, nil
+}
+
+// initEnrollAuth set random id on dst.
+// initEnrollAuth returns the EnrollToken from which the dst identifier was derived.
+func initEnrollAuth(dst *credentials.EnrollAuthorization) (credentials.EnrollToken, error) {
+	enrtkn := credentials.EnrollToken(make([]byte, 32))
+	rand.Read(enrtkn)
+
+	aks := credentials.AccessKeys{}
+	err := storageAdapter.GetEnrollAuthorizationAccess(enrtkn, &aks)
+	if nil != err {
+		return nil, err
+	}
+
+	dst.AccessKeys = &aks
+	dst.EnrollId = aks.IdKey[:]
+	dst.RealmId = credentials.RealmId(testRealmId)
+	dst.AppName = "???"
+
+	return enrtkn, nil
 }
