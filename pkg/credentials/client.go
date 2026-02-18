@@ -8,9 +8,9 @@ import (
 
 type ClientCredStore interface {
 
-	// SaveCard saves card in the ClientCredStore and returns the assigned ID.
+	// SaveCard saves card in the ClientCredStore.
 	// It errors if the card could not be saved.
-	SaveCard(card Card) (int, error)
+	SaveCard(card *Card) error
 
 	// RemoveCard removes the Card with cId ID from the ClientCredStore.
 	// It returns true if the Card was effectively removed.
@@ -31,32 +31,36 @@ type ClientCredStore interface {
 // Card holds keys necessary for validating/generating EPHEMSEC OTP/OTK.
 type Card struct {
 	ID      int              `json:"-" cbor:"-"` // ClientCredStore identifier
-	RealmId []byte           `json:"rid" cbor:"1,keyasint"`
-	IdToken []byte           `json:"idt" cbor:"2,keyasint"`                         // used as CardId with OTK
+	RealmId RealmId          `json:"rid" cbor:"1,keyasint"`
+	IdToken IdToken          `json:"idt" cbor:"2,keyasint"`                         // used as CardId with OTK
 	UserId  string           `json:"user_id,omitempty" cbor:"3,keyasint,omitempty"` // used as CardId with OTP
 	Kh      PrivateKeyHandle `json:"sk" cbor:"4,keyasint"`                          // uses Kh.PrivateKey to obtain the ecdh.PrivateKey
 	Psk     []byte           `json:"psk" cbor:"5,keyasint"`
 	AppName string           `json:"app_name" cbor:"6,keyasint"`
 	AppDesc string           `json:"app_desc,omitempty" cbor:"7,keyasint,omitempty"`
 	AppLogo []byte           `json:"app_logo,omitempty" cbor:"8,keyasint,omitempty"`
+	Label   string           `json:"label,omitempty" cbor:"9,keyasint,omitempty"`
 }
 
 // Check returns an error if the Card is invalid.
-func (self Card) Check() error {
-	if len(self.RealmId) < 32 {
-		return newError("Invalid RealmId, length < 32")
+func (self *Card) Check() error {
+	if nil == self {
+		return wrapError(ErrValidation, "nil Card")
 	}
-	if len(self.IdToken) < 32 {
-		return newError("Invalid IdToken, length < 32")
+	if err := self.RealmId.Check(); nil != err {
+		return wrapError(err, "failed RealmId validation")
+	}
+	if err := self.IdToken.Check(); nil != err {
+		return wrapError(err, "failed IdToken validation")
 	}
 	if nil == self.Kh.PrivateKey {
-		return newError("nil PrivateKey")
+		return wrapError(ErrValidation, "nil PrivateKey")
 	}
 	if len(self.Psk) < 32 {
-		return newError("Invalid Psk, length < 32")
+		return wrapError(ErrValidation, "Invalid Psk, length < 32")
 	}
 	if len(self.AppName) == 0 {
-		return newError("Empty AppName")
+		return wrapError(ErrValidation, "Empty AppName")
 	}
 
 	return nil
@@ -64,7 +68,10 @@ func (self Card) Check() error {
 
 // Info returns a CardInfo{} extracted from self.
 func (self Card) Info() CardInfo {
-	return CardInfo{ID: self.ID, RealmId: self.RealmId, AppName: self.AppName, AppDesc: self.AppDesc, AppLogo: self.AppLogo}
+	return CardInfo{
+		ID: self.ID, RealmId: self.RealmId, Label: self.Label,
+		AppName: self.AppName, AppDesc: self.AppDesc, AppLogo: self.AppLogo,
+	}
 }
 
 // CardInfo holds Card information useful for display.
@@ -75,6 +82,7 @@ type CardInfo struct {
 	AppName string `json:"app_name" cbor:"6,keyasint"`
 	AppDesc string `json:"app_desc,omitempty" cbor:"7,keyasint,omitempty"`
 	AppLogo []byte `json:"app_logo,omitempty" cbor:"8,keyasint,omitempty"`
+	Label   string `json:"label,omitempty" cbor:"9,keyasint,omitempty"`
 }
 
 // CardQuery parametrizes ClientCredStore ListInfo.
@@ -101,14 +109,13 @@ func NewMemClientCredStore() *MemClientCredStore {
 
 // SaveCard saves card in the MemClientCredStore
 // It errors if the card could not be saved.
-func (self *MemClientCredStore) SaveCard(card Card) (int, error) {
+func (self *MemClientCredStore) SaveCard(card *Card) error {
 	err := card.Check()
 	if nil != err {
-		return 0, wrapError(err, "Invalid card")
+		return wrapError(err, "Invalid card")
 	}
 
-	var cardkey [32]byte
-	copy(cardkey[:], card.IdToken)
+	cardkey := [32]byte(card.IdToken)
 
 	self.mut.Lock()
 	defer self.mut.Unlock()
@@ -119,10 +126,10 @@ func (self *MemClientCredStore) SaveCard(card Card) (int, error) {
 		// card must match an existing card
 		curcard, found := self.cardTbl[card.ID]
 		if !found {
-			return 0, newError("pre assigned ID is for non existing Card")
+			return newError("pre assigned ID is for non existing Card")
 		}
 		if (bytes.Compare(card.IdToken, curcard.IdToken) != 0) || (bytes.Compare(card.RealmId, curcard.RealmId) != 0) {
-			return 0, wrapError(ErrCardMutation, "ID in use with a different Card")
+			return wrapError(ErrCardMutation, "ID in use with a different Card")
 		}
 	} else {
 		// a card may exist with same IdToken
@@ -130,7 +137,7 @@ func (self *MemClientCredStore) SaveCard(card Card) (int, error) {
 		if found {
 			curcard = self.cardTbl[cId]
 			if bytes.Compare(card.RealmId, curcard.RealmId) != 0 {
-				return 0, wrapError(ErrCardMutation, "A Card with same IdToken exists in a different Realm")
+				return wrapError(ErrCardMutation, "A Card with same IdToken exists in a different Realm")
 			}
 			card.ID = cId
 		} else {
@@ -138,10 +145,10 @@ func (self *MemClientCredStore) SaveCard(card Card) (int, error) {
 			card.ID = self.maxInt
 		}
 	}
-	self.cardTbl[card.ID] = card
+	self.cardTbl[card.ID] = *card
 	self.tokenIdx[cardkey] = card.ID
 
-	return card.ID, nil
+	return nil
 }
 
 // RemoveCard removes the Card with cId ID from the MemClientCredStore.

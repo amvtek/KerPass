@@ -32,14 +32,14 @@ func TestCardCreate(t *testing.T) {
 
 	realmId := make([]byte, 32)
 	rand.Read(realmId)
-	card := credentials.Card{}
 	for i := range 8 {
+		card := credentials.Card{}
 		err = initCard(&card)
 		if nil != err {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
 		card.RealmId = realmId
-		_, err = store.SaveCard(card)
+		err = store.SaveCard(&card)
 		if nil != err {
 			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
 		}
@@ -65,18 +65,16 @@ func TestCardCreateDelete01(t *testing.T) {
 	}
 
 	// create 8 cards
-	var cId int
 	cards := make([]credentials.Card, 8)
 	for i := range 8 {
 		err = initCard(&cards[i])
 		if nil != err {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
-		cId, err = store.SaveCard(cards[i])
+		err = store.SaveCard(&cards[i])
 		if nil != err {
 			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
 		}
-		cards[i].ID = cId
 	}
 
 	// remove previous cards
@@ -111,18 +109,16 @@ func TestCardCreateDelete02(t *testing.T) {
 	}
 
 	// create 4 cards
-	var cId int
 	cards := make([]credentials.Card, 4)
 	for i := range 4 {
 		err = initCard(&cards[i])
 		if nil != err {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
-		cId, err = store.SaveCard(cards[i])
+		err = store.SaveCard(&cards[i])
 		if nil != err {
 			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
 		}
-		cards[i].ID = cId
 	}
 
 	// remove cards with even index
@@ -159,18 +155,16 @@ func TestLoadById(t *testing.T) {
 	}
 
 	// create 32 cards
-	var cId int
 	cards := make([]credentials.Card, 32)
 	for i := range 32 {
 		err = initCard(&cards[i])
 		if nil != err {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
-		cId, err = store.SaveCard(cards[i])
+		err = store.SaveCard(&cards[i])
 		if nil != err {
 			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
 		}
-		cards[i].ID = cId
 	}
 
 	// keep cards {0, 7, 14, 21, 28}...
@@ -228,11 +222,10 @@ func TestForbidMutation(t *testing.T) {
 	if nil != err {
 		t.Fatalf("failed initCard, got error %v", err)
 	}
-	cId, err := store.SaveCard(card)
+	err = store.SaveCard(&card)
 	if nil != err {
 		t.Fatalf("failed SaveCard, got error %v", err)
 	}
-	card.ID = cId
 
 	// attend to change RealmId through IdToken
 	card1 := card
@@ -240,7 +233,7 @@ func TestForbidMutation(t *testing.T) {
 	realmId := make([]byte, len(card.RealmId))
 	rand.Read(realmId)
 	card1.RealmId = realmId
-	_, err = store.SaveCard(card1)
+	err = store.SaveCard(&card1)
 	if !errors.Is(err, credentials.ErrCardMutation) {
 		t.Error("store did not detect RealmId mutation")
 	}
@@ -250,7 +243,7 @@ func TestForbidMutation(t *testing.T) {
 	idToken := make([]byte, len(card.IdToken))
 	rand.Read(idToken)
 	card2.IdToken = idToken
-	_, err = store.SaveCard(card2)
+	err = store.SaveCard(&card2)
 	if !errors.Is(err, credentials.ErrCardMutation) {
 		t.Error("store did not detect IdToken mutation")
 	}
@@ -271,7 +264,6 @@ func TestListInfo(t *testing.T) {
 	}
 
 	// create 32 cards
-	var cId int
 	cards := make([]credentials.Card, 32)
 	for i := range 32 {
 		err = initCard(&cards[i])
@@ -283,11 +275,10 @@ func TestListInfo(t *testing.T) {
 		} else {
 			cards[i].RealmId = realms[1][:]
 		}
-		cId, err = store.SaveCard(cards[i])
+		err = store.SaveCard(&cards[i])
 		if nil != err {
 			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
 		}
-		cards[i].ID = cId
 	}
 
 	infos := make([]credentials.CardInfo, 0, 32)
