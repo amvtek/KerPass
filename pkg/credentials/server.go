@@ -116,13 +116,12 @@ func (self *Realm) Check() error {
 
 // EnrollAuthorization contains Card creation information.
 type EnrollAuthorization struct {
-	EnrollId   EnrollIdKey     `json:"-" cbor:"-"`
-	RealmId    RealmId         `json:"rid" cbor:"1,keyasint"`
-	AppName    string          `json:"app_name" cbor:"2,keyasint"`
-	AppDesc    string          `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
-	AppLogo    []byte          `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
-	UserData   json.RawMessage `json:"user_data,omitempty" cbor:"5,keyasint,omitempty"`
-	AccessKeys *AccessKeys     `json:"-" cbor:"-"`
+	EnrollId EnrollIdKey     `json:"-" cbor:"-"`
+	RealmId  RealmId         `json:"rid" cbor:"1,keyasint"`
+	AppName  string          `json:"app_name" cbor:"2,keyasint"`
+	AppDesc  string          `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
+	AppLogo  []byte          `json:"app_logo,omitempty" cbor:"4,keyasint,omitempty"`
+	UserData json.RawMessage `json:"user_data,omitempty" cbor:"5,keyasint,omitempty"`
 }
 
 // Check returns an error if the EnrollAuthorization is invalid.
@@ -145,11 +144,10 @@ func (self *EnrollAuthorization) Check() error {
 
 // ServerCard holds keys necessary for validating/generating EPHEMSEC OTP/OTK.
 type ServerCard struct {
-	CardId     ServerCardIdKey `json:"-" cbor:"-"`
-	RealmId    RealmId         `json:"rid" cbor:"2,keyasint"`
-	Kh         PublicKeyHandle `json:"pubkey" cbor:"3,keyasint"` // uses Kh.PublicKey to obtain the ecdh.PublicKey
-	Psk        []byte          `json:"psk" cbor:"4,keyasint"`
-	AccessKeys *AccessKeys     `json:"-" cbor:"-"`
+	CardId  ServerCardIdKey `json:"-" cbor:"-"`
+	RealmId RealmId         `json:"rid" cbor:"2,keyasint"`
+	Kh      PublicKeyHandle `json:"pubkey" cbor:"3,keyasint"` // uses Kh.PublicKey to obtain the ecdh.PublicKey
+	Psk     []byte          `json:"psk" cbor:"4,keyasint"`
 }
 
 // Check returns an error if the ServerCard is invalid.

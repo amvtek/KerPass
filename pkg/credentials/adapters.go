@@ -218,7 +218,6 @@ func (self *SrvStorageAdapter) FromEnrollAuthorizationStorage(aks *AccessKeys, s
 	dst.AppName = src.AppName
 	dst.AppDesc = src.AppDesc
 	dst.AppLogo = src.AppLogo
-	dst.AccessKeys = aks
 
 	return nil
 
