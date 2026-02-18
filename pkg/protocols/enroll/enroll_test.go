@@ -77,7 +77,7 @@ func TestFsmEnrollFailAuthorization(t *testing.T) {
 	cli, srv := makePeerState(t)
 
 	// change client authorization
-	rand.Read(cli.AuthorizationId)
+	rand.Read(cli.EnrollToken)
 
 	// create transports
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -289,17 +289,16 @@ func makePeerState(t *testing.T) (*ClientState, *ServerState) {
 	}
 
 	// generate authorization
-	authorizationId := make([]byte, 32)
-	rand.Read(authorizationId)
+	enrollToken := credentials.EnrollToken(make([]byte, 32))
+	rand.Read(enrollToken)
 	authorization := credentials.EnrollAuthorization{
-		AuthorizationId: authorizationId,
-		RealmId:         realmId,
-		AppName:         "User Read This",
+		RealmId: realmId,
+		AppName: "User Read This",
 	}
 
 	// prepare server CredStore
 	serverCredStore := credentials.NewMemServerCredStore()
-	err = serverCredStore.SaveEnrollAuthorization(context.Background(), &authorization)
+	err = serverCredStore.SaveEnrollAuthorization(context.Background(), enrollToken, &authorization)
 	if nil != err {
 		t.Fatalf("failed initializing serverCredStore, got error %v", err)
 	}
@@ -310,9 +309,9 @@ func makePeerState(t *testing.T) (*ClientState, *ServerState) {
 	// create client, server states.
 	cli, err := NewClientState(
 		ClientCfg{
-			RealmId:         realmId,
-			AuthorizationId: authorizationId,
-			Repo:            clientCredStore,
+			RealmId:     realmId,
+			EnrollToken: enrollToken,
+			Repo:        clientCredStore,
 		},
 	)
 	if nil != err {

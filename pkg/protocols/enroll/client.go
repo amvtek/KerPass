@@ -27,34 +27,34 @@ func (self CardUseFunc) Use(card *credentials.Card) error {
 }
 
 type ClientCfg struct {
-	RealmId         []byte
-	AuthorizationId []byte
-	Repo            credentials.ClientCredStore
-	OnNewCard       CardUser
+	RealmId     credentials.RealmId
+	EnrollToken credentials.EnrollToken
+	Repo        credentials.ClientCredStore
+	OnNewCard   CardUser
 }
 
 func (self ClientCfg) Check() error {
 	if nil == self.Repo {
-		return newError("nil Repo")
+		return wrapError(ErrValidation, "nil Repo")
 	}
-	if len(self.RealmId) < 32 {
-		return newError("Invalid RealmId, length %d < 32", len(self.RealmId))
+	if err := self.RealmId.Check(); nil != err {
+		return wrapError(err, "failed RealmId validation")
 	}
-	if len(self.AuthorizationId) < 16 {
-		return newError("Invalid AuthorizationId, length %d < 16", len(self.AuthorizationId))
+	if err := self.EnrollToken.Check(); nil != err {
+		return wrapError(err, "failed EnrollToken validation")
 	}
 
 	return nil
 }
 
 type ClientState struct {
-	RealmId         []byte
-	AuthorizationId []byte
-	Repo            credentials.ClientCredStore
-	OnNewCard       CardUser
-	hs              noise.HandshakeState
-	cardId          int
-	next            ClientStateFunc
+	RealmId     []byte
+	EnrollToken []byte
+	Repo        credentials.ClientCredStore
+	OnNewCard   CardUser
+	hs          noise.HandshakeState
+	cardId      int
+	next        ClientStateFunc
 }
 
 func NewClientState(cfg ClientCfg) (*ClientState, error) {
@@ -64,11 +64,11 @@ func NewClientState(cfg ClientCfg) (*ClientState, error) {
 	}
 
 	rv := &ClientState{
-		RealmId:         cfg.RealmId,
-		AuthorizationId: cfg.AuthorizationId,
-		Repo:            cfg.Repo,
-		OnNewCard:       cfg.OnNewCard,
-		next:            ClientInit,
+		RealmId:     cfg.RealmId,
+		EnrollToken: cfg.EnrollToken,
+		Repo:        cfg.Repo,
+		OnNewCard:   cfg.OnNewCard,
+		next:        ClientInit,
 	}
 
 	return rv, nil
@@ -198,7 +198,7 @@ func ClientReceiveServerKey(ctx context.Context, self *ClientState, msg []byte) 
 
 	// prepare Client: -> s, se, {EnrollAuthorization}
 	log.Debug("generating handshake message with EnrollAuthorization payload")
-	srzmsg, err := cborSrz.Marshal(EnrollAuthorization{AuthorizationId: self.AuthorizationId})
+	srzmsg, err := cborSrz.Marshal(EnrollAuthorization{EnrollToken: self.EnrollToken})
 	if nil != err {
 		errmsg = "failed CBOR marshal of EnrollAuthorization"
 		log.Debug(errmsg, "error", err)
@@ -271,14 +271,13 @@ func ClientCardCreate(ctx context.Context, self *ClientState, msg []byte) (sf Cl
 
 	// save new Card
 	log.Debug("saving Card")
-	cardId, err := self.Repo.SaveCard(card)
+	err = self.Repo.SaveCard(&card)
 	if nil != err {
 		errmsg = "failed saving card"
 		log.Debug(errmsg, "error", err)
 		return sf, rmsg, wrapError(err, errmsg)
 	}
-	card.ID = cardId
-	self.cardId = cardId
+	self.cardId = card.ID
 
 	// prepare Client: -> psk, {}
 	log.Debug("generating handshake message")

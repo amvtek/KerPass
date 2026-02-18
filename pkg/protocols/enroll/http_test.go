@@ -168,17 +168,16 @@ func makePeerConfig(t *testing.T) (ClientCfg, *HttpHandler) {
 	}
 
 	// generate authorization
-	authorizationId := make([]byte, 32)
-	rand.Read(authorizationId)
+	enrollToken := credentials.EnrollToken(make([]byte, 32))
+	rand.Read(enrollToken)
 	authorization := credentials.EnrollAuthorization{
-		AuthorizationId: authorizationId,
-		RealmId:         realmId,
-		AppName:         "User Read This",
+		RealmId: realmId,
+		AppName: "User Read This",
 	}
 
 	// prepare server CredStore
 	serverCredStore := credentials.NewMemServerCredStore()
-	err = serverCredStore.SaveEnrollAuthorization(context.Background(), &authorization)
+	err = serverCredStore.SaveEnrollAuthorization(context.Background(), enrollToken, &authorization)
 	if nil != err {
 		t.Fatalf("failed initializing serverCredStore, got error %v", err)
 	}
@@ -194,9 +193,9 @@ func makePeerConfig(t *testing.T) (ClientCfg, *HttpHandler) {
 
 	// create client config
 	cli := ClientCfg{
-		RealmId:         realmId,
-		AuthorizationId: authorizationId,
-		Repo:            clientCredStore,
+		RealmId:     realmId,
+		EnrollToken: enrollToken,
+		Repo:        clientCredStore,
 	}
 
 	return cli, srv

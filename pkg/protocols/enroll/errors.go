@@ -10,6 +10,7 @@ type errorFlag string
 const (
 	// All package errors are wrapping Error
 	Error                   = errorFlag("enroll: error")
+	ErrValidation           = errorFlag("enroll: failed validation")
 	ErrInvalidAuthorization = errorFlag("enroll: invalid authorization")
 	noError                 = errorFlag("")
 )

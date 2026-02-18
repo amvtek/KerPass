@@ -63,12 +63,12 @@ type ServerCredStore interface {
 
 	// PopEnrollAuthorization loads authorization data and remove it from the ServerCredStore.
 	// It errors if authorization data were not successfully loaded.
-	PopEnrollAuthorization(ctx context.Context, ert EnrollAccess, authorization *EnrollAuthorization) error
+	PopEnrollAuthorization(ctx context.Context, authId EnrollAccess, authorization *EnrollAuthorization) error
 
 	// SaveEnrollAuthorization saves authorization in the ServerCredStore.
 	// SaveEnrollAuthorization may modify authorization before/after saving it, eg to record actual storage key.
 	// It errors if the authorization could not be saved.
-	SaveEnrollAuthorization(ctx context.Context, authorization *EnrollAuthorization) error
+	SaveEnrollAuthorization(ctx context.Context, authId EnrollAccess, authorization *EnrollAuthorization) error
 
 	// AuthorizationCount returns the number of EnrollAuthorization in the ServerCredStore.
 	AuthorizationCount(ctx context.Context) (int, error)
@@ -80,7 +80,7 @@ type ServerCredStore interface {
 	// SaveCard saves card in the ServerCredStore.
 	// SaveCard may modify card before/after saving it, eg to record actual storage key.
 	// It errors if the card could not be saved.
-	SaveCard(ctx context.Context, card *ServerCard) error
+	SaveCard(ctx context.Context, cardId ServerCardAccess, card *ServerCard) error
 
 	// RemoveCard removes the ServerCard with cardId identifier from the ServerCredStore.
 	// It returns true if the ServerCard was effectively removed.
@@ -102,10 +102,10 @@ type Realm struct {
 // Check returns an error if the Realm is invalid.
 func (self *Realm) Check() error {
 	if nil == self {
-		return newError("nil Realm")
+		return wrapError(ErrValidation, "nil Realm")
 	}
-	if len(self.RealmId) < 32 {
-		return newError("Invalid RealmId, length < 32")
+	if err := self.RealmId.Check(); nil != err {
+		return wrapError(err, "failed RealmId validation")
 	}
 	if 0 == len(strings.TrimSpace(self.AppName)) {
 		return newError("Empty AppName")
@@ -321,9 +321,9 @@ func (self *MemServerCredStore) RemoveRealm(_ context.Context, realmId RealmId) 
 
 // PopEnrollAuthorization loads authorization data and remove it from the MemServerCredStore.
 // It errors if authorization data were not successfully loaded.
-func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, enrollId EnrollAccess, authorization *EnrollAuthorization) error {
+func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, authId EnrollAccess, authorization *EnrollAuthorization) error {
 	var atk [32]byte
-	switch v := enrollId.(type) {
+	switch v := authId.(type) {
 	case EnrollToken:
 		atk = [32]byte(v)
 	default:
@@ -335,7 +335,7 @@ func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, enroll
 
 	atd, found := self.authorizations[atk]
 	if !found {
-		return wrapError(ErrNotFound, "unknown enrollId")
+		return wrapError(ErrNotFound, "unknown authId")
 	}
 
 	*authorization = atd
@@ -346,7 +346,16 @@ func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, enroll
 
 // SaveEnrollAuthorization saves atz authorization in the MemServerCredStore.
 // It errors if the authorization could not be saved.
-func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, atz *EnrollAuthorization) error {
+func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, authId EnrollAccess, atz *EnrollAuthorization) error {
+	var atk [32]byte
+	switch v := authId.(type) {
+	case EnrollToken:
+		atk = [32]byte(v)
+	default:
+		return wrapError(ErrNotFound, "non supported EnrollAccess type")
+	}
+
+	atz.EnrollId = EnrollIdKey(atk[:])
 	err := atz.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid authorization")
@@ -355,7 +364,7 @@ func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, atz *
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.authorizations[[32]byte(atz.EnrollId)] = *atz
+	self.authorizations[atk] = *atz
 
 	return nil
 }
@@ -396,7 +405,17 @@ func (self *MemServerCredStore) LoadCard(_ context.Context, cardId ServerCardAcc
 
 // SaveCard saves card in the MemServerCredStore.
 // It errors if the card could not be saved.
-func (self *MemServerCredStore) SaveCard(_ context.Context, card *ServerCard) error {
+func (self *MemServerCredStore) SaveCard(_ context.Context, cardId ServerCardAccess, card *ServerCard) error {
+
+	var ck [32]byte
+	switch v := cardId.(type) {
+	case IdToken:
+		ck = [32]byte(v)
+	default:
+		return wrapError(ErrNotFound, "non supported cardId type")
+	}
+
+	card.CardId = ServerCardIdKey(ck[:])
 	err := card.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid card")
@@ -405,7 +424,7 @@ func (self *MemServerCredStore) SaveCard(_ context.Context, card *ServerCard) er
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.cards[[32]byte(card.CardId)] = *card
+	self.cards[ck] = *card
 
 	return nil
 }
