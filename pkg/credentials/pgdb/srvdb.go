@@ -158,11 +158,11 @@ func (self *ServerCredStore) RemoveRealm(ctx context.Context, realmId credential
 // It returns an error if the authorization could not be loaded and removed.
 func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, etk credentials.EnrollAccess, dst *credentials.EnrollAuthorization) error {
 
-	// determine DB aid that corresponds to etk
+	// derive AccessKeys from etk
 	aks := credentials.AccessKeys{}
 	err := self.cardAdapter.GetEnrollAuthorizationAccess(etk, &aks)
 	if nil != err {
-		return wrapError(credentials.ErrNotFound, "failed storage aid determination")
+		return wrapError(err, "failed AccessKeys derivation")
 	}
 
 	// pop the authorization if it exists
@@ -193,16 +193,25 @@ func (self *ServerCredStore) PopEnrollAuthorization(ctx context.Context, etk cre
 
 // SaveEnrollAuthorization saves ea in the ServerCredStore.
 // It errors if the authorization could not be saved.
-func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, ea *credentials.EnrollAuthorization) error {
+func (self *ServerCredStore) SaveEnrollAuthorization(ctx context.Context, etk credentials.EnrollAccess, ea *credentials.EnrollAuthorization) error {
+
+	// derive AccessKeys from etk
+	aks := credentials.AccessKeys{}
+	err := self.cardAdapter.GetEnrollAuthorizationAccess(etk, &aks)
+	if nil != err {
+		return wrapError(err, "failed AccessKeys derivation")
+	}
+
 	// validate ea
-	err := ea.Check()
+	ea.EnrollId = credentials.EnrollIdKey(aks.IdKey[:])
+	err = ea.Check()
 	if nil != err {
 		return wrapError(err, "Invalid EnrollAuthorization")
 	}
 
 	// transform ea in SrvStoreEnrollAuthorization
 	var sa credentials.SrvStoreEnrollAuthorization
-	err = self.cardAdapter.ToEnrollAuthorizationStorage(ea.AccessKeys, ea, &sa)
+	err = self.cardAdapter.ToEnrollAuthorizationStorage(&aks, ea, &sa)
 	if nil != err {
 		return wrapError(err, "Failed SrvStoreEnrollAuthorization adaptation")
 	}
@@ -251,12 +260,14 @@ func (self *ServerCredStore) AuthorizationCount(ctx context.Context) (int, error
 // It returns true if card data were successfully loaded.
 func (self *ServerCredStore) LoadCard(ctx context.Context, cardId credentials.ServerCardAccess, dst *credentials.ServerCard) error {
 
-	// load related SrvStoreCard
+	// derive AccessKeys from cardId
 	aks := credentials.AccessKeys{}
 	err := self.cardAdapter.GetCardAccess(cardId, &aks)
 	if nil != err {
-		return wrapError(credentials.ErrNotFound, "failed storage id determination")
+		return wrapError(err, "failed AccessKeys derivation")
 	}
+
+	// load related SrvStoreCard
 	var sc credentials.SrvStoreCard
 	row := self.DB.QueryRow(
 		ctx,
@@ -286,15 +297,25 @@ func (self *ServerCredStore) LoadCard(ctx context.Context, cardId credentials.Se
 
 // SaveCard saves card in the ServerCredStore.
 // It errors if the card could not be saved.
-func (self *ServerCredStore) SaveCard(ctx context.Context, card *credentials.ServerCard) error {
-	err := card.Check()
+func (self *ServerCredStore) SaveCard(ctx context.Context, cardId credentials.ServerCardAccess, card *credentials.ServerCard) error {
+
+	// derive AccessKeys from cardId
+	aks := credentials.AccessKeys{}
+	err := self.cardAdapter.GetCardAccess(cardId, &aks)
+	if nil != err {
+		return wrapError(err, "failed AccessKeys derivation")
+	}
+
+	// validate card
+	card.CardId = credentials.ServerCardIdKey(aks.IdKey[:])
+	err = card.Check()
 	if nil != err {
 		return wrapError(err, "Invalid ServerCard")
 	}
 
 	// transform card in SrvStoreCard
 	var sc credentials.SrvStoreCard
-	err = self.cardAdapter.ToCardStorage(card.AccessKeys, card, &sc)
+	err = self.cardAdapter.ToCardStorage(&aks, card, &sc)
 	if nil != err {
 		return wrapError(err, "Failed SrvStoreCard adaptation")
 	}

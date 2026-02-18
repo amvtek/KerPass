@@ -219,12 +219,12 @@ func TestServerCredStore_SaveEnrollAuthorization_Success(t *testing.T) {
 	var err error
 	for i := range 4 {
 		ea := credentials.EnrollAuthorization{}
-		_, err = initEnrollAuth(&ea)
+		eat, err := initEnrollAuth(&ea)
 		if nil != err {
 			t.Fatalf("Failed initEnrollAuth #%d, got error %v", i, err)
 		}
 
-		err = store.SaveEnrollAuthorization(ctx, &ea)
+		err = store.SaveEnrollAuthorization(ctx, eat, &ea)
 		if err != nil {
 			t.Fatalf("Failed to save authorization #%d: %v", i, err)
 		}
@@ -246,14 +246,14 @@ func TestServerCredStore_SaveEnrollAuthorization_InvalidRealm(t *testing.T) {
 	// Create authorization with non-existent realm
 	nonExistentRealmID := newID(0xFF) // Different from testRealmId
 	ea := credentials.EnrollAuthorization{}
-	_, err := initEnrollAuth(&ea)
+	eat, err := initEnrollAuth(&ea)
 	if nil != err {
 		t.Fatalf("Failed initEnrollAuth, got error %v", err)
 	}
 	ea.RealmId = credentials.RealmId(nonExistentRealmID)
 
 	// Save the authorization
-	err = store.SaveEnrollAuthorization(ctx, &ea)
+	err = store.SaveEnrollAuthorization(ctx, eat, &ea)
 	if err == nil {
 		t.Error("Expected error when saving authorization with non-existent realm, but got none")
 	}
@@ -269,7 +269,7 @@ func TestServerCredStore_PopEnrollAuthorization(t *testing.T) {
 	if nil != err {
 		t.Fatalf("Failed initEnrollAuth, got error %v", err)
 	}
-	err = store.SaveEnrollAuthorization(ctx, &ea)
+	err = store.SaveEnrollAuthorization(ctx, enrollToken, &ea)
 	if err != nil {
 		t.Fatalf("Failed to save authorization: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestServerCredStore_PopEnrollAuthorization_WithLogo(t *testing.T) {
 		if nil != err {
 			t.Fatalf("Failed initEnrollAuth #%d, got error %v", i, err)
 		}
-		err = store.SaveEnrollAuthorization(ctx, &ea)
+		err = store.SaveEnrollAuthorization(ctx, atk, &ea)
 		if err != nil {
 			t.Fatalf("Failed to save authorization #%d: %v", i, err)
 		}
@@ -439,7 +439,7 @@ func TestServerCredStore_SaveCard_Success(t *testing.T) {
 	card.RealmId = testRealmId
 
 	// Save the card
-	err = store.SaveCard(ctx, &card)
+	err = store.SaveCard(ctx, idToken, &card)
 	if err != nil {
 		t.Errorf("SaveCard failed: %v", err)
 	}
@@ -474,14 +474,14 @@ func TestServerCredStore_SaveCard_Fail(t *testing.T) {
 
 	// Generate random card with non-existent realm
 	var card credentials.ServerCard
-	_, err := initCard(&card)
+	idToken, err := initCard(&card)
 	if err != nil {
 		t.Fatalf("Failed to generate random card: %v", err)
 	}
 	card.RealmId = newID(0xFF) // Non-existent realm
 
 	// Save the card - this should fail due to foreign key constraint
-	err = store.SaveCard(ctx, &card)
+	err = store.SaveCard(ctx, idToken, &card)
 	if err == nil {
 		t.Error("Expected SaveCard to fail with non-existent realm, but it succeeded")
 	}
@@ -500,7 +500,7 @@ func TestServerCredStore_LoadCard_Success(t *testing.T) {
 	originalCard.RealmId = testRealmId
 
 	// Save the card
-	err = store.SaveCard(ctx, &originalCard)
+	err = store.SaveCard(ctx, idtkn, &originalCard)
 	if err != nil {
 		t.Fatalf("Failed to save card: %v", err)
 	}
@@ -569,14 +569,14 @@ func TestServerCredStore_RemoveCard_Success(t *testing.T) {
 
 	// Generate random card in testRealm
 	var card credentials.ServerCard
-	_, err = initCard(&card)
+	idToken, err := initCard(&card)
 	if err != nil {
 		t.Fatalf("Failed to generate random card: %v", err)
 	}
 	card.RealmId = testRealmId
 
 	// Save the card in store
-	err = store.SaveCard(ctx, &card)
+	err = store.SaveCard(ctx, idToken, &card)
 	if err != nil {
 		t.Fatalf("Failed to save card: %v", err)
 	}
@@ -639,14 +639,14 @@ func TestServerCredStore_CardCount(t *testing.T) {
 	// Generate & save 4 random cards
 	cards := make([]credentials.ServerCard, 4)
 	for i := range cards {
-		_, err := initCard(&cards[i])
+		idToken, err := initCard(&cards[i])
 		if err != nil {
 			t.Fatalf("Failed to generate card %d: %v", i+1, err)
 		}
 		cards[i].RealmId = testRealmId
 
 		// Save the card
-		err = store.SaveCard(ctx, &cards[i])
+		err = store.SaveCard(ctx, idToken, &cards[i])
 		if err != nil {
 			t.Fatalf("Failed to save card %d: %v", i+1, err)
 		}
@@ -788,7 +788,6 @@ func initCard(dst *credentials.ServerCard) (credentials.IdToken, error) {
 		return nil, err
 	}
 
-	dst.AccessKeys = &aks
 	dst.CardId = aks.IdKey[:]
 
 	keypair, err := ecdh.X25519().GenerateKey(rand.Reader)
@@ -816,7 +815,6 @@ func initEnrollAuth(dst *credentials.EnrollAuthorization) (credentials.EnrollTok
 		return nil, err
 	}
 
-	dst.AccessKeys = &aks
 	dst.EnrollId = aks.IdKey[:]
 	dst.RealmId = credentials.RealmId(testRealmId)
 	dst.AppName = "???"
