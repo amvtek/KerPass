@@ -274,6 +274,21 @@ func TestServerCredStore_PopEnrollAuthorization(t *testing.T) {
 		t.Fatalf("Failed to save authorization: %v", err)
 	}
 
+	// Check that enrollToken is not used as a database key
+	var used int
+	row := store.DB.QueryRow(
+		ctx,
+		`SELECT COUNT(id) FROM enroll_authorization WHERE aid = $1`,
+		[]byte(enrollToken),
+	)
+	err = row.Scan(&used)
+	if nil != err {
+		t.Fatalf("Failed enroll_authorization counting query, got error %v", err)
+	}
+	if 0 != used {
+		t.Fatalf("enrollToken used as a database key")
+	}
+
 	// Pop the authorization
 	var poppedEA credentials.EnrollAuthorization
 	err = store.PopEnrollAuthorization(ctx, enrollToken, &poppedEA)
@@ -417,7 +432,7 @@ func TestServerCredStore_SaveCard_Success(t *testing.T) {
 
 	// Generate random card in testRealm
 	var card credentials.ServerCard
-	_, err = initCard(&card)
+	idToken, err := initCard(&card)
 	if err != nil {
 		t.Fatalf("Failed to generate random card: %v", err)
 	}
@@ -427,6 +442,21 @@ func TestServerCredStore_SaveCard_Success(t *testing.T) {
 	err = store.SaveCard(ctx, &card)
 	if err != nil {
 		t.Errorf("SaveCard failed: %v", err)
+	}
+
+	// Check that idToken is not used as a database key
+	var used int
+	row := store.DB.QueryRow(
+		ctx,
+		`SELECT COUNT(id) FROM card WHERE cid = $1`,
+		[]byte(idToken),
+	)
+	err = row.Scan(&used)
+	if nil != err {
+		t.Fatalf("Failed card counting query, got error %v", err)
+	}
+	if 0 != used {
+		t.Fatalf("idToken used as a database key")
 	}
 
 	// Check final card count
