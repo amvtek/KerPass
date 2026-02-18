@@ -55,27 +55,26 @@ func New(dbpath string) (credentials.ClientCredStore, error) {
 
 }
 
-// SaveCard saves card in the cliCredStore and returns the assigned ID.
+// SaveCard saves card in the cliCredStore.
 // It errors if the card could not be saved.
-func (self cliCredStore) SaveCard(card credentials.Card) (int, error) {
+func (self cliCredStore) SaveCard(card *credentials.Card) error {
 	err := card.Check()
 	if nil != err {
-		return 0, wrapError(err, "card is invalid")
+		return wrapError(err, "card is invalid")
 	}
 
 	// marshal card data using cbor
 	srzcard, err := cbor.Marshal(card)
 	if nil != err {
-		return 0, wrapError(err, "failed cbor.Marshal(card)")
+		return wrapError(err, "failed cbor.Marshal(card)")
 	}
 
 	db, err := bolt.Open(self.dbpath, 0600, &bolt.Options{Timeout: connectTimeout})
 	if nil != err {
-		return 0, wrapError(err, "failed connecting to database")
+		return wrapError(err, "failed connecting to database")
 	}
 	defer db.Close()
 
-	var cId int // store assigned Card ID if any
 	err = db.Update(func(tx *bolt.Tx) error {
 		var err error
 
@@ -152,12 +151,10 @@ func (self cliCredStore) SaveCard(card credentials.Card) (int, error) {
 			return wrapError(err, "failed updating the tokenIdx bucket")
 		}
 
-		cId = card.ID
-
 		return nil
 	})
 
-	return cId, wrapError(err, "failed db.Update") // nil if err is nil
+	return wrapError(err, "failed db.Update") // nil if err is nil
 }
 
 // RemoveCard removes the Card with cId ID from the cliCredStore.
@@ -188,7 +185,7 @@ func (self cliCredStore) RemoveCard(cId int) (bool, error) {
 		}
 
 		csk := cardStoreKeys{}
-		readStoreKeys(card, &csk)
+		readStoreKeys(&card, &csk)
 
 		err = sch.cardTbl.Delete(csk.cardKey)
 		if nil != err {
@@ -414,7 +411,7 @@ type cardStoreKeys struct {
 	tokenKey []byte // key IdToken - Card in tokenIdx bucket
 }
 
-func readStoreKeys(card credentials.Card, dst *cardStoreKeys) {
+func readStoreKeys(card *credentials.Card, dst *cardStoreKeys) {
 	// cardKey
 	dst.cardKey = byteId(card.ID)
 
