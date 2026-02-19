@@ -51,8 +51,16 @@ func NewServerCredStore(ctx context.Context, dsn string) (*ServerCredStore, erro
 	if nil != err {
 		return nil, wrapError(err, "failed connection pool creation")
 	}
+	idh, err := credentials.NewIdHasher(nil)
+	if nil != err {
+		return nil, wrapError(err, "failed instantiating IdHasher")
+	}
+	sta, err := credentials.NewSrvStorageAdapter(idh)
+	if nil != err {
+		return nil, wrapError(err, "failed instantiating SrvStorageAdapter")
+	}
 
-	return &ServerCredStore{DB: pool}, nil
+	return &ServerCredStore{DB: pool, cardAdapter: sta}, nil
 
 }
 
