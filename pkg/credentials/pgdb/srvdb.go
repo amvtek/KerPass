@@ -63,7 +63,7 @@ func (self *ServerCredStore) ListRealm(ctx context.Context) ([]credentials.Realm
 		ctx,
 		// columns are renamed to match credentials.Realm struct
 		`SELECT
-		   id as "RealmId",
+		   rid as "RealmId",
 		   app_name as "AppName",
 		   app_desc as "AppDesc",
 		   app_logo as "AppLogo"
