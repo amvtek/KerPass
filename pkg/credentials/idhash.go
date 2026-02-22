@@ -67,6 +67,22 @@ type CardRef struct {
 	ServerCardId [32]byte
 }
 
+func (self *CardRef) Check() error {
+	if nil == self {
+		return wrapError(ErrValidation, "nil CardRef")
+	}
+
+	zeros := [32]byte{}
+	if zeros == self.ClientIdToken {
+		return wrapError(ErrValidation, "ClientIdToken is 0")
+	}
+	if zeros == self.ServerCardId {
+		return wrapError(ErrValidation, "ServerCardId is 0")
+	}
+
+	return nil
+}
+
 // AccessKeys holds the result of HKDF-based derivations from either IdToken or EnrollToken.
 type AccessKeys struct {
 	// IdKey is used as a server-side identifier for Card or EnrollAuthorization subjects.
@@ -351,7 +367,7 @@ func (self *CardIdGenerator) GenCardIds(realmId []byte, userdata json.RawMessage
 		rand.Read(dst.ClientIdToken[:])
 
 	} else {
-		_, err = self.idh.IdTokenOfUserId(realmId, dst.ClientUserId, dst.ClientIdToken[:])
+		_, err := self.idh.IdTokenOfUserId(realmId, dst.ClientUserId, dst.ClientIdToken[:0])
 		if nil != err {
 			return wrapError(err, "failed generating IdToken")
 		}
