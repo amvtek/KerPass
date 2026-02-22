@@ -37,7 +37,7 @@ type HttpHandler struct {
 }
 
 // NewHttpHandler returns a new HttpHandler that maintains enrollment session in memory.
-func NewHttpHandler(keyStore credentials.KeyStore, credStore credentials.ServerCredStore) (*HttpHandler, error) {
+func NewHttpHandler(keyStore credentials.KeyStore, credStore credentials.ServerCredStore, idGen *credentials.CardIdGenerator) (*HttpHandler, error) {
 	sidFactory, err := session.NewSidFactory(SessionLifetime)
 	if nil != err {
 		return nil, wrapError(err, "failed initializing sidFactory")
@@ -47,8 +47,14 @@ func NewHttpHandler(keyStore credentials.KeyStore, credStore credentials.ServerC
 		return nil, wrapError(err, "failed initializing sessionStore")
 	}
 
+	cfg := ServerCfg{KeyStore: keyStore, Repo: credStore, IdGen: idGen}
+	err = cfg.Check()
+	if nil != err {
+		return nil, wrapError(err, "failed ServerCfg Check")
+	}
+
 	hdlr := HttpHandler{
-		Cfg:          ServerCfg{KeyStore: keyStore, Repo: credStore},
+		Cfg:          cfg,
 		SessionStore: sessionStore,
 	}
 

@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -171,8 +174,9 @@ func makePeerConfig(t *testing.T) (ClientCfg, *HttpHandler) {
 	enrollToken := credentials.EnrollToken(make([]byte, 32))
 	rand.Read(enrollToken)
 	authorization := credentials.EnrollAuthorization{
-		RealmId: realmId,
-		AppName: "User Read This",
+		RealmId:  realmId,
+		AppName:  "User Read This",
+		UserData: []byte(`{"pfx": "card"}`),
 	}
 
 	// prepare server CredStore
@@ -182,8 +186,18 @@ func makePeerConfig(t *testing.T) (ClientCfg, *HttpHandler) {
 		t.Fatalf("failed initializing serverCredStore, got error %v", err)
 	}
 
+	// prepare CardIdGenerator
+	idHasher, err := credentials.NewIdHasher(nil)
+	if nil != err {
+		t.Fatalf("failed initializing idHasher, got error %v", err)
+	}
+	cardIdGen, err := credentials.NewCardIdGenerator(credentials.UserIdFactoryFunc(genUserId), idHasher)
+	if nil != err {
+		t.Fatalf("failed initializing cardIdGen, got error %v", err)
+	}
+
 	// prepare the enrollment handler
-	srv, err := NewHttpHandler(keyStore, serverCredStore)
+	srv, err := NewHttpHandler(keyStore, serverCredStore, cardIdGen)
 	if nil != err {
 		t.Fatalf("failed creating srv handler, got error %v", err)
 	}
@@ -199,4 +213,46 @@ func makePeerConfig(t *testing.T) (ClientCfg, *HttpHandler) {
 	}
 
 	return cli, srv
+}
+
+func TestUserId(t *testing.T) {
+	uid, err := genUserId([]byte(`{"pfx": "card"}`))
+	if nil != err {
+		t.Fatalf("failed genUserId, got error %v", err)
+	}
+	t.Logf("UserId -> %s", uid)
+}
+
+// userData holds test UserData
+// UserData can be any type that can be decoded from json
+type userData struct {
+	Prefix string `json:"pfx"`
+}
+
+func (self userData) Check() error {
+	if "" == self.Prefix {
+		return wrapError(ErrValidation, "empty Prefix")
+	}
+
+	return nil
+}
+
+func genUserId(udb json.RawMessage) (string, error) {
+	// decode userData
+	ud := userData{}
+	err := json.Unmarshal(udb, &ud)
+	if nil != err {
+		return "", wrapError(err, "failed loading user Data")
+	}
+	err = ud.Check()
+	if nil != err {
+		return "", wrapError(err, "failed user Data validation")
+	}
+
+	// generate 6 digits random int
+	buf := make([]byte, 8)
+	rand.Read(buf)
+	rnd := binary.BigEndian.Uint64(buf) % 1_000_000
+
+	return fmt.Sprintf("%s_%06d", ud.Prefix, rnd), nil
 }
