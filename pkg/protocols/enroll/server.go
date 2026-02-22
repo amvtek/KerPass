@@ -235,7 +235,7 @@ func ServerCheckEnrollAuthorization(ctx context.Context, self *ServerState, msg 
 
 	cardresp := EnrollCardCreateResp{
 		IdToken: crf.ClientIdToken[:],
-		UserId:  crf.ClientUserId[:],
+		UserId:  crf.ClientUserId,
 		AppName: authorization.AppName,
 		AppDesc: authorization.AppDesc,
 		AppLogo: authorization.AppLogo,
