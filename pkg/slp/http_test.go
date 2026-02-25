@@ -441,6 +441,10 @@ func (m *mockChallengeFactory) GetAgentAuthContext(sid []byte, dst *AgentAuthCon
 	return nil
 }
 
+func (m *mockChallengeFactory) GetServerOtp(cc *CardChalResponse, dst []byte) ([]byte, error) {
+	return nil, nil
+}
+
 type validatableMockFactory struct {
 	mockChallengeFactory
 	shouldFailCheck bool
@@ -553,6 +557,7 @@ func createTestFactory(t *testing.T) *ChallengeFactoryImpl {
 	return &ChallengeFactoryImpl{
 		Skf:  skf,
 		Kst:  kst,
+		Scs:  credentials.NewMemServerCredStore(),
 		Cst:  cst,
 		Cfgs: cfgs,
 	}
