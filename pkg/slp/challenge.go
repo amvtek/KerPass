@@ -96,8 +96,18 @@ func (self *HkdfChalSetter) SetChal(crv algos.Curve, sid []byte, dst *SessionCha
 // ChallengeFactory provides methods for creating authentication challenges and contexts.
 // It is the main interface for generating authentication protocol data structures.
 type ChallengeFactory interface {
+	// GetCardChallenge generates a CardChallenge in response to a CardChallengeRequest.
+	// Returns an error if the request does not match any configured AuthContext or challenge generation fails.
 	GetCardChallenge(req *CardChallengeRequest, dst *CardChallenge) error
+
+	// GetAgentAuthContext retrieves the AgentAuthContext bound to the given session ID.
+	// Returns an error if the session ID is invalid or expired, or the AuthContext cannot be reconstructed.
 	GetAgentAuthContext(sid []byte, dst *AgentAuthContext) error
+
+	// GetServerOtp derives the server-side OTP/OTK matching the one independently derived
+	// by the Client for the authentication session referenced in cc.
+	// Returns an error if the session is invalid, the card cannot be loaded, or OTP derivation fails.
+	GetServerOtp(cc *CardChalResponse, dst []byte) ([]byte, error)
 }
 
 // AuthContext holds ChallengeFactoryImpl configuration for a specific authentication realm.
@@ -143,39 +153,41 @@ func (self *AuthContext) Check() error {
 	return nil
 }
 
+// CardChalResponse holds client-side authentication commitment data transmitted to the Server
+// during an SLP authentication session. It allows the Server to independently derive
+// the same OTP/OTK as the Client — without the Client ever transmitting the secret itself.
+type CardChalResponse struct {
+	// references a Server generated CardChallenge
+	SessionId []byte `json:"sid" cbor:"1,keyasint"`
+
+	// identifier allowing ServerCard access
+	CardId []byte `json:"cid" cbor:"2,keyasint"`
+
+	// synchronization hint allowing Server to determine Client OTP time
+	SyncHint byte `json:"sync" cbor:"3,keyasint"`
+
+	// Client generated ephemeral key
+	// transmitted if authentication scheme uses E2S2 key exchange
+	E credentials.PublicKeyHandle `json:"e,omitempty" cbor:"4,keyasint,omitempty"`
+}
+
 // ChallengeFactoryImpl implements the ChallengeFactory interface.
 // It uses a session key factory, key store, and challenge setter to generate
 // authentication challenges and contexts based on configuration.
 type ChallengeFactoryImpl struct {
 	Skf  session.KeyFactory[session.Sid]
 	Kst  credentials.KeyStore
+	Scs  credentials.ServerCredStore
 	Cst  ChalSetter
 	Cfgs []AuthContext
 }
 
-// NewChallengeFactoryImpl creates and initializes a new ChallengeFactoryImpl instance.
-// It configures a session key factory with the specified session lifetime,
-// initializes an HKDF-based challenge setter using SHA-512, and validates
-// the provided authentication contexts and key store configuration.
-//
-// Parameters:
-//   - sl: The session lifetime duration for generated session identifiers
-//   - kst: The key store used to retrieve server static keys during challenge generation
-//   - acts: A list of authentication contexts defining available authentication realms
-//
-// Returns:
-//   - *ChallengeFactoryImpl: A fully initialized challenge factory ready for use
-//   - error: An error if any component fails initialization or configuration validation
-//
-// The factory performs comprehensive validation during construction including:
-//   - Verifying all authentication contexts have valid URLs and authentication methods
-//   - Ensuring the key store contains required static keys for applicable EPHEMSEC schemes
-//   - Validating the internal challenge setter configuration
-//
-// Note: The factory uses HKDF with SHA-512 for deterministic generation of
-// ephemeral keys and nonces. Sessions created by this factory encode the
-// authentication context index in their session identifier structure.
-func NewChallengeFactoryImpl(sl time.Duration, kst credentials.KeyStore, acts []AuthContext) (*ChallengeFactoryImpl, error) {
+// NewChallengeFactoryImpl creates and initializes a new ChallengeFactoryImpl.
+// It configures a session key factory with the given lifetime sl, initializes
+// an HKDF/SHA-512 based challenge setter, and validates all provided AuthContexts
+// and their required static keys against the key store kst.
+// Returns an error if any component fails initialization or validation.
+func NewChallengeFactoryImpl(sl time.Duration, kst credentials.KeyStore, scs credentials.ServerCredStore, acts []AuthContext) (*ChallengeFactoryImpl, error) {
 	skf, err := session.NewSidFactory(sl)
 	if nil != err {
 		return nil, wrapError(err, "failed creating SidFactory")
@@ -185,7 +197,7 @@ func NewChallengeFactoryImpl(sl time.Duration, kst credentials.KeyStore, acts []
 		return nil, wrapError(err, "failed creating HkdfChalSetter")
 	}
 
-	rv := &ChallengeFactoryImpl{Skf: skf, Kst: kst, Cst: cst, Cfgs: acts}
+	rv := &ChallengeFactoryImpl{Skf: skf, Kst: kst, Scs: scs, Cst: cst, Cfgs: acts}
 
 	return rv, wrapError(rv.Check(), "failed ChallengeFactoryImpl Check")
 }
@@ -200,6 +212,9 @@ func (self *ChallengeFactoryImpl) Check() error {
 	}
 	if nil == self.Kst {
 		return wrapError(ErrValidation, "nil credentials KeyStore")
+	}
+	if nil == self.Scs {
+		return wrapError(ErrValidation, "nil credentials ServerCredStore")
 	}
 	if nil == self.Cst {
 		return wrapError(ErrValidation, "nil ChalSetter")
@@ -341,6 +356,112 @@ func (self *ChallengeFactoryImpl) GetAgentAuthContext(sid []byte, dst *AgentAuth
 	dst.AppStartUrl = cfg.AppStartUrl
 
 	return nil
+}
+
+// GetServerOtp derives the server-side OTP/OTK for a given CardChalResponse.
+// It validates the session ID, retrieves the corresponding AuthContext and EPHEMSEC scheme,
+// loads the Client Card identified by cc.CardId, reloads the deterministic session challenge,
+// reconstructs the EPHEMSEC context hash, and runs EPHEMSEC as Initiator to produce the OTP/OTK.
+// The result matches what the Client independently derived, enabling mutual authentication
+// without transmission of the shared secret.
+// Returns an error if the session is invalid, the card cannot be loaded, or OTP derivation fails.
+func (self *ChallengeFactoryImpl) GetServerOtp(cc *CardChalResponse, dst []byte) ([]byte, error) {
+	if nil == cc {
+		return nil, wrapError(ErrValidation, "nil CardChalResponse")
+	}
+	// retrieve session cfg
+	sId := session.Sid(cc.SessionId)
+	if len(sId) != len(cc.SessionId) {
+		return nil, wrapError(ErrValidation, "invalid sid length")
+	}
+	err := self.Skf.Check(sId)
+	if nil != err {
+		return nil, wrapError(err, "failed sId validation")
+	}
+	cfgIdx := sId.AD()
+	if cfgIdx >= uint64(len(self.Cfgs)) {
+		return nil, wrapError(ErrValidation, "invalid cfg index")
+	}
+	cfg := self.Cfgs[int(cfgIdx)]
+
+	// retrieve session EPHEMSEC scheme
+	sch, err := ephemsec.GetScheme(cfg.AuthMethod.Scheme)
+	if nil != err {
+		return nil, wrapError(err, "failed loading SelectedMethod scheme")
+	}
+
+	// load the Card
+	var card credentials.ServerCard
+	var sca credentials.ServerCardAccess
+	if 256 == sch.B() {
+		// OTK case
+		sca = credentials.IdToken(cc.CardId)
+	} else {
+		// OTP case
+		sca = credentials.OtpId{Realm: cfg.RealmId[:], Username: string(cc.CardId)}
+	}
+	// TODO: consider passing a context parameter
+	err = self.Scs.LoadCard(context.Background(), sca, &card)
+	if nil != err {
+		return nil, wrapError(err, "failed loading card")
+	}
+	if !slices.Equal(card.RealmId, cfg.RealmId[:]) {
+		return nil, wrapError(ErrValidation, "invalid card Realm")
+	}
+
+	// load server static key if scheme requires 1
+	var sk credentials.ServerKey // sk.Kh.PrivateKey (*ecdh.PrivateKey) & sk.Certificate
+	kx := sch.KeyExchangePattern()
+	if kx == "E1S2" || kx == "E2S2" {
+		found := self.Kst.GetServerKey(context.Background(), cfg.RealmId[:], sch.Name(), &sk)
+		if !found {
+			return nil, newError("failed loading scheme static key")
+		}
+	}
+
+	// calculate the ephemsec Context
+	ect := make([]byte, 32)
+	act := AgentAuthContext{
+		SessionId:            cc.SessionId,
+		SelectedProtocol:     cfg.AuthMethod.Protocol,
+		StaticKeyCert:        sk.Certificate,
+		AppContextUrl:        cfg.AppContextUrl,
+		AuthServerGetChalUrl: cfg.AuthServerGetChalUrl,
+		AuthServerLoginUrl:   cfg.AuthServerLoginUrl,
+		AppStartUrl:          cfg.AppStartUrl,
+	}
+	ect, err = act.Sum(ect)
+	if nil != err {
+		return nil, wrapError(err, "failed hashing AgentAuthContext")
+	}
+	ect, err = EphemSecContextHash(cfg.RealmId[:], ect, ect)
+	if nil != err {
+		return nil, wrapError(err, "failed hashing ephemsec Context")
+	}
+
+	// reload session challenge
+	chl := SessionChal{}
+	err = self.Cst.SetChal(sch.Curve(), cc.SessionId, &chl)
+	if nil != err {
+		return nil, wrapError(err, "failed reloading SessionChal")
+	}
+
+	// initialize ephemsec State
+	eps := ephemsec.State{
+		Context:         ect,
+		Nonce:           chl.n,
+		SynchroHint:     int(cc.SyncHint),
+		EphemKey:        chl.e.PrivateKey,
+		StaticKey:       sk.Kh.PrivateKey,
+		RemoteEphemKey:  cc.E.PublicKey,
+		RemoteStaticKey: card.Kh.PublicKey,
+		Psk:             card.Psk,
+	}
+
+	// calculate the OTP
+	dst, err = eps.EPHEMSEC(sch, ephemsec.Initiator, dst)
+
+	return dst, wrapError(err, "failed OTP derivation")
 }
 
 var _ ChallengeFactory = &ChallengeFactoryImpl{}
