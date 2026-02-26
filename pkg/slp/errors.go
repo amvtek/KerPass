@@ -15,6 +15,7 @@ const (
 	ErrInvalidSlp   = errorFlag("slp: Invalid Slp protocol")
 	ErrUnsafeMethod = errorFlag("slp: Unsafe AuthMethod")
 	ErrNotSupported = errorFlag("slp: Unsupported AuthMethod")
+	ErrHttpStatus   = errorFlag("slp: failed Http submission")
 	noError         = errorFlag("")
 )
 
