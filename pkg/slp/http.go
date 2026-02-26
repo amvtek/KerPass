@@ -89,6 +89,54 @@ func (self *CardChallengeEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	w.Write(data)
 }
 
+// GetCardChallenge submits a CardChallengeRequest to the given getChalUrl and returns
+// server generated CardChallenge into dst. It uses the provided HttpClient to
+// execute the request, allowing callers to control transport, timeouts, and testability.
+// The caller is responsible for enforcing deadlines via the context.
+// Returns an error if the request cannot be sent, the response is non-2xx,
+// or the response body cannot be decoded.
+func GetCardChallenge(ctx context.Context, client HttpClient, getChalUrl string, chr *CardChallengeRequest, dst *CardChallenge) error {
+	// marshal chr to CBOR
+	srzchr, err := ctapSrz.Marshal(chr)
+	if nil != err {
+		return wrapError(err, "failed to marshal chr")
+	}
+	buf := bytes.NewBuffer(srzchr)
+
+	// create HTTP request with context
+	req, err := http.NewRequestWithContext(ctx, "POST", getChalUrl, buf)
+	if err != nil {
+		return wrapError(err, "failed to create request")
+	}
+
+	// Set Accept header for CBOR
+	req.Header.Set("Accept", "application/cbor")
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return wrapError(err, "failed to execute request")
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return wrapError(ErrHttpStatus, "invalid Http resp status %d", resp.StatusCode)
+	}
+
+	// decode CBOR response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return wrapError(err, "failed to read response body")
+	}
+	err = ctapSrz.Unmarshal(body, dst)
+	if err != nil {
+		return wrapError(err, "failed to unmarshal CBOR resp")
+	}
+
+	return nil
+}
+
 // DirectEndpoint implements http.Handler for the SlpDirect authentication protocol.
 // It receives a CBOR-encoded DirectLoginRequest, derives the expected OTP server-side
 // using the configured ChallengeFactory, and returns a CBOR-encoded DirectValidationResult
