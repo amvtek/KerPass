@@ -168,7 +168,7 @@ type CardChalResponse struct {
 
 	// Client generated ephemeral key
 	// transmitted if authentication scheme uses E2S2 key exchange
-	E credentials.PublicKeyHandle `json:"e,omitempty" cbor:"4,keyasint,omitempty"`
+	E credentials.PublicKeyHandle `json:"e,omitzero" cbor:"4,keyasint,omitzero"`
 }
 
 // ChallengeFactoryImpl implements the ChallengeFactory interface.
