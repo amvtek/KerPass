@@ -14,7 +14,10 @@ func TestRealmInfo_MockStore(t *testing.T) {
 	var err error
 
 	// Setup
-	store := NewMemServerCredStore()
+	store, err := NewMemServerCredStore()
+	if nil != err {
+		t.Fatalf("failed instantiating MemServerCredStore, got error %v", err)
+	}
 	realmID := make([]byte, 32)
 	for i := range realmID {
 		realmID[i] = byte(i)
@@ -142,7 +145,10 @@ func TestRealmInfo_ServerReturns404(t *testing.T) {
 
 func TestRealmInfo_ContextCancellation(t *testing.T) {
 	// Setup slow handler to test context cancellation
-	store := NewMemServerCredStore()
+	store, err := NewMemServerCredStore()
+	if nil != err {
+		t.Fatalf("failed instantiating MemServerCredStore, got error %v", err)
+	}
 	handler, err := NewRealmInfoHandler(store)
 	if err != nil {
 		t.Fatalf("Failed to create handler: %v", err)
@@ -246,7 +252,10 @@ func TestRealmInfo_EmptyRealm(t *testing.T) {
 }
 
 func newRealmInfoServer(t *testing.T) (ServerCredStore, *httptest.Server) {
-	store := NewMemServerCredStore()
+	store, err := NewMemServerCredStore()
+	if nil != err {
+		t.Fatalf("failed instantiating MemServerCredStore, got error %v", err)
+	}
 
 	// Create handler and test server
 	handler, err := NewRealmInfoHandler(store)
