@@ -434,7 +434,7 @@ func (self *ChallengeFactoryImpl) GetServerOtp(cc *CardChalResponse, dst []byte)
 	if nil != err {
 		return nil, wrapError(err, "failed hashing AgentAuthContext")
 	}
-	ect, err = EphemSecContextHash(cfg.RealmId[:], ect, ect[:0]) 
+	ect, err = EphemSecContextHash(cfg.RealmId[:], ect, ect[:0])
 	if nil != err {
 		return nil, wrapError(err, "failed hashing ephemsec Context")
 	}

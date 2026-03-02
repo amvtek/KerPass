@@ -297,7 +297,10 @@ func makePeerState(t *testing.T) (*ClientState, *ServerState) {
 	}
 
 	// prepare server CredStore
-	serverCredStore := credentials.NewMemServerCredStore()
+	serverCredStore, err := credentials.NewMemServerCredStore()
+	if nil != err {
+		t.Fatalf("failed instantiating serverCredStore, got error %v", err)
+	}
 	err = serverCredStore.SaveEnrollAuthorization(context.Background(), enrollToken, &authorization)
 	if nil != err {
 		t.Fatalf("failed initializing serverCredStore, got error %v", err)

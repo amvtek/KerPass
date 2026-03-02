@@ -231,17 +231,25 @@ var _ KeyStore = &MemKeyStore{}
 // MemServerCredStore provides "in memory" implementation of ServerCredStore.
 type MemServerCredStore struct {
 	mut            sync.Mutex
+	idh            *IdHasher
 	realms         map[[32]byte]Realm
 	authorizations map[[32]byte]EnrollAuthorization
 	cards          map[[32]byte]ServerCard
 }
 
-func NewMemServerCredStore() *MemServerCredStore {
-	return &MemServerCredStore{
+func NewMemServerCredStore() (*MemServerCredStore, error) {
+	idh, err := NewIdHasher(nil)
+	if nil != err {
+		return nil, wrapError(err, "failed IdHasher instantation")
+	}
+	rv := MemServerCredStore{
+		idh:            idh,
 		realms:         make(map[[32]byte]Realm),
 		authorizations: make(map[[32]byte]EnrollAuthorization),
 		cards:          make(map[[32]byte]ServerCard),
 	}
+
+	return &rv, nil
 }
 
 // ListRealm lists the Realms in the ServerCredStore.
@@ -319,50 +327,44 @@ func (self *MemServerCredStore) RemoveRealm(_ context.Context, realmId RealmId) 
 
 // PopEnrollAuthorization loads authorization data and remove it from the MemServerCredStore.
 // It errors if authorization data were not successfully loaded.
-func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, authId EnrollAccess, authorization *EnrollAuthorization) error {
-	var atk [32]byte
-	switch v := authId.(type) {
-	case EnrollToken:
-		atk = [32]byte(v)
-	default:
-		return wrapError(ErrNotFound, "non supported EnrollAccess type")
+func (self *MemServerCredStore) PopEnrollAuthorization(_ context.Context, etk EnrollAccess, authorization *EnrollAuthorization) error {
+
+	// derive AccessKeys from etk
+	aks := AccessKeys{}
+	err := self.idh.DeriveFromEnrollAccess(etk, &aks)
+	if nil != err {
+		return wrapError(err, "failed AccessKeys derivation")
 	}
 
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	atd, found := self.authorizations[atk]
+	atd, found := self.authorizations[aks.IdKey]
 	if !found {
-		return wrapError(ErrNotFound, "unknown authId")
+		return wrapError(ErrNotFound, "unknown etk")
 	}
 
 	*authorization = atd
-	delete(self.authorizations, atk)
+	delete(self.authorizations, aks.IdKey)
 
 	return nil
 }
 
 // SaveEnrollAuthorization saves atz authorization in the MemServerCredStore.
 // It errors if the authorization could not be saved.
-func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, authId EnrollAccess, atz *EnrollAuthorization) error {
-	var atk [32]byte
-	switch v := authId.(type) {
-	case EnrollToken:
-		atk = [32]byte(v)
-	default:
-		return wrapError(ErrNotFound, "non supported EnrollAccess type")
-	}
+func (self *MemServerCredStore) SaveEnrollAuthorization(_ context.Context, etk EnrollAccess, atz *EnrollAuthorization) error {
 
-	atz.EnrollId = EnrollIdKey(atk[:])
-	err := atz.Check()
+	// derive AccessKeys from etk
+	aks := AccessKeys{}
+	err := self.idh.DeriveFromEnrollAccess(etk, &aks)
 	if nil != err {
-		return wrapError(err, "can not save invalid authorization")
+		return wrapError(err, "failed AccessKeys derivation")
 	}
 
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.authorizations[atk] = *atz
+	self.authorizations[aks.IdKey] = *atz
 
 	return nil
 }
@@ -379,19 +381,17 @@ func (self *MemServerCredStore) AuthorizationCount(_ context.Context) (int, erro
 // It errors if card data were not successfully loaded.
 func (self *MemServerCredStore) LoadCard(_ context.Context, cardId ServerCardAccess, dst *ServerCard) error {
 
-	var ck [32]byte
-	switch v := cardId.(type) {
-	case IdToken:
-		ck = [32]byte(v)
-	default:
-		return wrapError(ErrNotFound, "non supported cardId type")
+	// derive AccessKeys from cardId
+	aks := AccessKeys{}
+	err := self.idh.DeriveFromCardAccess(cardId, &aks)
+	if nil != err {
+		return wrapError(err, "failed AccessKeys derivation")
 	}
 
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	var err error
-	card, found := self.cards[ck]
+	card, found := self.cards[aks.IdKey]
 	if found {
 		*dst = card
 	} else {
@@ -405,16 +405,15 @@ func (self *MemServerCredStore) LoadCard(_ context.Context, cardId ServerCardAcc
 // It errors if the card could not be saved.
 func (self *MemServerCredStore) SaveCard(_ context.Context, cardId ServerCardAccess, card *ServerCard) error {
 
-	var ck [32]byte
-	switch v := cardId.(type) {
-	case IdToken:
-		ck = [32]byte(v)
-	default:
-		return wrapError(ErrNotFound, "non supported cardId type")
+	// derive AccessKeys from cardId
+	aks := AccessKeys{}
+	err := self.idh.DeriveFromCardAccess(cardId, &aks)
+	if nil != err {
+		return wrapError(err, "failed AccessKeys derivation")
 	}
 
-	card.CardId = ServerCardIdKey(ck[:])
-	err := card.Check()
+	card.CardId = ServerCardIdKey(aks.IdKey[:])
+	err = card.Check()
 	if nil != err {
 		return wrapError(err, "can not save invalid card")
 	}
@@ -422,7 +421,7 @@ func (self *MemServerCredStore) SaveCard(_ context.Context, cardId ServerCardAcc
 	self.mut.Lock()
 	defer self.mut.Unlock()
 
-	self.cards[ck] = *card
+	self.cards[aks.IdKey] = *card
 
 	return nil
 }
@@ -435,7 +434,12 @@ func (self *MemServerCredStore) RemoveCard(_ context.Context, cardId ServerCardK
 	case ServerCardIdKey:
 		ck = [32]byte(v)
 	case IdToken:
-		ck = [32]byte(v)
+		aks := AccessKeys{}
+		err := self.idh.DeriveFromCardAccess(v, &aks)
+		if nil != err {
+			return false
+		}
+		ck = aks.IdKey
 	default:
 		// cardId type is not supported
 		return false

@@ -554,10 +554,15 @@ func createTestFactory(t *testing.T) *ChallengeFactoryImpl {
 		},
 	}
 
+	scs, err := credentials.NewMemServerCredStore()
+	if nil != err {
+		t.Fatalf("failed MemServerCredStore instantation, got err %v", err)
+	}
+
 	return &ChallengeFactoryImpl{
 		Skf:  skf,
 		Kst:  kst,
-		Scs:  credentials.NewMemServerCredStore(),
+		Scs:  scs,
 		Cst:  cst,
 		Cfgs: cfgs,
 	}
