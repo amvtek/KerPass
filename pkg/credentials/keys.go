@@ -192,10 +192,10 @@ func (self EnrollToken) isEnrollAccess() {}
 // material and must be at least 32 bytes.
 type RealmId []byte
 
-// Check returns an error if the RealmId is not at least 32 bytes.
+// Check returns an error if the RealmId is not at exactly 32 bytes.
 func (self RealmId) Check() error {
-	if len(self) < 32 {
-		return wrapError(ErrValidation, "len < 32")
+	if len(self) != 32 {
+		return wrapError(ErrValidation, "len != 32")
 	}
 
 	return nil

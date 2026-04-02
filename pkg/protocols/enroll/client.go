@@ -271,7 +271,7 @@ func ClientCardCreate(ctx context.Context, self *ClientState, msg []byte) (sf Cl
 
 	// save new Card
 	log.Debug("saving Card")
-	err = self.Repo.SaveCard(&card)
+	err = self.Repo.CreateCard(&card)
 	if nil != err {
 		errmsg = "failed saving card"
 		log.Debug(errmsg, "error", err)
