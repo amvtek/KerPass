@@ -9,8 +9,11 @@ type errorFlag string
 
 const (
 	// All package errors are wrapping Error
-	Error   = errorFlag("boltdb: error")
-	noError = errorFlag("")
+	Error          = errorFlag("boltdb: error")
+	ErrValidation  = errorFlag("boltdb: failed validation")
+	ErrSeqOverflow = errorFlag("boltdb: sequence overflow")
+	ErrNotFound    = errorFlag("boltdb: object not found")
+	noError        = errorFlag("")
 )
 
 // Error implements the error interface.
