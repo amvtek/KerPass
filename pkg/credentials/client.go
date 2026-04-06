@@ -25,8 +25,12 @@ type ClientCredStore interface {
 	// It errors if the ClientCard could not be copied.
 	LoadCard(cId int, dst *ClientCard) error
 
+	// LoadInfo copies CardInfo for card with cId ID into dst.
+	// It errors the CardInfo could not be copied.
+	LoadInfo(cId int, dst *CardInfo) error
+
 	// LoadRealm copies the Realm keyed by rId into dst.
-	// It errors if the Realm could not be copied
+	// It errors if the Realm could not be copied.
 	LoadRealm(rId int, dst *Realm) error
 
 	// ListInfo returns a list of CardInfo that matches qry.
@@ -346,6 +350,35 @@ func (self *MemClientCredStore) LoadCard(cId int, dst *ClientCard) error {
 
 	return nil
 
+}
+
+// LoadInfo copies CardInfo for card with cId ID into dst.
+// It errors the CardInfo could not be copied.
+func (self *MemClientCredStore) LoadInfo(cId int, dst *CardInfo) error {
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	card, found := self.cardTbl[cId]
+	if !found {
+		return wrapError(ErrNotFound, "missing card")
+	}
+
+	rId, found := self.realmIdx[[32]byte(card.RealmId)]
+	if !found {
+		return wrapError(ErrNotFound, "missing realmIdx entry")
+	}
+	realm, found := self.realmTbl[rId]
+	if !found {
+		return wrapError(ErrNotFound, "missing realm")
+	}
+
+	dst.ID = cId
+	dst.RealmID = rId
+	dst.AppName = realm.AppName
+	dst.AppDesc = realm.AppDesc
+	dst.Label = card.Label
+
+	return nil
 }
 
 func (self *MemClientCredStore) LoadRealm(rId int, dst *Realm) error {
