@@ -338,6 +338,52 @@ func (self cliCredStore) LoadCard(cId int, dst *credentials.ClientCard) error {
 	return err
 }
 
+// LoadInfo copies CardInfo for card with cId ID into dst.
+// It errors the CardInfo could not be copied.
+func (self cliCredStore) LoadInfo(cId int, dst *credentials.CardInfo) error {
+	db, err := bolt.Open(self.dbpath, 0600, &bolt.Options{Timeout: connectTimeout})
+	if nil != err {
+		return wrapError(err, "failed connecting to the database")
+	}
+	defer db.Close()
+
+	err = db.View(func(tx *bolt.Tx) error {
+		var err error
+
+		sch, err := loadSchema(tx)
+		if nil != err {
+			return wrapError(err, "failed loading schema")
+		}
+
+		card := credentials.ClientCard{}
+		found, err := sch.loadCardById(cId, &card)
+		if nil != err {
+			return wrapError(err, "failed loading card")
+		}
+		if !found {
+			return wrapError(ErrNotFound, "missing card")
+		}
+
+		realm := credentials.Realm{}
+		realmCache := make(map[int]credentials.Realm)
+		rId, err := sch.loadRealmByKey(card.RealmId, realmCache, &realm)
+		if nil != err {
+			return wrapError(err, "failed loading realm")
+		}
+
+		dst.ID = cId
+		dst.RealmID = rId
+		dst.AppName = realm.AppName
+		dst.AppDesc = realm.AppDesc
+		dst.Label = card.Label
+
+		return nil
+
+	})
+
+	return err
+}
+
 // LoadRealm copies the Realm keyed by rId into dst.
 // It errors if the Realm could not be copied
 func (self cliCredStore) LoadRealm(rId int, dst *credentials.Realm) error {
