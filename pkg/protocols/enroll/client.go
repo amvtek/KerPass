@@ -17,13 +17,13 @@ type ClientStateFunc = protocols.StateFunc[*ClientState]
 type ClientExitFunc = protocols.ExitFunc[*ClientState]
 
 type CardUser interface {
-	Use(card *credentials.Card) error
+	Use(cId int) error
 }
 
-type CardUseFunc func(*credentials.Card) error
+type CardUseFunc func(cId int) error
 
-func (self CardUseFunc) Use(card *credentials.Card) error {
-	return self(card)
+func (self CardUseFunc) Use(cId int) error {
+	return self(cId)
 }
 
 type ClientCfg struct {
@@ -297,15 +297,10 @@ func ClientExit(self *ClientState, rs error) error {
 	var err error
 	if nil != rs {
 		_, err = self.Repo.RemoveCard(self.cardId)
+		err = wrapError(err, "failed RemoveCard") // nil if err is nil
 	} else {
 		if nil != self.OnNewCard {
-			card := &credentials.Card{}
-			found, _ := self.Repo.LoadById(self.cardId, card)
-			if found {
-				err = self.OnNewCard.Use(card)
-			} else {
-				err = newError("can not use missing card")
-			}
+			err = wrapError(self.OnNewCard.Use(self.cardId), "failed OnNewCard.Use")
 		}
 	}
 

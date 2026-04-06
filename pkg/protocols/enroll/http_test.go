@@ -22,9 +22,9 @@ func TestHttpEnrollSuccess(t *testing.T) {
 
 	var cliOnNewCardCalled bool
 	clicfg, srvhdlr := makePeerConfig(t)
-	clicfg.OnNewCard = CardUseFunc(func(card *credentials.Card) error {
+	clicfg.OnNewCard = CardUseFunc(func(cId int) error {
 		cliOnNewCardCalled = true
-		t.Logf("OnNewCard called with %+v", card)
+		t.Logf("OnNewCard called with new card ID %d", cId)
 
 		return nil
 	})
