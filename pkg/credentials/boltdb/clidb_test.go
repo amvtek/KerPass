@@ -4,6 +4,7 @@ import (
 	"crypto/ecdh"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"path"
 	"reflect"
 	"testing"
@@ -39,9 +40,9 @@ func TestCardCreate(t *testing.T) {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
 		card.RealmId = realmId
-		err = store.SaveCard(&card)
+		err = store.CreateCard(&card)
 		if nil != err {
-			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
+			t.Fatalf("failed CreateCard #%d, got error %v", i, err)
 		}
 	}
 
@@ -71,9 +72,9 @@ func TestCardCreateDelete01(t *testing.T) {
 		if nil != err {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
-		err = store.SaveCard(&cards[i])
+		err = store.CreateCard(&cards[i])
 		if nil != err {
-			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
+			t.Fatalf("failed CreateCard #%d, got error %v", i, err)
 		}
 	}
 
@@ -115,9 +116,9 @@ func TestCardCreateDelete02(t *testing.T) {
 		if nil != err {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
-		err = store.SaveCard(&cards[i])
+		err = store.CreateCard(&cards[i])
 		if nil != err {
-			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
+			t.Fatalf("failed CreateCard #%d, got error %v", i, err)
 		}
 	}
 
@@ -146,7 +147,7 @@ func TestCardCreateDelete02(t *testing.T) {
 
 }
 
-func TestLoadById(t *testing.T) {
+func TestLoadCard(t *testing.T) {
 	tmpdir := t.TempDir()
 	dbPath := path.Join(tmpdir, "card.db")
 	store, err := New(dbPath)
@@ -161,9 +162,9 @@ func TestLoadById(t *testing.T) {
 		if nil != err {
 			t.Fatalf("failed initCard #%d, got error %v", i, err)
 		}
-		err = store.SaveCard(&cards[i])
+		err = store.CreateCard(&cards[i])
 		if nil != err {
-			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
+			t.Fatalf("failed CreateCard #%d, got error %v", i, err)
 		}
 	}
 
@@ -181,23 +182,23 @@ func TestLoadById(t *testing.T) {
 		}
 	}
 
-	var readcard credentials.Card
-	var wasread bool
+	var expectcard, readcard credentials.ClientCard
 	for i, card := range cards {
-		wasread, err = store.LoadById(card.ID, &readcard)
-		if nil != err {
-			t.Fatalf("failed loading card#%d, got error %v", card.ID, err)
-		}
+		err = store.LoadCard(card.ID, &readcard)
 		if 0 == (i % 7) {
-			if !wasread {
-				t.Fatalf("card#%d could not be loaded", card.ID)
+			if nil != err {
+				t.Fatalf("failed loading card#%d, got error %v", card.ID, err)
 			}
-			if !reflect.DeepEqual(card, readcard) {
-				t.Fatalf("failed read card#%d control, \n%+v\n!=\n%+v", card.ID, card, readcard)
+			err = card.ClientExport(&expectcard)
+			if nil != err {
+				t.Fatalf("failed extracting ClientCard #%d, got error %v", card.ID, err)
+			}
+			if !reflect.DeepEqual(expectcard, readcard) {
+				t.Fatalf("failed read card#%d control, \n%+v\n!=\n%+v", card.ID, expectcard, readcard)
 			}
 		} else {
-			if wasread {
-				t.Fatalf("removed card#%d could be read", card.ID)
+			if !errors.Is(err, ErrNotFound) {
+				t.Fatalf("removed card#%d could be read, %v", card.ID, err)
 			}
 		}
 	}
@@ -222,9 +223,9 @@ func TestForbidMutation(t *testing.T) {
 	if nil != err {
 		t.Fatalf("failed initCard, got error %v", err)
 	}
-	err = store.SaveCard(&card)
+	err = store.CreateCard(&card)
 	if nil != err {
-		t.Fatalf("failed SaveCard, got error %v", err)
+		t.Fatalf("failed CreateCard, got error %v", err)
 	}
 
 	// attend to change RealmId through IdToken
@@ -233,7 +234,7 @@ func TestForbidMutation(t *testing.T) {
 	realmId := make([]byte, len(card.RealmId))
 	rand.Read(realmId)
 	card1.RealmId = realmId
-	err = store.SaveCard(&card1)
+	err = store.CreateCard(&card1)
 	if !errors.Is(err, credentials.ErrCardMutation) {
 		t.Error("store did not detect RealmId mutation")
 	}
@@ -243,9 +244,55 @@ func TestForbidMutation(t *testing.T) {
 	idToken := make([]byte, len(card.IdToken))
 	rand.Read(idToken)
 	card2.IdToken = idToken
-	err = store.SaveCard(&card2)
+	err = store.CreateCard(&card2)
 	if !errors.Is(err, credentials.ErrCardMutation) {
 		t.Error("store did not detect IdToken mutation")
+	}
+}
+
+func TestLoadRealm(t *testing.T) {
+	tmpdir := t.TempDir()
+	dbPath := path.Join(tmpdir, "card.db")
+	store, err := New(dbPath)
+	if nil != err {
+		t.Fatalf("failed New, got error %v", err)
+	}
+
+	// create 8 cards
+	var card *credentials.Card
+	cards := make([]credentials.Card, 8)
+	for i := range 8 {
+		card = &cards[i]
+		err = initCard(card)
+		if nil != err {
+			t.Fatalf("failed initCard #%d, got error %v", i, err)
+		}
+		card.AppName = fmt.Sprintf("Test App #%d", i)
+		card.AppDesc = fmt.Sprintf("Desc #%d", i)
+		card.AppLogo = []byte(fmt.Sprintf("Logo #%d", i))
+		err = store.CreateCard(card)
+		if nil != err {
+			t.Fatalf("failed CreateCard #%d, got error %v", i, err)
+		}
+	}
+
+	var readRealm, expectRealm credentials.Realm
+	for i := range 8 {
+		expectRealm = credentials.Realm{
+			RealmId: cards[i].RealmId,
+			AppName: cards[i].AppName,
+			AppDesc: cards[i].AppDesc,
+			AppLogo: cards[i].AppLogo,
+		}
+		err = store.LoadRealm(i+1, &readRealm)
+		if !reflect.DeepEqual(readRealm, expectRealm) {
+			t.Fatalf("failed Realm control #%d:\n%+v\n!=\n%+v", i, readRealm, expectRealm)
+		}
+	}
+
+	err = printDB(t, dbPath)
+	if nil != err {
+		t.Errorf("failed printDB, got error %v", err)
 	}
 }
 
@@ -275,15 +322,25 @@ func TestListInfo(t *testing.T) {
 		} else {
 			cards[i].RealmId = realms[1][:]
 		}
-		err = store.SaveCard(&cards[i])
+		err = store.CreateCard(&cards[i])
 		if nil != err {
-			t.Fatalf("failed SaveCard #%d, got error %v", i, err)
+			t.Fatalf("failed CreateCard #%d, got error %v", i, err)
 		}
 	}
 
 	infos := make([]credentials.CardInfo, 0, 32)
-	for _, card := range cards {
-		infos = append(infos, card.Info())
+	for i, card := range cards {
+		info := credentials.CardInfo{
+			ID:      card.ID,
+			AppName: card.AppName,
+			AppDesc: card.AppDesc,
+		}
+		if 0 == (i % 8) {
+			info.RealmID = 1
+		} else {
+			info.RealmID = 2
+		}
+		infos = append(infos, info)
 	}
 
 	// first query, ask for the first 8 CardInfo
@@ -299,7 +356,7 @@ func TestListInfo(t *testing.T) {
 	endId := res1[len(res1)-1].ID
 
 	// second query, ask for the next 4 CardInfo
-	qry2 := credentials.CardQuery{MinId: endId + 1, Limit: 4}
+	qry2 := credentials.CardQuery{MinId: endId, Limit: 4}
 	res2, err := store.ListInfo(qry2)
 	if nil != err {
 		t.Fatalf("failed ListInfo(%v), got error %v", qry2, err)
@@ -365,7 +422,7 @@ func printDB(t *testing.T, dbpath string) error {
 
 		var err error
 		var bucket *bolt.Bucket
-		for _, bucketname := range []string{"cardTbl", "realmIdx", "tokenIdx"} {
+		for _, bucketname := range []string{"cardTbl", "cardTknIdx", "cardRlmIdx", "realmTbl", "realmIdx"} {
 			bucket = tx.Bucket([]byte(bucketname))
 			t.Logf("%s bucket:", bucketname)
 			err = bucket.ForEach(func(k, v []byte) error {
