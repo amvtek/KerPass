@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"encoding/binary"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -501,7 +502,75 @@ func (self cliCredStore) ListInfo(qry credentials.CardQuery) ([]credentials.Card
 	return infos, err
 }
 
-// Size returns the number of Card in the ClientCredStore.
+// ListAppInfo returns a list of AppInfo that matches qry.
+func (self cliCredStore) ListAppInfo(qry credentials.AppQuery) ([]credentials.AppInfo, error) {
+	db, err := bolt.Open(self.dbpath, 0600, &bolt.Options{Timeout: connectTimeout})
+	if nil != err {
+		return nil, wrapError(err, "failed connecting to the database")
+	}
+	defer db.Close()
+
+	appCache := make(map[int]credentials.AppInfo)
+	err = db.View(func(tx *bolt.Tx) error {
+		sch, err := loadSchema(tx)
+		if nil != err {
+			return wrapError(err, "failed loading schema")
+		}
+
+		rlmCache := make(map[int]credentials.Realm)
+		realm := credentials.Realm{}
+
+		// iterates cardRlmIdx
+		// keys in cardRlmIdx are [realmId|cardId]
+		// cardRlmIdx has 1 entry per card
+		c := sch.cardRlmIdx.Cursor()
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			if len(k) != 40 {
+				// this could happen after db has been corrupted
+				// k is [realmId|cardId] with len(realmId) == 32 && len(cardId) == 8
+				return wrapError(ErrValidation, "len(k) != 40")
+			}
+			rId, err := sch.loadRealmByKey(k[:32], rlmCache, &realm)
+			if nil != err {
+				return wrapError(err, "failed loading realm")
+			}
+			app, found := appCache[rId]
+			if !found {
+				app = credentials.AppInfo{
+					RealmID: rId,
+					AppName: realm.AppName,
+					AppDesc: realm.AppDesc,
+				}
+			}
+			app.CardCount += 1
+			appCache[rId] = app
+		}
+
+		return nil
+	})
+
+	if nil != err {
+		return nil, err
+	}
+
+	appList := make([]credentials.AppInfo, 0, len(appCache))
+	for rId, app := range appCache {
+		if qry.MinId > 0 && rId <= qry.MinId {
+			continue
+		}
+		appList = append(appList, app)
+	}
+	slices.SortFunc(appList, func(a0, a1 credentials.AppInfo) int {
+		return (a0.RealmID - a1.RealmID)
+	})
+	if qry.Limit > 0 && len(appList) > qry.Limit {
+		appList = appList[:qry.Limit]
+	}
+
+	return appList, nil
+}
+
+// CardCount returns the number of Card in the ClientCredStore.
 func (self cliCredStore) CardCount() int {
 
 	db, err := bolt.Open(self.dbpath, 0600, &bolt.Options{Timeout: connectTimeout})

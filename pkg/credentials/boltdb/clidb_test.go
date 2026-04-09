@@ -389,6 +389,174 @@ func TestListInfo(t *testing.T) {
 	}
 }
 
+func TestListAppInfo(t *testing.T) {
+	tmpdir := t.TempDir()
+	dbPath := path.Join(tmpdir, "card.db")
+	store, err := New(dbPath)
+	if nil != err {
+		t.Fatalf("failed New, got error %v", err)
+	}
+
+	// create 2 distinct RealmIds
+	realms := [2][32]byte{}
+	for i := range 2 {
+		rand.Read(realms[i][:])
+	}
+
+	// create 5 cards: 3 in realm 0, 2 in realm 1
+	cards := make([]credentials.Card, 5)
+	for i := range cards {
+		err = initCard(&cards[i])
+		if nil != err {
+			t.Fatalf("failed initCard #%d, got error %v", i, err)
+		}
+		if i < 3 {
+			cards[i].RealmId = realms[0][:]
+			cards[i].AppName = "AppA"
+			cards[i].AppDesc = "DescA"
+		} else {
+			cards[i].RealmId = realms[1][:]
+			cards[i].AppName = "AppB"
+			cards[i].AppDesc = "DescB"
+		}
+		err = store.CreateCard(&cards[i])
+		if nil != err {
+			t.Fatalf("failed CreateCard #%d, got error %v", i, err)
+		}
+	}
+
+	// first query: no filter, expect 2 apps sorted by RealmID
+	res1, err := store.ListAppInfo(credentials.AppQuery{})
+	if nil != err {
+		t.Fatalf("failed ListAppInfo, got error %v", err)
+	}
+	if len(res1) != 2 {
+		t.Fatalf("expected 2 apps, got %d", len(res1))
+	}
+	if res1[0].RealmID >= res1[1].RealmID {
+		t.Errorf("results not sorted by RealmID: %d >= %d", res1[0].RealmID, res1[1].RealmID)
+	}
+	if res1[0].AppName != "AppA" || res1[0].AppDesc != "DescA" || res1[0].CardCount != 3 {
+		t.Errorf("unexpected app[0]: %+v", res1[0])
+	}
+	if res1[1].AppName != "AppB" || res1[1].AppDesc != "DescB" || res1[1].CardCount != 2 {
+		t.Errorf("unexpected app[1]: %+v", res1[1])
+	}
+
+	// second query: MinId set to first RealmID, expect only the second app
+	res2, err := store.ListAppInfo(credentials.AppQuery{MinId: res1[0].RealmID})
+	if nil != err {
+		t.Fatalf("failed ListAppInfo with MinId, got error %v", err)
+	}
+	if !reflect.DeepEqual(res2, res1[1:]) {
+		t.Errorf("failed res2 control:\n%+v\n!=\n%+v", res2, res1[1:])
+	}
+
+	// third query: Limit=1, expect only the first app
+	res3, err := store.ListAppInfo(credentials.AppQuery{Limit: 1})
+	if nil != err {
+		t.Fatalf("failed ListAppInfo with Limit, got error %v", err)
+	}
+	if !reflect.DeepEqual(res3, res1[:1]) {
+		t.Errorf("failed res3 control:\n%+v\n!=\n%+v", res3, res1[:1])
+	}
+
+	// fourth query: Limit larger than result set, expect all apps
+	res4, err := store.ListAppInfo(credentials.AppQuery{Limit: 100})
+	if nil != err {
+		t.Fatalf("failed ListAppInfo with large Limit, got error %v", err)
+	}
+	if !reflect.DeepEqual(res4, res1) {
+		t.Errorf("failed res4 control:\n%+v\n!=\n%+v", res4, res1)
+	}
+
+	// remove all 3 cards from realm 0 and verify it disappears from results
+	for i := range 3 {
+		removed, err := store.RemoveCard(cards[i].ID)
+		if nil != err {
+			t.Fatalf("failed RemoveCard #%d, got error %v", i, err)
+		}
+		if !removed {
+			t.Fatalf("cards[%d] was not removed", i)
+		}
+	}
+
+	res5, err := store.ListAppInfo(credentials.AppQuery{})
+	if nil != err {
+		t.Fatalf("failed ListAppInfo after removals, got error %v", err)
+	}
+	if !reflect.DeepEqual(res5, res1[1:]) {
+		t.Errorf("failed res5 control:\n%+v\n!=\n%+v", res5, res1[1:])
+	}
+
+	err = printDB(t, dbPath)
+	if nil != err {
+		t.Errorf("failed printDB, got error %v", err)
+	}
+}
+
+func TestListAppInfo_RealmUpsert(t *testing.T) {
+	tmpdir := t.TempDir()
+	dbPath := path.Join(tmpdir, "card.db")
+	store, err := New(dbPath)
+	if nil != err {
+		t.Fatalf("failed New, got error %v", err)
+	}
+
+	realmId := make([]byte, 32)
+	rand.Read(realmId)
+
+	// first card establishes the realm
+	card1 := credentials.Card{}
+	err = initCard(&card1)
+	if nil != err {
+		t.Fatalf("failed initCard card1, got error %v", err)
+	}
+	card1.RealmId = realmId
+	card1.AppName = "OldName"
+	card1.AppDesc = "OldDesc"
+	err = store.CreateCard(&card1)
+	if nil != err {
+		t.Fatalf("failed CreateCard card1, got error %v", err)
+	}
+
+	// second card in the same realm updates the realm metadata
+	card2 := credentials.Card{}
+	err = initCard(&card2)
+	if nil != err {
+		t.Fatalf("failed initCard card2, got error %v", err)
+	}
+	card2.RealmId = realmId
+	card2.AppName = "NewName"
+	card2.AppDesc = "NewDesc"
+	err = store.CreateCard(&card2)
+	if nil != err {
+		t.Fatalf("failed CreateCard card2, got error %v", err)
+	}
+
+	apps, err := store.ListAppInfo(credentials.AppQuery{})
+	if nil != err {
+		t.Fatalf("failed ListAppInfo, got error %v", err)
+	}
+	if len(apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(apps))
+	}
+	if apps[0].AppName != "NewName" {
+		t.Errorf("expected upserted AppName %q, got %q", "NewName", apps[0].AppName)
+	}
+	if apps[0].AppDesc != "NewDesc" {
+		t.Errorf("expected upserted AppDesc %q, got %q", "NewDesc", apps[0].AppDesc)
+	}
+	if apps[0].CardCount != 2 {
+		t.Errorf("expected CardCount=2, got %d", apps[0].CardCount)
+	}
+
+	err = printDB(t, dbPath)
+	if nil != err {
+		t.Errorf("failed printDB, got error %v", err)
+	}
+}
+
 func initCard(card *credentials.Card) error {
 	realmId := make([]byte, 32)
 	rand.Read(realmId)
