@@ -36,6 +36,9 @@ type ClientCredStore interface {
 	// ListInfo returns a list of CardInfo that matches qry.
 	ListInfo(qry CardQuery) ([]CardInfo, error)
 
+	// ListAppInfo returns a list of AppInfo that matches qry.
+	ListAppInfo(qry AppQuery) ([]AppInfo, error)
+
 	// CardCount returns the number of Card in the ClientCredStore.
 	// It returns -1 in case of error.
 	CardCount() int
@@ -171,7 +174,7 @@ func (self *ClientCard) Check() error {
 // CardInfo holds Card information useful for display.
 type CardInfo struct {
 	ID      int    `json:"id" cbor:"1,keyasint"` // ClientCredStore identifier
-	RealmID int    `json:"rid" cbor:"1,keyasint"`
+	RealmID int    `json:"rid" cbor:"2,keyasint"`
 	AppName string `json:"app_name" cbor:"6,keyasint"`
 	AppDesc string `json:"app_desc,omitempty" cbor:"7,keyasint,omitempty"`
 	Label   string `json:"label,omitempty" cbor:"9,keyasint,omitempty"`
@@ -192,6 +195,20 @@ func (self *CardQuery) Check() error {
 	}
 
 	return nil
+}
+
+// AppInfo holds ClientCredStore Realm informations.
+type AppInfo struct {
+	RealmID   int    `json:"rid" cbor:"1,keyasint"`
+	AppName   string `json:"app_name" cbor:"2,keyasint"`
+	AppDesc   string `json:"app_desc,omitempty" cbor:"3,keyasint,omitempty"`
+	CardCount int    `json:"card_count" cbor:"4,keyasint"`
+}
+
+// AppQuery parametrizes ClientCredStore ListAppInfo
+type AppQuery struct {
+	MinId int // minimum Realm.ID
+	Limit int // maximum number of selected items
 }
 
 // MemClientCredStore provides "in memory" implementation of ClientCredStore.
@@ -431,7 +448,7 @@ func (self *MemClientCredStore) ListInfo(qry CardQuery) ([]CardInfo, error) {
 	}
 
 	for cId, card := range self.cardTbl {
-		if cId <= qry.MinId {
+		if qry.MinId > 0 && cId <= qry.MinId {
 			continue
 		}
 		rk := [32]byte(card.RealmId)
@@ -477,7 +494,60 @@ func (self *MemClientCredStore) ListInfo(qry CardQuery) ([]CardInfo, error) {
 
 }
 
-// Size returns the number of Card in the MemClientCredStore.
+// ListAppInfo returns a list of AppInfo that matches qry.
+func (self *MemClientCredStore) ListAppInfo(qry AppQuery) ([]AppInfo, error) {
+	self.mut.Lock()
+	defer self.mut.Unlock()
+
+	appCache := make(map[[32]byte]AppInfo)
+
+	for _, card := range self.cardTbl {
+		rk := [32]byte(card.RealmId)
+		app, found := appCache[rk]
+		if !found {
+			rId, ok := self.realmIdx[rk]
+			if !ok {
+				// db is corrupted
+				continue
+			}
+			realm, ok := self.realmTbl[rId]
+			if !ok {
+				// db is corrupted
+				continue
+			}
+			app = AppInfo{
+				RealmID: rId,
+				AppName: realm.AppName,
+				AppDesc: realm.AppDesc,
+			}
+		}
+		app.CardCount += 1
+		appCache[rk] = app
+	}
+
+	appList := make([]AppInfo, 0, len(appCache))
+	for _, app := range appCache {
+		if qry.MinId > 0 && app.RealmID <= qry.MinId {
+			continue
+		}
+		appList = append(appList, app)
+	}
+
+	// sort appList by RealmID
+	slices.SortFunc(appList, func(a0, a1 AppInfo) int {
+		return (a0.RealmID - a1.RealmID)
+	})
+
+	// enforces qry.Limit
+	if (qry.Limit > 0) && (len(appList) > qry.Limit) {
+		appList = appList[0:qry.Limit]
+	}
+
+	return appList, nil
+
+}
+
+// CardCount returns the number of Card in the MemClientCredStore.
 func (self *MemClientCredStore) CardCount() int {
 	self.mut.Lock()
 	defer self.mut.Unlock()

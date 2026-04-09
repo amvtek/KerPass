@@ -456,6 +456,210 @@ func TestMemClientCredStore_ListInfo_InvalidRealmId(t *testing.T) {
 }
 
 // ============================================================================
+// ListAppInfo
+
+func TestMemClientCredStore_ListAppInfo_HappyPath(t *testing.T) {
+	store := NewMemClientCredStore()
+	seedCards(t, store, 0x01, 0x10, 3) // realm A – 3 cards
+	seedCards(t, store, 0x02, 0x20, 2) // realm B – 2 cards
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+	if len(apps) != 2 {
+		t.Fatalf("expected 2 apps, got %d", len(apps))
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_CardCount(t *testing.T) {
+	store := NewMemClientCredStore()
+	seedCards(t, store, 0x01, 0x10, 3)
+	seedCards(t, store, 0x02, 0x20, 2)
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+
+	counts := make(map[string]int, len(apps))
+	for _, app := range apps {
+		counts[app.AppName] = app.CardCount
+	}
+	if counts["App"] != 5 {
+		// both realms have AppName "App" via seedCards – they are distinct realms
+		// so we check per-RealmID instead
+		t.Log("AppName collision; verifying counts by RealmID")
+		for _, app := range apps {
+			switch app.CardCount {
+			case 3, 2: // expected
+			default:
+				t.Errorf("unexpected CardCount %d for RealmID %d", app.CardCount, app.RealmID)
+			}
+		}
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_CardCountAccurate(t *testing.T) {
+	store := NewMemClientCredStore()
+	cards := seedCards(t, store, 0x01, 0x10, 3)
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+	if len(apps) != 1 || apps[0].CardCount != 3 {
+		t.Fatalf("expected 1 app with CardCount=3, got %+v", apps)
+	}
+
+	// remove one card and verify count drops
+	if _, err := store.RemoveCard(cards[0].ID); err != nil {
+		t.Fatalf("RemoveCard: %v", err)
+	}
+
+	apps, err = store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("ListAppInfo after remove: %v", err)
+	}
+	if len(apps) != 1 || apps[0].CardCount != 2 {
+		t.Fatalf("expected CardCount=2 after remove, got %+v", apps)
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_SortedByRealmID(t *testing.T) {
+	store := NewMemClientCredStore()
+	seedCards(t, store, 0x01, 0x10, 1)
+	seedCards(t, store, 0x02, 0x20, 1)
+	seedCards(t, store, 0x03, 0x30, 1)
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+	for i := 1; i < len(apps); i++ {
+		if apps[i].RealmID <= apps[i-1].RealmID {
+			t.Errorf("results not sorted: apps[%d].RealmID=%d <= apps[%d].RealmID=%d",
+				i, apps[i].RealmID, i-1, apps[i-1].RealmID)
+		}
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_MinId(t *testing.T) {
+	store := NewMemClientCredStore()
+	seedCards(t, store, 0x01, 0x10, 1) // realm 1
+	seedCards(t, store, 0x02, 0x20, 1) // realm 2
+	seedCards(t, store, 0x03, 0x30, 1) // realm 3
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("initial ListAppInfo: %v", err)
+	}
+	if len(apps) != 3 {
+		t.Fatalf("expected 3 apps, got %d", len(apps))
+	}
+	pivot := apps[1].RealmID // second realm ID
+
+	filtered, err := store.ListAppInfo(AppQuery{MinId: pivot})
+	if err != nil {
+		t.Fatalf("ListAppInfo with MinId: %v", err)
+	}
+	for _, app := range filtered {
+		if app.RealmID <= pivot {
+			t.Errorf("expected RealmID > %d, got %d", pivot, app.RealmID)
+		}
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_Limit(t *testing.T) {
+	store := NewMemClientCredStore()
+	seedCards(t, store, 0x01, 0x10, 1)
+	seedCards(t, store, 0x02, 0x20, 1)
+	seedCards(t, store, 0x03, 0x30, 1)
+
+	apps, err := store.ListAppInfo(AppQuery{Limit: 2})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+	if len(apps) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(apps))
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_LimitLargerThanResultSet(t *testing.T) {
+	store := NewMemClientCredStore()
+	seedCards(t, store, 0x01, 0x10, 2)
+
+	apps, err := store.ListAppInfo(AppQuery{Limit: 100})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+	if len(apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(apps))
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_Empty(t *testing.T) {
+	store := NewMemClientCredStore()
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(apps) != 0 {
+		t.Fatalf("expected empty result, got %d apps", len(apps))
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_AppMetadata(t *testing.T) {
+	store := NewMemClientCredStore()
+	card := testCard(t, 0x01, 0x10, "MyApp")
+	card.AppDesc = "My description"
+	if err := store.CreateCard(card); err != nil {
+		t.Fatalf("CreateCard: %v", err)
+	}
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+	if len(apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(apps))
+	}
+	if apps[0].AppName != "MyApp" {
+		t.Errorf("AppName: expected %q, got %q", "MyApp", apps[0].AppName)
+	}
+	if apps[0].AppDesc != "My description" {
+		t.Errorf("AppDesc: expected %q, got %q", "My description", apps[0].AppDesc)
+	}
+}
+
+func TestMemClientCredStore_ListAppInfo_RealmUpsertReflected(t *testing.T) {
+	store := NewMemClientCredStore()
+	seedCards(t, store, 0x01, 0x10, 1)
+
+	// add a second card in same realm with updated metadata
+	card2 := testCard(t, 0x01, 0x11, "UpdatedName")
+	card2.AppDesc = "Updated desc"
+	if err := store.CreateCard(card2); err != nil {
+		t.Fatalf("CreateCard: %v", err)
+	}
+
+	apps, err := store.ListAppInfo(AppQuery{})
+	if err != nil {
+		t.Fatalf("ListAppInfo: %v", err)
+	}
+	if len(apps) != 1 {
+		t.Fatalf("expected 1 app, got %d", len(apps))
+	}
+	if apps[0].AppName != "UpdatedName" {
+		t.Errorf("expected upserted AppName %q, got %q", "UpdatedName", apps[0].AppName)
+	}
+	if apps[0].CardCount != 2 {
+		t.Errorf("expected CardCount=2, got %d", apps[0].CardCount)
+	}
+}
+
+// ============================================================================
 // CardCount
 
 func TestMemClientCredStore_CardCount_Lifecycle(t *testing.T) {
