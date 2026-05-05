@@ -259,7 +259,7 @@ seconds. `T` MUST be a positive integer greater than parameter `B`.
 `B` specifies the base used for code encoding. Valid values are:
 
 - `10`, `16`, or `32`: Encodes the output using a human-readable digit set, suitable for OTP.  
-- `256`: Encodes the output in binary form, suitable for OTK.
+- `256`: Encodes the output as a raw octet string, suitable for OTK.
 
 ### P – Code Size {#P}
 
