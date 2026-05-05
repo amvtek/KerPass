@@ -819,7 +819,7 @@ No IANA action is required.
 EPHEMSEC generates `P` (see {{P}}) digits OTPs from 64-bit pseudo-random integers as
 described in {{OTP}}. This final operation may introduce a non-uniform distribution in
 the generated OTP when the code base `B` (see {{B}}) does not evenly divide 2^64, which
-occurs for all bases except `B` = 10.
+occurs when B = 10 but not for bases that are powers of 2 (B = 16 and B = 32).
 
 We apply the Bias Formula below to evaluate the bias for code base 10.
 
