@@ -278,6 +278,16 @@ supported base, along with the corresponding entropy range.
 | 32   | 6     | 13    | 25 bits     | 60 bits     |
 | 256  | 4     | 65    | 24 bits     | 512 bits    |
 
+The lower bound on P ensures a minimum entropy of 23 bits across all bases, derived from
+the entropy of 7 pseudo-random base-10 digits (one more than the 6-digit OTPs
+commonplace in deployed systems). The upper bound varies by base. For bases 16 and 32, P
+is bounded by the 64-bit integer from which the OTP is extracted (see
+{{otp-derivation}}). Base 10 is subject to sampling bias (see {{otp-bias}}); its upper
+bound is therefore reduced to ensure the bias remains negligible, corresponding to a
+46-bit entropy limit. For base 256 (OTK), no extraction bound applies; the upper bound
+of 64 bytes (512 bits of entropy) is set as a practical limit sufficient to address all
+foreseeable use cases.
+
 ## Naming Scheme {#SCHEME}
 
 EPHEMSEC uses a structured naming scheme to identify specific protocol instantiations. A
@@ -592,7 +602,7 @@ format depends on the encoding base `B` (see {{B}}).
 - `PTIME`: Responder-contributed time nonce (see {{PTIME}}).
 - `ISK`: Intermediate secret key (see {{ISK}}).
 
-## OTP Derivation (`B ∈ {10, 16, 32}`)
+## OTP Derivation (`B ∈ {10, 16, 32}`) {#otp-derivation}
 
 When `B` is 10, 16, or 32, the code is formatted as an `OTP` composed of `P` digits. The
 first `P - 1` digits are derived from `ISK`, and the last digit is a synchronization
@@ -626,7 +636,7 @@ outside the scope of this specification. Nevertheless, the use of the {{Crockfor
 alphabet is RECOMMENDED, as it is applicable to all EPHEMSEC OTP schemes and has been
 designed to minimize transcription and input errors.
 
-## OTK Derivation (`B = 256`)
+## OTK Derivation (`B = 256`) {#otk-derivation}
 
 When `B` is 256, the output is an opaque binary key. The first `P - 1` bytes are taken
 directly from `ISK`, and the last byte encodes the synchronization hint.
